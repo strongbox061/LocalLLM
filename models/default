@@ -1,0 +1,7 @@
+# Default model configuration for LocalLLM
+# Specifies which GGML model to use by default
+
+model=llama-7b
+quantization=q4_0
+context_size=512
+threads=4
