@@ -12,6 +12,9 @@ CONV_FILE="${2:-$(cat "${CONV_FILE_PATH:-.conversation_json}" 2>/dev/null || ech
 CTX_SIZE="${CTX_SIZE:-2048}"
 N_PREDICT="${N_PREDICT:-256}"
 TEMP="${TEMP:-0.7}"
+TOP_K="${TOP_K:-40}"
+TOP_P="${TOP_P:-0.95}"
+REPEAT_PENALTY="${REPEAT_PENALTY:-1.1}"
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   echo "Usage: $0 [MODEL_PATH] [CONVERSATION_JSON]"
@@ -24,6 +27,9 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   echo "  CTX_SIZE          Context size (default: ${CTX_SIZE})"
   echo "  N_PREDICT         Tokens to predict (default: ${N_PREDICT})"
   echo "  TEMP              Temperature (default: ${TEMP})"
+  echo "  TOP_K             Top-K sampling (default: ${TOP_K})"
+  echo "  TOP_P             Top-P sampling (default: ${TOP_P})"
+  echo "  REPEAT_PENALTY    Repeat penalty (default: ${REPEAT_PENALTY})"
   echo "  LLAMA_CPP_DIR     llama.cpp directory (default: auto-detect)"
   exit 0
 fi
@@ -48,5 +54,8 @@ exec "${LLAMA_CPP_DIR}/main" \
   --ctx-size "${CTX_SIZE}" \
   --n-predict "${N_PREDICT}" \
   --temp "${TEMP}" \
+  --top-k "${TOP_K}" \
+  --top-p "${TOP_P}" \
+  --repeat-penalty "${REPEAT_PENALTY}" \
   -ngl 32 \
   "${CONV_ARGS[@]+"${CONV_ARGS[@]}"}"
