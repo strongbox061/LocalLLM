@@ -9,7 +9,8 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LLAMA_CPP_DIR="${1:-${REPO_ROOT}/llama.cpp}"
 BUILD_DIR="${LLAMA_CPP_DIR}/build"
 
-echo "==> Building llama.cpp for CPU (GGML q4_0) in ${LLAMA_CPP_DIR}"
+BUILD_TYPE="${BUILD_TYPE:-Release}"
+echo "==> Building llama.cpp for CPU (GGML q4_0, type=${BUILD_TYPE}) in ${LLAMA_CPP_DIR}"
 
 if [[ ! -d "${LLAMA_CPP_DIR}/.git" ]]; then
   echo "Error: not a git repo — clone llama.cpp first:" >&2
@@ -26,9 +27,16 @@ git checkout "${LATEST_TAG}"
 mkdir -p "${BUILD_DIR}"
 cd "${BUILD_DIR}"
 
+if [[ "${BUILD_TYPE}" == "Debug" ]]; then
+  CXX_FLAGS="-O0 -g3 -march=native"
+else
+  CXX_FLAGS="-O3 -march=native"
+fi
+
 make -j"$(nproc)" \
   LLAMA_OPENBLAS=1 \
-  CXXFLAGS="-O3 -march=native"
+  BUILD=${BUILD_TYPE} \
+  CXXFLAGS="${CXX_FLAGS}"
 
 echo "==> Build complete: ${BUILD_DIR}/main"
 echo "    GGML backend: openblas (CPU only)"
