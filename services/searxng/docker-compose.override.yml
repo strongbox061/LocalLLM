@@ -1,0 +1,7 @@
+# Override to run SearXNG as a standalone service in Docker Compose.
+# Copied next to the upstream docker-compose.yml; Docker Compose merges it automatically.
+services:
+  core:
+    image: searxng/searxng:latest
+    ports:
+      - "8080:8080"
