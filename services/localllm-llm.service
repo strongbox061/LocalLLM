@@ -1,0 +1,20 @@
+[Unit]
+Description=llama.cpp server - the local model (profile: MODEL_PROFILE in ~/.config/localllm/local.env)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+EnvironmentFile=%h/.config/localllm/local.env
+# GPU_MAX_CLOCK_MHZ / GPU_POWER_LIMIT_W from local.env, as root ("+"); it never blocks the start.
+ExecStart=/opt/llama.cpp/main \
+    -m /opt/models/%MODEL_PROFILE/ggml-model-q4_0.bin \
+    -t 4 \
+    -c 2048 \
+    --port 8080 \
+    --host 127.0.0.1
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
