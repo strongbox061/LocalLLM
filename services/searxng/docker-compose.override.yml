@@ -1,7 +1,12 @@
 # Override to run SearXNG as a standalone service in Docker Compose.
 # Copied next to the upstream docker-compose.yml; Docker Compose merges it automatically.
+# Fixed public DNS (Cloudflare, Quad9), so SearXNG keeps working after a network change
+# (new house, router or Wi-Fi). Without it the container keeps the DNS servers of the network it started on.
 services:
   core:
     image: searxng/searxng:latest
     ports:
       - "8080:8080"
+    dns:
+      - 1.1.1.1
+      - 9.9.9.9
