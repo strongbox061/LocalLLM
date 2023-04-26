@@ -39,4 +39,25 @@ if [[ -z "$OUTPUT" ]]; then
   exit 1
 fi
 
+# Second test — instruction-style prompt
+PROMPT2="In one sentence, explain what a neural network is."
+OUTPUT2=$("$LLAMA_MAIN" \
+  --model "$MODEL_FILE" \
+  --prompt "$PROMPT2" \
+  --n-predict 32 \
+  --temp 0.5 \
+  -ngl 0 \
+  2>/dev/null) || {
+    echo "ERROR: llama.cpp main failed on instruction prompt"
+    exit 1
+}
+
+echo "Prompt: $PROMPT2"
+echo "Output: $OUTPUT2"
+
+if [[ -z "$OUTPUT2" ]]; then
+  echo "FAIL: Empty output from model on instruction prompt"
+  exit 1
+fi
+
 echo "PASS: Smoke test completed successfully"
