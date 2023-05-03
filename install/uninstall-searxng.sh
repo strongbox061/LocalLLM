@@ -14,6 +14,6 @@ echo "Stopping SearXNG..."
 docker compose down
 
 echo "Removing SearXNG files..."
-sudo rm -rf "$SEARXNG_DIR"
+rm -rf "$SEARXNG_DIR"
 
 echo "SearXNG installation removed."
