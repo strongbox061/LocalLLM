@@ -4,7 +4,13 @@ set -euo pipefail
 # bench-ggml-tokens.sh — Quick tokens/sec benchmark for GGML models via llama.cpp
 # Usage: ./bench-ggml-tokens.sh <model.ggmlv3.q4_0.bin> [predict_tokens] [threads]
 
-MODEL="${1:?Usage: $0 <model.ggmlv3.q4_0.bin> [predict_tokens] [threads]}"
+VERIFY=0
+if [[ "${1:-}" == "--verify" ]]; then
+  VERIFY=1
+  shift
+fi
+
+MODEL="${1:?Usage: $0 [--verify] <model.ggmlv3.q4_0.bin> [predict_tokens] [threads]}"
 TOKENS="${2:-512}"
 THREADS="${3:-$(nproc 2>/dev/null || echo 4)}"
 
@@ -36,4 +42,14 @@ else
   ELAPSED_S=$(echo "scale=3; $ELAPSED_NS / 1000000000" | bc)
   TOKS_PER_SEC=$(echo "scale=2; $TOKENS / $ELAPSED_S" | bc)
   echo "Result: ${TOKS_PER_SEC} tok/s (${TOKENS} tokens in ${ELAPSED_S}s)"
+fi
+
+# Verification mode: check that tok/s is within expected range for GGML q4_0
+if [[ "$VERIFY" -eq 1 ]]; then
+  MIN_TOKS=$(echo "$TOKS_PER_SEC < 2" | bc -l)
+  if [[ "$MIN_TOKS" -eq 1 ]]; then
+    echo "FAIL: tok/s ($TOKS_PER_SEC) is below expected minimum (2) — model may be corrupted or CPU too slow" >&2
+    exit 1
+  fi
+  echo "PASS: tok/s ($TOKS_PER_SEC) is within expected range for GGML q4_0"
 fi
