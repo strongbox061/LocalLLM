@@ -44,6 +44,10 @@ engines:
     engine: github
     shortcut: gh
 
+  - name: arxiv
+    engine: arxiv
+    shortcut: ax
+
 ui:
   static_use_hash: true
   default_theme: simple
