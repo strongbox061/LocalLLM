@@ -22,16 +22,23 @@ fi
 
 mkdir -p "${BACKUP_DIR}"
 
-RSYNC_OPTS="--archive --delete --human-readable --progress"
+RSYNC_OPTS="--archive --delete --human-readable --progress --quiet"
 if [[ -n "${DRY_RUN}" ]]; then
   RSYNC_OPTS+=" --dry-run"
   echo "[DRY RUN] Would rsync from ${SOURCE_DIR} to ${BACKUP_DIR}"
 fi
 
-rsync ${RSYNC_OPTS} \
-  "${SOURCE_DIR}/../models/" \
-  "${SOURCE_DIR}/../scripts/" \
-  "${SOURCE_DIR}/../llama.cpp/" \
-  "${BACKUP_DIR}/"
+# Build list of existing source directories
+SOURCE_DIRS=()
+for dir in "${SOURCE_DIR}/../models" "${SOURCE_DIR}/../scripts" "${SOURCE_DIR}/../llama.cpp"; do
+  [[ -d "$dir" ]] && SOURCE_DIRS+=("$dir/")
+done
 
-echo "Backup complete: ${BACKUP_DIR}"
+if [[ ${#SOURCE_DIRS[@]} -eq 0 ]]; then
+  echo "Error: No source directories found to back up."
+  exit 1
+fi
+
+rsync ${RSYNC_OPTS} "${SOURCE_DIRS[@]}" "${BACKUP_DIR}/"
+
+echo "Backup complete: ${BACKUP_DIR} (${#SOURCE_DIRS[@]} source dirs)"
