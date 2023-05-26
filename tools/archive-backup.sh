@@ -16,6 +16,11 @@ ENV_FILE="$CONFIG_DIR/local.env"
 [[ -f "$ENV_FILE" ]] && source "$ENV_FILE"
 
 OUT_DIR="${1:-$BACKUP_ARCHIVE_DIR}"
+[[ -n "$OUT_DIR" ]] || { echo "No archive folder: set BACKUP_ARCHIVE_DIR in $ENV_FILE" >&2; exit 1; }
+
+[[ "$BACKUP_KEEP_COUNT" =~ ^[1-9][0-9]*$ ]] \
+    || { echo "How many archives to keep isn't set: BACKUP_KEEP_COUNT in $ENV_FILE" >&2; exit 1; }
+
 NAME="LocalLLM-backup-$(date +%Y-%m-%d-%H%M)"
 TAR="$OUT_DIR/$NAME.tar.gz"
 GPG_OUT="$TAR.gpg"
@@ -25,7 +30,13 @@ trap 'rm -f "$TAR" "$GPG_OUT"' EXIT
 
 # --- Helper: read passphrase from file if set ---
 get_passphrase() {
-    if [[ -n "${BACKUP_PASSPHRASE_FILE:-}" && -f "$BACKUP_PASSPHRASE_FILE" ]]; then
+    if [[ -n "${BACKUP_PASSPHRASE_FILE:-}" ]]; then
+        [[ -f "$BACKUP_PASSPHRASE_FILE" ]] \
+            || { echo "BACKUP_PASSPHRASE_FILE in $ENV_FILE names a file that doesn't exist." >&2; exit 1; }
+        local perms
+        perms=$(stat -c %a "$BACKUP_PASSPHRASE_FILE")
+        [[ "$perms" == "600" ]] \
+            || { echo "$BACKUP_PASSPHRASE_FILE can be read by others: chmod 600 it." >&2; exit 1; }
         cat "$BACKUP_PASSPHRASE_FILE"
     else
         return 1
