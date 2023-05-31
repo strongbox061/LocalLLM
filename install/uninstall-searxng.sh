@@ -11,7 +11,7 @@ fi
 cd "$SEARXNG_DIR"
 
 echo "Stopping SearXNG..."
-docker compose down
+docker compose down -v --remove-orphans 2>/dev/null || true
 
 echo "Removing SearXNG files..."
 sudo rm -rf "$SEARXNG_DIR"
