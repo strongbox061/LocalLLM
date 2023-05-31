@@ -31,6 +31,13 @@ fi
 
 source "${VENV_DIR}/bin/activate"
 
+# ── GPU check (optional, runs on CPU if missing) ────────────────────────
+if command -v nvidia-smi &>/dev/null; then
+  echo "[comfyui-start] NVIDIA GPU detected — CUDA mode enabled"
+else
+  echo "[comfyui-start] No NVIDIA GPU found — running on CPU (slow)" >&2
+fi
+
 # ── Install dependencies ────────────────────────────────────────────────
 echo "[comfyui-start] Installing requirements …"
 pip install --upgrade pip
