@@ -2,7 +2,6 @@
 # Docker Compose merges it automatically.
 # Fixed public DNS (Cloudflare, Quad9), so SearXNG keeps working after a network change
 # (new house, router or Wi-Fi). Without it the container keeps the DNS servers of the network it started on.
-# Port mapping removed — handled by the base docker-compose.yml
 services:
   core:
     dns:
