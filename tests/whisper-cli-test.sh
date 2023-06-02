@@ -45,4 +45,10 @@ if [[ ! -s "$OUTPUT_DIR/transcript.txt" ]]; then
   exit 1
 fi
 
-echo "PASS: Transcription test completed successfully"
+TRANSCRIPT_LEN=$(wc -c < "$OUTPUT_DIR/transcript.txt")
+if [[ "$TRANSCRIPT_LEN" -lt 5 ]]; then
+  echo "FAIL: Transcript too short ($TRANSCRIPT_LEN bytes)"
+  exit 1
+fi
+
+echo "PASS: Transcription test completed successfully (${TRANSCRIPT_LEN} bytes)"
