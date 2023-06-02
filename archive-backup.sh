@@ -5,110 +5,42 @@
 # when set; otherwise gpg asks for it. The output folder keeps only the newest BACKUP_KEEP_COUNT archives (local.env);
 # older ones are deleted.
 # The archive holds backup/ with the repo itself (backup/repo.bundle), so a fresh install needs nothing else.
-
+# The last line printed is the archive's path. Restore: README, "Opening a backup".
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_DIR="${HOME}/.config/localllm"
-ENV_FILE="$CONFIG_DIR/local.env"
-
-# Source environment defaults if available
-[[ -f "$ENV_FILE" ]] && source "$ENV_FILE"
+source "$(dirname -- "${BASH_SOURCE[0]}")/lib/common.sh"
 
 OUT_DIR="${1:-$BACKUP_ARCHIVE_DIR}"
-[[ -n "$OUT_DIR" ]] || { echo "No archive folder: set BACKUP_ARCHIVE_DIR in $ENV_FILE" >&2; exit 1; }
-
+[[ -n "$OUT_DIR" ]] || die "No archive folder: set BACKUP_ARCHIVE_DIR in $LOCAL_ENV_FILE (see config/local.example.env), or pass one."
 [[ "$BACKUP_KEEP_COUNT" =~ ^[1-9][0-9]*$ ]] \
-    || { echo "How many archives to keep isn't set: BACKUP_KEEP_COUNT in $ENV_FILE" >&2; exit 1; }
+    || die "How many archives to keep isn't set: BACKUP_KEEP_COUNT in $LOCAL_ENV_FILE (see config/local.example.env)."
 
+if [[ -n "$BACKUP_PASSPHRASE_FILE" ]]; then
+    [[ -f "$BACKUP_PASSPHRASE_FILE" ]] || die "BACKUP_PASSPHRASE_FILE in $LOCAL_ENV_FILE names a file that doesn't exist."
+    [[ "$(stat -c %a "$BACKUP_PASSPHRASE_FILE")" == "600" ]] \
+        || die "$BACKUP_PASSPHRASE_FILE can be read by others: chmod 600 it."
+    GPG_PASS=(--batch --pinentry-mode loopback --passphrase-file "$BACKUP_PASSPHRASE_FILE")
+else
+    GPG_PASS=()
+fi
+
+"$REPO_DIR/backup.sh"
+
+log "Archive"
+mkdir -p "$OUT_DIR"
 NAME="LocalLLM-backup-$(date +%Y-%m-%d-%H%M)"
 TAR="$OUT_DIR/$NAME.tar.gz"
 GPG_OUT="$TAR.gpg"
-
 # Never leave an unencrypted or half-written archive behind.
-trap 'rm -f "$TAR" "$GPG_OUT"' EXIT
+trap 'rm -f "$TAR" "$GPG_OUT.part"' EXIT
 
-# --- Helper: read passphrase from file if set ---
-get_passphrase() {
-    if [[ -n "${BACKUP_PASSPHRASE_FILE:-}" ]]; then
-        [[ -f "$BACKUP_PASSPHRASE_FILE" ]] \
-            || { echo "BACKUP_PASSPHRASE_FILE in $ENV_FILE names a file that doesn't exist." >&2; exit 1; }
-        local perms
-        perms=$(stat -c %a "$BACKUP_PASSPHRASE_FILE")
-        [[ "$perms" == "600" ]] \
-            || { echo "$BACKUP_PASSPHRASE_FILE can be read by others: chmod 600 it." >&2; exit 1; }
-        cat "$BACKUP_PASSPHRASE_FILE"
-    else
-        return 1
-    fi
-}
+tar -czf "$TAR" -C "$REPO_DIR" backup
+gpg --quiet --symmetric --cipher-algo AES256 "${GPG_PASS[@]}" --output "$GPG_OUT.part" "$TAR"
+mv "$GPG_OUT.part" "$GPG_OUT"
+rm -f "$TAR"
 
-# --- Create backup directory and bundle the repo ---
-create_backup() {
-    local backup_dir="backup"
-    rm -rf "$backup_dir"
-    mkdir -p "$backup_dir"
-
-    # Bundle the repository (exclude backup/ itself, .git, and large binaries)
-    tar czf "$TAR" \
-        --exclude='backup/' \
-        --exclude='.git' \
-        --exclude='*.bin' \
-        --exclude='models/' \
-        .
-
-    echo "Archive created: $TAR"
-}
-
-# --- Encrypt the archive ---
-encrypt_archive() {
-    local passphrase=""
-    passphrase="$(get_passphrase)" || true
-
-    if [[ -n "$passphrase" ]]; then
-        gpg --batch --yes --passphrase "$passphrase" \
-            --symmetric --cipher-algo AES256 \
-            --output "$GPG_OUT" "$TAR"
-    else
-        gpg --batch --yes --symmetric \
-            --cipher-algo AES256 \
-            --output "$GPG_OUT" "$TAR"
-    fi
-
-    echo "Encrypted: $GPG_OUT"
-}
-
-# --- Clean up old archives ---
-cleanup_old_archives() {
-    local keep="${BACKUP_KEEP_COUNT:-3}"
-    local count
-
-    # List archives sorted by name (date prefix ensures chronological order)
-    count=$(ls -1 "$OUT_DIR"/LocalLLM-backup-*.tar.gz.gpg 2>/dev/null | wc -l)
-
-    if (( count > keep )); then
-        local to_remove=$(( count - keep ))
-        ls -1 "$OUT_DIR"/LocalLLM-backup-*.tar.gz.gpg | sort | head -n "$to_remove" | while read -r old_archive; do
-            rm -f "$old_archive"
-            echo "Removed old archive: $old_archive"
-        done
-    fi
-}
-
-# --- Main ---
-main() {
-    # Ensure output directory exists
-    mkdir -p "$OUT_DIR"
-
-    create_backup
-    encrypt_archive
-
-    # Remove trap since we succeeded
-    trap - EXIT
-
-    cleanup_old_archives
-
-    echo "$GPG_OUT"
-}
-
-main "$@"
+# All but the newest BACKUP_KEEP_COUNT (the names sort by date; the archive just made is the newest, so it stays).
+find "$OUT_DIR" -maxdepth 1 -name 'LocalLLM-backup-*.tar.gz.gpg' -printf '%f\n' | sort | head -n -"$BACKUP_KEEP_COUNT" \
+    | while IFS= read -r old; do rm -f "$OUT_DIR/$old"; echo "  deleted $OUT_DIR/$old"; done
+echo "  saved   $GPG_OUT ($(du -h "$GPG_OUT" | cut -f1))"
+echo "$GPG_OUT"
