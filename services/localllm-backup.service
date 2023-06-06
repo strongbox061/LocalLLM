@@ -1,0 +1,8 @@
+# Encrypted backup of backup/ to the rclone remote. Started by localllm-backup.timer.
+
+[Unit]
+Description=LocalLLM encrypted off-site backup
+
+[Service]
+Type=oneshot
+ExecStart=@REPO_DIR@/upload-backup.sh
