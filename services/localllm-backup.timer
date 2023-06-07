@@ -6,6 +6,7 @@ Description=LocalLLM off-site backup every 6 hours
 
 [Timer]
 OnCalendar=*-*-* 00,06,12,18:00
+Persistent=true
 
 [Install]
 WantedBy=timers.target
