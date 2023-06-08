@@ -10,70 +10,37 @@ source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
 
 ENABLE=false
 case "${1:-}" in
-  --enable) ENABLE=true ;;
-  *) ;;
+    "") ;;
+    --enable) ENABLE=true ;;
+    *) die "Usage: $0 [--enable]" ;;
 esac
 
-# Install rclone if it is not already available
-if ! command -v rclone &>/dev/null; then
-  log_info "Installing rclone..."
-  curl -fsSL https://rclone.org/install.sh | sudo bash
+command -v rclone >/dev/null || sudo pacman -S --needed rclone
+
+render() { sed "s|@REPO_DIR@|$REPO_DIR|" "$REPO_DIR/services/$1"; }
+install_user_unit localllm-backup.service "$(render localllm-backup.service)"
+install_user_unit localllm-backup.timer "$(render localllm-backup.timer)"
+
+todo=()
+if [[ "$BACKUP_REMOTE" != ?*:* ]]; then
+    todo+=("set BACKUP_REMOTE=\"remote:folder\" in $LOCAL_ENV_FILE (see config/local.example.env)")
+elif ! rclone listremotes | grep -qxF "${BACKUP_REMOTE%%:*}:"; then
+    todo+=("rclone config    (create the remote '${BACKUP_REMOTE%%:*}' that BACKUP_REMOTE names, with your storage's login)")
+fi
+if [[ ${#todo[@]} -eq 0 ]] && ! systemctl --user is-enabled --quiet localllm-backup.timer; then
+    if $ENABLE; then
+        echo "Test upload before turning the timer on:"
+        "$REPO_DIR/upload-backup.sh"
+        systemctl --user enable --now localllm-backup.timer
+    else
+        todo+=("install/backup-timer.sh --enable    (one test upload, then turns the timer on)")
+    fi
 fi
 
-# Read the backup remote from the environment file
-BACKUP_REMOTE=""
-if [[ -f "$CONFIG_DIR/local.env" ]]; then
-  BACKUP_REMOTE=$(grep '^BACKUP_REMOTE=' "$CONFIG_DIR/local.env" | head -1 | cut -d= -f2-)
-fi
-
-if [[ -z "$BACKUP_REMOTE" ]]; then
-  log_warn "BACKUP_REMOTE not set in $CONFIG_DIR/local.env — timer will be installed but needs rclone config first"
-fi
-
-# Create systemd unit files
-UNIT_DIR="/etc/systemd/system"
-
-cat > "${UNIT_DIR}/localllm-backup.service" <<'EOF'
-[Unit]
-Description=LocalLLM encrypted backup upload
-After=network-online.target
-
-[Service]
-Type=oneshot
-EnvironmentFile=${CONFIG_HOME:-$HOME/.config/localllm}/local.env
-ExecStart=/usr/local/bin/upload-backup.sh
-EOF
-
-cat > "${UNIT_DIR}/localllm-backup.timer" <<'EOF'
-[Unit]
-Description=Run LocalLLM backup every 6 hours
-
-[Timer]
-OnBootSec=30min
-OnUnitActiveSec=6h
-
-[Install]
-WantedBy=timers.target
-EOF
-
-# Reload systemd and install the timer
-sudo systemctl daemon-reload
-sudo systemctl enable localllm-backup.timer
-
-log_info "localllm-backup.timer installed (every 6 hours)."
-log_info ""
-log_info "To enable the timer and run a test upload:"
-log_info "  sudo install/backup-timer.sh --enable"
-log_info ""
-log_info "Before that, make sure you have:"
-log_info "  1. rclone configured for your remote (rclone config)"
-log_info "  2. A GPG passphrase file at ~/.config/localllm/gpg-passphrase"
-
-if [[ "$ENABLE" == true ]]; then
-  if [[ -n "$BACKUP_REMOTE" ]]; then
-    log_info "Running test upload..."
-    /usr/local/bin/upload-backup.sh && log_info "Test upload succeeded." || log_warn "Test upload failed — check rclone config and passphrase file."
-  else
-    log_warn "Skipping test upload: BACKUP_REMOTE is not set."
-  fi
+if [[ ${#todo[@]} -eq 0 ]]; then
+    echo "Backup timer enabled; next run:"
+    systemctl --user list-timers localllm-backup.timer --no-pager | sed -n 2p
+else
+    echo "To turn on the automatic backup, still to do:"
+    printf '  - %s\n' "${todo[@]}"
 fi
