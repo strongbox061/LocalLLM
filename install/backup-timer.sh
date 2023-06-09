@@ -27,6 +27,8 @@ if [[ "$BACKUP_REMOTE" != ?*:* ]]; then
 elif ! rclone listremotes | grep -qxF "${BACKUP_REMOTE%%:*}:"; then
     todo+=("rclone config    (create the remote '${BACKUP_REMOTE%%:*}' that BACKUP_REMOTE names, with your storage's login)")
 fi
+[[ "$BACKUP_KEEP_COUNT" =~ ^[1-9][0-9]*$ ]] \
+    || todo+=("set BACKUP_KEEP_COUNT (how many archives to keep, e.g. 8) in $LOCAL_ENV_FILE (see config/local.example.env)")
 if [[ ${#todo[@]} -eq 0 ]] && ! systemctl --user is-enabled --quiet localllm-backup.timer; then
     if $ENABLE; then
         echo "Test upload before turning the timer on:"
