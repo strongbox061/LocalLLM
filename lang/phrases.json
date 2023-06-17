@@ -20,8 +20,8 @@
       "please": ["please", "pls", "kindly"],
       "latest": ["latest", "newest", "current", "currently", "most recent", "recent", "recently", "up to date", "new features", "new feature", "what's new", "changelog", "change log", "release notes", "release note"],
       "error": ["error", "errors", "exception", "exceptions", "traceback", "stack trace", "fail", "fails", "failed", "failing", "failure", "crash", "crashes", "crashed", "crashing", "segfault", "fix", "broken", "doesn't work", "does not work", "not working"],
-      "lookup": ["look it up", "search for", "find out", "check online", "browse", "fetch", "retrieve", "get info on", "search the web"],
-      "action_start": ["search", "find", "open", "read", "check", "look up", "browse", "fetch", "get", "visit", "navigate to"],
+      "lookup": ["look this up", "look it up", "look that up", "not your memory", "not from memory", "search online", "look online"],
+      "action_start": ["search", "find", "look up", "open", "read", "browse", "go to", "visit", "download", "edit"],
       "question_start": ["what", "where", "when", "why", "how", "who", "which", "is there", "are there", "does", "do", "can", "should", "would", "could"]
     }
   }
