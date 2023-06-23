@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install Tailscale, your browser (if BROWSER_INSTALLER is set in local.env), and restore backup/.
+# Tailscale, your browser (if BROWSER_INSTALLER is set in local.env), and restores backup/.
 # Safe to run again: steps that are already done are skipped.
 #   ./install.sh            install what is missing
 #   ./install.sh --update   also update packages
@@ -11,106 +11,99 @@ set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/lib/common.sh"
 
 UPDATE=""
-if [[ "${1:-}" == "--update" ]]; then
-    UPDATE=1
-fi
+case "${1:-}" in
+    "") ;;
+    --update) UPDATE="--update" ;;
+    *) die "Usage: $0 [--update]" ;;
+esac
+
+[[ "$(id -u)" -ne 0 ]] || die "Run this as your normal user, not root. It asks for sudo when needed."
+
+log "Checks"
+nvidia-smi >/dev/null 2>&1 || die "nvidia-smi does not work. Install the NVIDIA driver (and reboot) first."
+command -v docker >/dev/null || die "Docker is not installed. Install docker and docker-compose first."
+docker compose version >/dev/null 2>&1 || die "'docker compose' does not work. Install docker-compose."
+systemctl is-enabled --quiet docker.service \
+    || die "docker.service is not enabled, so SearXNG would not start at boot: sudo systemctl enable --now docker.service"
+echo "NVIDIA driver and Docker are ready."
 
 # This setup is only installed from a backup (README, "Reinstalling from scratch"): on a machine that doesn't have its
 # settings yet, backup/ must hold them (the newest archive unpacked into the repo, README "Opening a backup").
+if [[ ! -f "$LOCAL_ENV_FILE" ]]; then
+    for f in local.env scripts/*.sh install/*.sh restore.sh; do
+        [[ -f "$BACKUP_DIR/$f" ]] \
+            || die "No backup to install from (backup/$f is missing): unpack the newest backup archive into $REPO_DIR first (README, \"Opening a backup\")."
+    done
+    echo "Installing from the backup in $BACKUP_DIR."
+fi
+free_gb="$(df --output=avail -BG "$HOME" | tail -1 | tr -dc '0-9')"
 # Everything but the model takes about 28 GB; install/llama.sh checks the model's own size before downloading it.
-# setup does not depend on a particular desktop environment pulling them in.
+if [[ "${free_gb:-0}" -lt 30 ]]; then
+    warn "Only ${free_gb} GB free in $HOME; a fresh install needs about 28 GB plus the model (README, \"Reinstalling from scratch\")."
+fi
 
+log "System packages"
 PACKAGES=(
-    git
-    curl
-    wget
-    jq
-    htop
-    tmux
+    base-devel cmake git cuda uv nodejs npm python diffutils sqlite openssl openssh curl gnupg rclone shellcheck bubblewrap libnotify dmidecode
+    ffmpeg nss nspr at-spi2-core libcups libdrm libxkbcommon mesa pango cairo alsa-lib libxcomposite libxdamage libxfixes libxrandr
 )
 
 # Packages this PC needs beyond the setup's own (EXTRA_PACKAGES in local.env, e.g. your laptop vendor's fan tool for
 # tools/fans/). Read again after the restore, which may just have brought local.env back.
 # shellcheck source=/dev/null
-if [[ -f "$(dirname -- "${BASH_SOURCE[0]}")/local.env" ]]; then
-    source "$(dirname -- "${BASH_SOURCE[0]}")/local.env"
+[[ -f "$LOCAL_ENV_FILE" ]] && source "$LOCAL_ENV_FILE"
+if refresh_endpoints force; then
+    # shellcheck source=/dev/null
+    source "$ENDPOINTS_ENV"
 fi
-
-# --- Helper functions ---
-
-install_packages() {
-    local pkg_list=("$@")
-    for pkg in "${pkg_list[@]}"; do
-        if command_exists "$pkg"; then
-            info "$pkg already installed, skipping"
-        else
-            info "Installing $pkg..."
-            sudo pacman -S --noconfirm "$pkg"
-        fi
-    done
-}
-
-install_tailscale() {
-    if command_exists tailscale; then
-        info "Tailscale already installed"
+if [[ "$(declare -p EXTRA_PACKAGES 2>/dev/null)" == "declare -a"* && ${#EXTRA_PACKAGES[@]} -gt 0 ]]; then
+    log "This PC's extra packages (EXTRA_PACKAGES in local.env)"
+    if pacman -Q "${EXTRA_PACKAGES[@]}" >/dev/null 2>&1; then
+        echo "Already installed."
     else
-        info "Installing Tailscale..."
-        sudo pacman -S --noconfirm tailscale
-        sudo systemctl enable --now tailscaled.service
+        sudo pacman -S --needed "${EXTRA_PACKAGES[@]}"
     fi
-}
-
-restore_backup() {
-    local backup_dir
-    backup_dir="$(dirname -- "${BASH_SOURCE[0]}")/backup"
-    if [[ -d "$backup_dir" ]] && ls "$backup_dir"/*.tar.gz &>/dev/null; then
-        info "Restoring from backup..."
-        local latest_backup
-        latest_backup=$(ls -t "$backup_dir"/*.tar.gz 2>/dev/null | head -1)
-        if [[ -n "$latest_backup" ]]; then
-            tar -xzf "$latest_backup" -C "$(dirname -- "${BASH_SOURCE[0]}")"
-            info "Backup restored from $(basename "$latest_backup")"
-        fi
-    else
-        info "No backup found, skipping restore"
-    fi
-}
-
-install_browser() {
-    if [[ -n "${BROWSER_INSTALLER:-}" ]]; then
-        info "Installing browser: $BROWSER_INSTALLER"
-        case "$BROWSER_INSTALLER" in
-            firefox)
-                sudo pacman -S --noconfirm firefox
-                ;;
-            chromium)
-                sudo pacman -S --noconfirm chromium
-                ;;
-            *)
-                warn "Unknown BROWSER_INSTALLER: $BROWSER_INSTALLER"
-                ;;
-        esac
-    fi
-}
-
-# --- Main ---
-
-if [[ "$UPDATE" == "1" ]]; then
-    info "Updating all packages..."
-    sudo pacman -Syu --noconfirm
 fi
 
-info "Installing base packages..."
-install_packages "${PACKAGES[@]}"
-
-# Add extra packages from local.env if set
-if [[ -n "${EXTRA_PACKAGES:-}" ]]; then
-    IFS=' ' read -ra extra_pkgs <<< "$EXTRA_PACKAGES"
-    install_packages "${extra_pkgs[@]}"
+if [[ -n "${BROWSER_INSTALLER:-}" ]]; then
+    log "Browser (BROWSER_INSTALLER in local.env)"
+    [[ -x "$BROWSER_INSTALLER" ]] || die "BROWSER_INSTALLER is not executable: $BROWSER_INSTALLER"
+    "$BROWSER_INSTALLER" $UPDATE
+fi
+if [[ -n "${BROWSER_POLICY_DIR:-}" ]]; then
+    "$REPO_DIR/install/browser-address.sh"
 fi
 
-restore_backup
-install_tailscale
-install_browser
+log "Memory: zram, swap tuning${BROWSER_POLICY_DIR:+, browser Memory Saver}"
+"$REPO_DIR/install/memory.sh"
 
-info "Setup complete. Next steps: install Docker, then run ./start.sh to launch services."
+log "llama.cpp and model"
+"$REPO_DIR/install/llama.sh" $UPDATE
+
+log "SearXNG"
+"$REPO_DIR/install/searxng.sh"
+
+log "Pi"
+"$REPO_DIR/install/pi.sh" $UPDATE
+
+log "Pi extensions, AGENTS.md and skills from this repo"
+"$REPO_DIR/install/pi-config.sh"
+
+log "OCR for scanned PDFs (Tesseract, OCRmyPDF)"
+"$REPO_DIR/install/ocr.sh" $UPDATE
+
+log "Tailscale (the private network to the helper PC, for the two-PC setup)"
+"$REPO_DIR/install/tailscale.sh"
+
+if [[ -n "${HELPER_HOST:-}" ]]; then
+    log "Helper PC Tailscale keepalive timer (install/helper-keepalive.sh --enable turns it on)"
+    "$REPO_DIR/install/helper-keepalive.sh"
+fi
+
+log "Off-site backup with rclone (the timer; README step 12 turns it on)"
+"$REPO_DIR/install/backup-timer.sh"
+
+log "Done"
+echo "SearXNG is running and starts at boot (Docker, restart: always)."
+echo "Next, the README's steps after the scripts (\"Reinstalling from scratch\", steps 7-12): log out and in once,"
+echo "and the scheduled backup."
