@@ -13,9 +13,7 @@ The server has 2 slots (64K context each with the default model), so its two cli
 
 ## Model
 
-The default model is LLaMA-7B in GGML q4_0 format. A Vicuna-7B chat profile is also available via `model.sh`.
-
-Model files live in `models/` and are referenced by filename in the config. The quantization level (q4_0) is baked into the filename, not passed as a flag.
+The model is described by a **profile** in `models/` — its download location (Hugging Face repository and file), context per slot, number of slots, longest answer, prompt cache, sampling settings, and reasoning mode (`REASONING`). Profile files live in `models/` as `.env` files and are referenced by filename. The quantization level is baked into the model filename, not passed as a flag.
 
 To export model metadata as JSON:
 
