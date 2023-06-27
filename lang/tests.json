@@ -22,9 +22,16 @@
       "action_start": ["Busca reseñas del portátil nuevo", "Por favor, busca reseñas del portátil nuevo"],
       "question_start": ["Cómo configuro un proxy en Vite"],
       "local_current": ["Lista los archivos del directorio actual"],
-      "named_source": ["Lee la documentación de Vite y dime sobre la opción proxy"],
-      "lookup": ["Por favor, búscalo, no de memoria"],
-      "none": ["Necesito los números reales para el informe."]
+      "named_engine": ["Busca en Mojeek pi coding agent"],
+      "named_source": ["Lee la documentación de Vite y explícame el proxy"],
+      "lookup": ["Búscalo en internet, no de memoria"],
+      "offer": ["¿Te gustaría que compare otras versiones?"],
+      "from_memory": ["Respondí de memoria, sin buscar en la web."],
+      "current_info": ["Cuánto cuesta una RTX 5090 ahora mismo", "El precio actual de la acción"],
+      "months": ["noviembre de 2025"],
+      "bot_check": ["Acceso denegado"],
+      "none": ["Mañana voy al mercado con mi hermana.", "La casa tiene un jardín muy grande."],
+      "not": {"latest": ["El precio actual de la acción"]}
     },
     "fr": {
       "latest": ["Quelles sont les dernières nouveautés de Vite"],
