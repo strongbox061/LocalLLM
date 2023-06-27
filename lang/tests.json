@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "description": "Language-specific test phrases for LocalLLM assistant",
+  "languages": {
+    "en": {
+      "latest": ["What's new in the latest Vite release", "Show me the changelog for httpx"],
+      "error": ["My build fails with a strange message", "The app crashed after the update"],
+      "question_start": ["What does rsync's partial flag do", "how do I cancel a fetch request"],
+      "local_current": ["List the files in the current directory"],
+      "named_source": ["Read the Vite docs and tell me about the proxy option", "Compare the context lengths according to their model cards"],
+      "lookup": ["Please look it up, not from memory"],
+      "offer": ["Would you like me to compare more versions?"],
+      "from_memory": ["I answered from memory, without opening any page."],
+      "current_info": ["What is the current price of an RTX 5090", "best deals on laptops this week"],
+      "months": ["November 2025", "nov. 2025"],
+      "bot_check": ["Just a moment... Checking your browser before accessing the site."],
+      "none": ["I need the actual numbers for the report.", "My sister bought a red bicycle yesterday.", "The garden looks lovely in spring."]
+    },
+    "es": {
+      "latest": ["Quiero ver las novedades de la última versión de Vite"],
+      "error": ["Me sale un error al compilar el proyecto"],
+      "action_start": ["Busca reseñas del portátil nuevo", "Por favor, busca reseñas del portátil nuevo"],
+      "question_start": ["Cómo configuro un proxy en Vite"],
+      "local_current": ["Lista los archivos del directorio actual"],
+      "named_source": ["Lee la documentación de Vite y dime sobre la opción proxy"],
+      "lookup": ["Por favor, búscalo, no de memoria"],
+      "none": ["Necesito los números reales para el informe."]
+    },
+    "fr": {
+      "latest": ["Quelles sont les dernières nouveautés de Vite"],
+      "error": ["Ma compilation échoue avec un message étrange"],
+      "question_start": ["Comment configurer un proxy dans Vite"],
+      "local_current": ["Lister les fichiers du répertoire courant"],
+      "lookup": ["Veuillez le rechercher, pas de mémoire"],
+      "none": ["J'ai besoin des chiffres réels pour le rapport."]
+    },
+    "de": {
+      "latest": ["Was gibt es Neues in der neuesten Vite-Version"],
+      "error": ["Mein Build schlägt mit einer seltsamen Meldung fehl"],
+      "question_start": ["Wie konfiguriere ich einen Proxy in Vite"],
+      "local_current": ["Dateien im aktuellen Verzeichnis auflisten"],
+      "lookup": ["Bitte suchen Sie es nach, nicht aus dem Gedächtnis"],
+      "none": ["Ich brauche die tatsächlichen Zahlen für den Bericht."]
+    },
+    "ja": {
+      "latest": ["最新のViteの新機能は何ですか"],
+      "error": ["ビルドが奇妙なメッセージで失敗します"],
+      "question_start": ["Viteでプロキシを設定するにはどうすればよいですか"],
+      "local_current": ["現在のディレクトリのファイルをリストアップ"],
+      "lookup": "記憶ではなく検索してください",
+      "none": "レポートには実際の数値が必要です。"
+    },
+    "zh": {
+      "latest": ["Vite 最新版本有什么新功能"],
+      "error": ["我的构建因奇怪的错误而失败"],
+      "question_start": ["如何在 Vite 中配置代理"],
+      "local_current": ["列出当前目录中的文件"],
+      "lookup": "请去查找，不要凭记忆",
+      "none": "我需要报告的实际数据。"
+    },
+    "pt": {
+      "latest": ["O que há de novo na última versão do Vite"],
+      "error": ["Minha compilação falha com uma mensagem estranha"],
+      "question_start": ["Como configuro um proxy no Vite"],
+      "local_current": ["Listar arquivos no diretório atual"],
+      "lookup": "Por favor, pesquise, não de memória",
+      "none": ["Preciso dos números reais para o relatório."]
+    },
+    "ru": {
+      "latest": ["Что нового в последней версии Vite"],
+      "error": ["Мой билд падает с странной ошибкой"],
+      "question_start": ["Как настроить прокси в Vite"],
+      "local_current": ["Список файлов в текущей директории"],
+      "lookup": "Пожалуйста, поищите, а не из памяти",
+      "none": "Мне нужны реальные цифры для отчета."
+    },
+    "ar": {
+      "latest": ["ما الجديد في أحدث إصدار من Vite"],
+      "error": ["فشل البناء الخاص بي برسالة غريبة"],
+      "question_start": ["كيف أكوين بروكسي في Vite"],
+      "local_current": ["قائمة الملفات في الدليل الحالي"],
+      "lookup": "من فضلك ابحث، لا من الذاكرة",
+      "none": ["أحتاج الأرقام الفعلية للتقرير."]
+    },
+    "hi": {
+      "latest": ["नवीनतम Vite रिलीज़ में क्या नया है"],
+      "error": ["मेरी बिल्ड अजीब संदेश के साथ विफल हो रही है"],
+      "question_start": ["Vite में प्रॉक्सी कैसे कॉन्फ़िगर करें"],
+      "local_current": ["वर्तमान निर्देशिका में फ़ाइलें सूचीबद्ध करें"],
+      "lookup": "कृपया इसे खोजें, यादداشت से नहीं",
+      "none": "मुझे रिपोर्ट के लिए वास्तविक संख्याओं की आवश्यकता है।"
+    }
+  }
+}
