@@ -1,4 +1,4 @@
-# Runs the LocalLLM off-site backup 4 times a day, every 6 hours. To change the times, edit
+# Runs the LocalLLM off-site backup (upload-backup.sh) 4 times a day, every 6 hours. To change the times, edit
 # OnCalendar and run install/backup-timer.sh again.
 
 [Unit]
@@ -7,6 +7,7 @@ Description=LocalLLM off-site backup every 6 hours
 [Timer]
 OnCalendar=*-*-* 00,06,12,18:00
 Persistent=true
+RandomizedDelaySec=5min
 
 [Install]
 WantedBy=timers.target
