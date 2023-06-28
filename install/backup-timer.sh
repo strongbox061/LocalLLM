@@ -29,6 +29,8 @@ elif ! rclone listremotes | grep -qxF "${BACKUP_REMOTE%%:*}:"; then
 fi
 [[ "$BACKUP_KEEP_COUNT" =~ ^[1-9][0-9]*$ ]] \
     || todo+=("set BACKUP_KEEP_COUNT (how many archives to keep, e.g. 8) in $LOCAL_ENV_FILE (see config/local.example.env)")
+[[ -n "$BACKUP_PASSPHRASE_FILE" && -f "$BACKUP_PASSPHRASE_FILE" ]] \
+    || todo+=("the passphrase file: set BACKUP_PASSPHRASE_FILE in $LOCAL_ENV_FILE (see config/local.example.env), put the passphrase in that file (mode 600; keep it in your password manager too)")
 if [[ ${#todo[@]} -eq 0 ]] && ! systemctl --user is-enabled --quiet localllm-backup.timer; then
     if $ENABLE; then
         echo "Test upload before turning the timer on:"
