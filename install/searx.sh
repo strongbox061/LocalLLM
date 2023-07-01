@@ -11,34 +11,35 @@ RAW="https://raw.githubusercontent.com/searxng/searxng/master/container"
 mkdir -p "$SEARXNG_DIR/core-config"
 cd "$SEARXNG_DIR"
 
+[[ -f docker-compose.yml ]] || curl -fsSL -o docker-compose.yml "$RAW/docker-compose.yml"
+grep -q 'restart: always' docker-compose.yml \
+    || warn "docker-compose.yml has no 'restart: always': SearXNG would not start at boot."
+
+if [[ ! -f .env ]]; then
+    curl -fsSL -o .env "$RAW/.env.example"
+fi
+
 # Keep SearXNG accessible only from this machine.
-if [ ! -f "docker-compose.yml" ]; then
-  curl -fsSL "${RAW}/docker-compose.yml" -o docker-compose.yml
+if grep -q '^SEARXNG_HOST=' .env; then
+    grep -qx 'SEARXNG_HOST=127.0.0.1' .env || sed -i 's/^SEARXNG_HOST=.*/SEARXNG_HOST=127.0.0.1/' .env
+else
+    printf '\nSEARXNG_HOST=127.0.0.1\n' >> .env
 fi
 
 # Generate a secret key once.
-if [ ! -f "core-config/settings.yml" ]; then
-  SECRET_KEY=$(openssl rand -hex 32)
-  cat > core-config/settings.yml <<EOF
+if [[ ! -f core-config/settings.yml ]]; then
+    SECRET_KEY="$(openssl rand -hex 32)"
+
+    cat > core-config/settings.yml <<EOF
 use_default_settings: true
-search:
-  safe_search: 0
+
 server:
-  secret_key: "${SECRET_KEY}"
-  limiter: false
-  image_proxy: false
-  publish_port: 8888
-  bind_address: "127.0.0.1"
-  method: "GET"
-engines:
-  - name: google
-    engine: google
-    shortcut: g
-    disabled: false
-  - name: duckduckgo
-    engine: duckduckgo
-    shortcut: ddg
-    disabled: false
+  secret_key: "$SECRET_KEY"
+
+search:
+  formats:
+    - html
+    - json
 EOF
 fi
 
