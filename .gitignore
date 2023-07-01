@@ -13,3 +13,7 @@ models/*.ckpt
 
 # Logs
 logs/
+
+# Backup archives (encrypted, kept out of git)
+backup/
+LocalLLM-backup-*
