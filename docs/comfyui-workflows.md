@@ -35,6 +35,7 @@ DreamShaper (v6/v7) works well for stylized art and character generation.
 - For higher res, add a Latent Upscale node between KSampler and VAE Decode (2x with nearest-exact)
 - DreamShaper responds well to CFG 8–9; lower CFG can make images too soft
 - Negative prompt should include common artifacts: `lowres, bad anatomy, extra limbs`
+- Ensure the VAE matches the checkpoint — mismatched VAEs cause washed-out or discolored output
 
 ### Workflow Export
 
