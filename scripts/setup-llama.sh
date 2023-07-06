@@ -10,6 +10,7 @@ set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
 source "$REPO_DIR/lib/model.sh"
 load_model_profile || exit 1
+echo "Model profile: $MODEL_PROFILE ($MODEL_NAME)"
 
 LLAMA_DIR="$LLM_HOME/llama.cpp"
 MODELS_DIR="$MODELS_HOME"
@@ -22,8 +23,15 @@ fi
 
 # cuda.sh uses append_path, which /etc/profile defines and then removes again.
 append_path() {
-    export PATH="$PATH:$1"
+    case ":$PATH:" in
+        *:"$1":*) ;;
+        *) PATH="${PATH:+$PATH:}$1" ;;
+    esac
 }
+set +u
+source /etc/profile.d/cuda.sh
+set -u
+unset -f append_path
 
 # --- llama.cpp ---
 # The GPU generation to build for: LLAMA_CUDA_ARCH in local.env (e.g. 89 for RTX 40), else read from the GPU itself.
@@ -86,18 +94,17 @@ build_llama() {
         cd - > /dev/null
     fi
 
-    if [[ ! -f "$LLAMA_DIR/build/CMakeCache.txt" ]] || [[ "$BUILT_ARCH" != "$CUDA_ARCH" ]]; then
-        mkdir -p "$LLAMA_DIR/build"
-        cd "$LLAMA_DIR/build"
-        cmake .. -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES="$CUDA_ARCH"
-        make -j"$(nproc)"
-        cd - > /dev/null
-        info "Build complete"
+    if [[ ! -x "$LLAMA_DIR/build/bin/llama-server" ]] || [[ "$BUILT_ARCH" != "$CUDA_ARCH" ]]; then
+        cd "$LLAMA_DIR"
+        echo "Building llama.cpp for CUDA architecture $CUDA_ARCH."
+        cmake -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES="$CUDA_ARCH" -DCMAKE_BUILD_TYPE=Release
+        cmake --build build -j"$(nproc)" --target llama-server llama-bench
+        cd "$REPO_DIR"
     else
         info "llama.cpp already built for architecture $BUILT_ARCH"
     fi
 
-    append_path "$LLAMA_DIR/build"
+    append_path "$LLAMA_DIR/build/bin"
 }
 
 # --- Download model and vision projector ---
