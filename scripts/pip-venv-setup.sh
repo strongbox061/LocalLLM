@@ -3,12 +3,26 @@ set -euo pipefail
 
 # pip-venv-setup.sh — Legacy python -m venv and pip bootstrapper
 # Creates an isolated Python environment and installs core dependencies.
+# Usage: ./pip-venv-setup.sh [--recreate]
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 VENV_DIR="${PROJECT_ROOT}/venv"
+RECREATE=false
 
-echo "==> Setting up Python virtual environment at ${VENV_DIR}"
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --recreate)
+            RECREATE=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            exit 1
+            ;;
+    esac
+done
 
 # Detect Python 3
 if ! command -v python3 &>/dev/null; then
@@ -16,12 +30,17 @@ if ! command -v python3 &>/dev/null; then
     exit 1
 fi
 
-# Create venv if it doesn't exist
+# Recreate or create venv
+if [[ "$RECREATE" == true ]] && [[ -d "${VENV_DIR}" ]]; then
+    echo "==> Recreating virtual environment at ${VENV_DIR}"
+    rm -rf "${VENV_DIR}"
+fi
+
 if [[ ! -d "${VENV_DIR}" ]]; then
     python3 -m venv "${VENV_DIR}"
     echo "==> Virtual environment created."
 else
-    echo "==> Virtual environment already exists at ${VENV_DIR}."
+    echo "==> Virtual environment exists at ${VENV_DIR}."
 fi
 
 # Activate and upgrade pip
