@@ -16,18 +16,25 @@ fi
 
 # Share DNS between NetworkManager and Tailscale through systemd-resolved, so NetworkManager doesn't overwrite
 # /etc/resolv.conf on Wi-Fi reconnects and break MagicDNS (*.ts.net names; Tailscale's "dns-fight").
-if ! grep -q "127.0.0.53" /etc/systemd/resolved.conf 2>/dev/null; then
-  info "Configuring systemd-resolved for shared DNS..."
-  sudo sed -i '/^#DNS=/s/^#//' /etc/systemd/resolved.conf
-  sudo sed -i 's/^DNS=.*/DNS=127.0.0.53/' /etc/systemd/resolved.conf
-  systemctl restart systemd-resolved
+dns_changed=false
+if ! systemctl is-enabled --quiet systemd-resolved || ! systemctl is-active --quiet systemd-resolved; then
+    sudo systemctl enable --now systemd-resolved
+    dns_changed=true
+fi
+if [[ "$(readlink -f /etc/resolv.conf 2>/dev/null || true)" != "/run/systemd/resolve/stub-resolv.conf" ]]; then
+    sudo ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+    dns_changed=true
+    echo "Linked /etc/resolv.conf to systemd-resolved (so MagicDNS survives network changes)."
+fi
+if $dns_changed; then
+    systemctl is-active --quiet NetworkManager && sudo systemctl restart NetworkManager || true
+    systemctl is-active --quiet tailscaled && sudo systemctl restart tailscaled || true
 fi
 
-# tailscaled may need a moment after a fresh start before it answers.
-if ! systemctl is-active --quiet tailscaled; then
-  info "Starting tailscaled..."
-  sudo systemctl enable --now tailscaled
-  sleep 3
+if systemctl is-enabled --quiet tailscaled && systemctl is-active --quiet tailscaled; then
+    echo "tailscaled is running and starts at boot."
+else
+    sudo systemctl enable --now tailscaled
 fi
 
 # Sign in if this node isn't authenticated yet
