@@ -66,15 +66,11 @@ load_model_profile() {
   MODEL_PROFILE="$(basename "${PROFILE_PATH%.env}")"
 }
 
-llama_server_args() {
-  local args=()
-  args+=("--model" "$MODEL_FILE")
-  args+=("--ctx-size" "$CTX_PER_SLOT")
-  args+=("--threads" "$(nproc)")
-  args+=("--threads-batch" "$(nproc)")
-  [[ "$SLOTS" -gt 1 ]] && args+=("--parallel" "$SLOTS")
-  [[ "$MAX_TOKENS" -gt 0 ]] && args+=("--max-tokens" "$MAX_TOKENS")
-  echo "${args[@]}"
+llm_server_args() {
+  LLM_ARGS=(-m "$MODEL_FILE")
+  LLM_ARGS+=(-c "$CTX_PER_SLOT" --threads "$(nproc)" --threads-batch "$(nproc)")
+  [[ "$SLOTS" -gt 1 ]] && LLM_ARGS+=(--parallel "$SLOTS")
+  [[ "$MAX_TOKENS" -gt 0 ]] && LLM_ARGS+=(--max-tokens "$MAX_TOKENS")
 }
 
 model_json() {
