@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run-backup.sh — copy the machine's own LocalLLM settings (~/.config/localllm, plus EXTRA_BACKUP_FILES) into backup/
+# backup-local.sh — copy the machine's own LocalLLM settings (~/.config/localllm, plus EXTRA_BACKUP_FILES) into backup/
 # (kept out of git: it holds secrets), with this repo itself as backup/repo.bundle, and records the versions
 # running now in ~/.config/localllm/versions.env (README, "Versions").
 # archive-backup.sh and upload-backup.sh call it before packing backup/ into an encrypted archive.
