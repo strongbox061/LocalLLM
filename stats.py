@@ -1,0 +1,430 @@
+#!/usr/bin/env python3
+"""
+LocalLLM System Monitor — web dashboard for CPU, GPU, and RAM usage on the main
+and helper PCs, plus the current setup mode (single/split) and apps (pi/pi).
+
+Usage:
+    python3 tools/monitor/monitor.py [--host 127.0.0.1] [--port 8095] [--interval 5]
+    python3 tools/monitor/monitor.py --once        # print one JSON snapshot and exit
+    python3 tools/monitor/monitor.py --detect-hw   # detect main PC RAM brand/model via sudo dmidecode and cache it
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shlex
+import socket
+import subprocess
+import sys
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+HERE = Path(__file__).resolve().parent
+HTML_FILE = HERE / "monitor.html"
+CSS_FILE = HERE / "monitor.css"
+JS_FILE = HERE / "monitor.js"
+DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = 8095
+DEFAULT_INTERVAL = 5.0
+HELPER_SSH_ALIAS = "localllm-helper"
+MAX_PROCESSES = 30
+
+# Tiny launcher sent on the SSH command line; the full PowerShell script is piped via stdin
+# so it never hits Windows's 8191-character command-line limit.
+HELPER_PS_LAUNCHER = (
+    "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"-\""
+)
+
+HELPER_PS_SCRIPT = r"""
+# Locale-independent live CPU usage: Win32_PerfFormattedData_PerfOS_Processor is much more reliable than LoadPercentage.
+$perfTotal = Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor | Where-Object Id -eq "_Total"
+$cpuUsage = 0
+if ($perfTotal -and $null -ne $perfTotal.PercentProcessorTime) {
+    $cpuUsage = [math]::Round(100 - $perfTotal.PercentProcessorTime, 1)
+}
+
+# GPU stats via nvidia-smi
+$gpuInfo = @{}
+$smi = Get-Command nvidia-smi -ErrorAction SilentlyContinue
+if ($smi) {
+    $raw = & nvidia-smi --query-gpu=index,name,temperature.gpu,utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits 2>&1
+    if ($raw) {
+        $gpuInfo = $raw | ConvertFrom-Csv -Header "Index","Name","Temp","Util","MemUsed","MemTotal"
+    }
+}
+
+# RAM via Win32_OperatingSystem
+$os = Get-CimInstance Win32_OperatingSystem
+$totalGB = [math]::Round($os.TotalVisibleMemorySize / 1MB, 1)
+$freeGB = [math]::Round($os.FreePhysicalMemory / 1MB, 1)
+$usedGB = [math]::Round(($os.TotalVisibleMemorySize - $os.FreePhysicalMemory) / 1MB, 1)
+$pctUsed = [math]::Round(($usedGB / $totalGB) * 100, 1)
+
+# DIMM details via WMIC (locale-safe)
+$dimms = @()
+foreach ($d in @(Get-CimInstance Win32_PhysicalMemory)) {
+    $dimms += @{
+        Bank = $d.BankLabel ?? "Bank N/A"
+        SizeGB = [math]::Round($d.Capacity / 1GB, 1)
+        Speed = $d.Speed
+        Type = $d.MemoryType
+    }
+}
+
+# Process list (PID -> Name, CommandLine, WorkingSetSize) + per-process CPU %
+$processes = @()
+$procsByHandle = @{}
+foreach ($pr in @(Get-CimInstance Win32_Process)) {
+    $procsByHandle[$pr.Handle] = @{
+        Name = $pr.Name
+        Cmd = ($pr.CommandLine -replace '\s+', ' ').Trim()
+        MemBytes = $pr.WorkingSetSize
+    }
+}
+foreach ($pp in @(Get-CimInstance Win32_PerfFormattedData_PerfProc_Process)) {
+    $pid = $pp.IDProcess
+    if ($procsByHandle.ContainsKey($pid)) {
+        $cpuPct = [math]::Round($pp.PercentProcessorTime, 1)
+        $procsByHandle[$pid]["Cpu"] = $cpuPct
+    }
+}
+$processes = $procsByHandle.Values | Sort-Object Cpu -Descending | Select-Object -First 20
+
+# Output as JSON
+[PSCustomObject]@{
+    cpu_percent = $cpuUsage
+    gpu = $gpuInfo
+    ram_total_gb = $totalGB
+    ram_used_gb = $usedGB
+    ram_free_gb = $freeGB
+    ram_percent = $pctUsed
+    dimms = $dimms
+    processes = $processes
+} | ConvertTo-Json -Depth 4
+"""
+
+# ---------------------------------------------------------------------------
+# Hardware detection (Linux, via dmidecode — requires sudo)
+# ---------------------------------------------------------------------------
+
+_RAM_CACHE_PATH = Path("/tmp/localllm-ram-cache.json")
+_ram_cache_lock = threading.Lock()
+
+
+def _read_ram_cache() -> dict | None:
+    """Return cached RAM info or None if missing/expired (>24h)."""
+    try:
+        if _RAM_CACHE_PATH.exists():
+            age = time.time() - _RAM_CACHE_PATH.stat().st_mtime
+            if age < 86400:
+                with open(_RAM_CACHE_PATH) as f:
+                    return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        pass
+    return None
+
+
+def _write_ram_cache(data: dict) -> None:
+    with _ram_cache_lock:
+        with open(_RAM_CACHE_PATH, "w") as f:
+            json.dump(data, f)
+
+
+def detect_ram_info() -> dict | None:
+    """Run sudo dmidecode to get RAM brand/model, cache and return it."""
+    cached = _read_ram_cache()
+    if cached:
+        return cached
+
+    try:
+        result = subprocess.run(
+            ["sudo", "dmidecode", "-t", "memory"],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0:
+            return None
+
+        dimms_raw = result.stdout.split("Memory Device$")
+        brands = []
+        for block in dimms_raw[1:]:
+            size_match = re.search(r"Size:\s+(\d+ [GM]B)", block)
+            manufacturer = re.search(r"Manufacturer:\s+(.+)", block)
+            part_match = re.search(r"Part Number:\s+(.+)", block)
+            if size_match and manufacturer:
+                brands.append({
+                    "size": size_match.group(1).strip(),
+                    "manufacturer": manufacturer.group(1).strip(),
+                    "part_number": part_match.group(1).strip() if part_match else "",
+                })
+
+        if not brands:
+            return None
+
+        _write_ram_cache({"dimms": brands})
+        return {"dimms": brands}
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Helpers to query the main PC and remote helper PC
+# ---------------------------------------------------------------------------
+
+
+def get_cpu_percent() -> float:
+    """Return current CPU usage percentage (0-100) via /proc/stat."""
+    with open("/proc/stat") as f:
+        line = f.readline()
+    values = line.split()[1:]
+    idle = int(values[3])
+    total = sum(int(v) for v in values)
+    return round((1 - idle / total) * 100, 1)
+
+
+def get_gpu_stats() -> list[dict]:
+    """Parse nvidia-smi output for GPU info."""
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=index,name,temperature.gpu,utilization.gpu,memory.used,memory.total",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            return []
+
+        gpus = []
+        for line in result.stdout.strip().split("\n"):
+            parts = [p.strip() for p in line.split(",")]
+            if len(parts) >= 6:
+                gpus.append({
+                    "index": int(parts[0]),
+                    "name": parts[1],
+                    "temp": float(parts[2]),
+                    "util": float(parts[3]),
+                    "mem_used": float(parts[4]),
+                    "mem_total": float(parts[5]),
+                })
+        return gpus
+    except (subprocess.TimeoutExpired, OSError):
+        return []
+
+
+def get_ram_stats() -> dict:
+    """Read /proc/meminfo for RAM usage."""
+    mem = {}
+    with open("/proc/meminfo") as f:
+        for line in f:
+            parts = line.split()
+            if len(parts) >= 2:
+                key = parts[0].rstrip(":")
+                value_kb = int(parts[1])
+                mem[key] = value_kb * 1024  # convert to bytes
+
+    total = mem.get("MemTotal", 0)
+    free = mem.get("MemFree", 0)
+    available = mem.get("MemAvailable", free)
+    used = total - available
+    pct = round((used / total) * 100, 1) if total else 0
+
+    return {
+        "total_gb": round(total / (1024 ** 3), 1),
+        "used_gb": round(used / (1024 ** 3), 1),
+        "free_gb": round(free / (1024 ** 3), 1),
+        "available_gb": round(available / (1024 ** 3), 1),
+        "percent": pct,
+    }
+
+
+def get_process_list() -> list[dict]:
+    """Return top processes by CPU usage from /proc."""
+    procs = []
+    try:
+        for pid_dir in Path("/proc").iterdir():
+            if not pid_dir.name.isdigit():
+                continue
+            try:
+                comm = (pid_dir / "comm").read_text().strip()
+                stat = (pid_dir / "stat").read_text()
+                parts = stat.split(")")
+                if len(parts) < 2:
+                    continue
+                fields = parts[1].split()
+                utime = int(fields[10])
+                stime = int(fields[11])
+                total_time = utime + stime
+                procs.append({
+                    "pid": int(pid_dir.name),
+                    "name": comm,
+                    "cpu_time": total_time,
+                })
+            except (OSError, IndexError, ValueError):
+                continue
+
+        # Get total CPU time from /proc/stat
+        with open("/proc/stat") as f:
+            stat_line = f.readline()
+        values = stat_line.split()[1:]
+        total_cpu_time = sum(int(v) for v in values)
+
+        procs.sort(key=lambda p: p["cpu_time"], reverse=True)
+        return procs[:MAX_PROCESSES]
+    except OSError:
+        return []
+
+
+def query_helper_pc() -> dict | None:
+    """SSH to the helper PC and collect stats via PowerShell."""
+    try:
+        cmd = ["ssh", HELPER_SSH_ALIAS, HELPER_PS_LAUNCHER]
+        proc = subprocess.Popen(
+            cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, text=True, timeout=30,
+        )
+        stdout, _ = proc.communicate(input=HELPER_PS_SCRIPT)
+        if proc.returncode != 0:
+            return None
+        return json.loads(stdout)
+    except (subprocess.TimeoutExpired, OSError, json.JSONDecodeError):
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Snapshot builder
+# ---------------------------------------------------------------------------
+
+
+def build_snapshot() -> dict:
+    """Build a single JSON-serializable snapshot of all system stats."""
+    snapshot = {
+        "ts": time.time(),
+        "hostname": socket.gethostname(),
+        "cpu_percent": get_cpu_percent(),
+        "gpu": get_gpu_stats(),
+        "ram": get_ram_stats(),
+        "processes": get_process_list(),
+        "helper": query_helper_pc(),
+    }
+
+    # Add RAM cache info if available
+    ram_info = detect_ram_info()
+    if ram_info:
+        snapshot["ram_info"] = ram_info
+
+    return snapshot
+
+
+# ---------------------------------------------------------------------------
+# HTTP server
+# ---------------------------------------------------------------------------
+
+
+class MonitorHandler(BaseHTTPRequestHandler):
+    """Handle requests for the monitoring dashboard."""
+
+    def log_message(self, format, *args):
+        """Suppress default request logging."""
+        pass
+
+    def _set_headers(self, status=200, content_type="application/json"):
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+
+    def _send_json(self, data, status=200):
+        self._set_headers(status=status)
+        self.wfile.write(json.dumps(data, indent=2).encode())
+
+    def do_GET(self):
+        parsed = urlparse(self.path)
+        path = parsed.path.rstrip("/")
+
+        if path == "/api/snapshot":
+            snapshot = build_snapshot()
+            self._send_json(snapshot)
+
+        elif path == "/api/health":
+            self._send_json({"status": "ok", "ts": time.time()})
+
+        elif path == "/dashboard" or path == "/":
+            self._serve_file(HTML_FILE, "text/html")
+
+        elif path == "/monitor.css":
+            self._serve_file(CSS_FILE, "text/css")
+
+        elif path == "/monitor.js":
+            self._serve_file(JS_FILE, "application/javascript")
+
+        else:
+            self._send_json({"error": "not found"}, status=404)
+
+    def _serve_file(self, filepath: Path, content_type: str):
+        if filepath.exists():
+            self._set_headers(content_type=content_type)
+            self.wfile.write(filepath.read_bytes())
+        else:
+            self._send_json({"error": f"file not found: {filepath.name}"}, status=404)
+
+
+# ---------------------------------------------------------------------------
+# CLI entry point
+# ---------------------------------------------------------------------------
+
+
+def main():
+    parser = argparse.ArgumentParser(description="LocalLLM System Monitor")
+    parser.add_argument("--host", default=DEFAULT_HOST, help="Host to bind to")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Port to listen on")
+    parser.add_argument("--interval", type=float, default=DEFAULT_INTERVAL, help="Polling interval in seconds")
+    parser.add_argument("--once", action="store_true", help="Print one snapshot and exit")
+    parser.add_argument("--detect-hw", action="store_true", help="Detect hardware RAM info and cache it")
+
+    args = parser.parse_args()
+
+    if args.detect_hw:
+        result = detect_ram_info()
+        print(json.dumps(result, indent=2) if result else "No RAM info detected (try running with sudo)")
+        return
+
+    if args.once:
+        snapshot = build_snapshot()
+        print(json.dumps(snapshot, indent=2))
+        return
+
+    # Start the HTTP server
+    server = ThreadingHTTPServer((args.host, args.port), MonitorHandler)
+    print(f"LocalLLM Monitor running at http://{args.host}:{args.port}")
+    print(f"Dashboard: http://{args.host}:{args.port}/dashboard")
+    print(f"API snapshot: http://{args.host}:{args.port}/api/snapshot")
+    print(f"Polling interval: {args.interval}s (background thread)")
+
+    def poll_and_cache():
+        """Periodically poll and cache snapshot data."""
+        while True:
+            try:
+                snapshot = build_snapshot()
+                cache_path = HERE / ".last_snapshot.json"
+                with open(cache_path, "w") as f:
+                    json.dump(snapshot, f)
+            except Exception:
+                pass
+            time.sleep(args.interval)
+
+    poller = threading.Thread(target=poll_and_cache, daemon=True)
+    poller.start()
+
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+        server.shutdown()
+
+
+if __name__ == "__main__":
+    main()
