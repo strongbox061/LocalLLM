@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Switches the laptop's fan profile to balanced mode
+# Switches the laptop's fan profile to balanced using a vendor fan tool command.
+# shellcheck source=/dev/null
 set -euo pipefail
 
 LOCAL_ENV_FILE="$HOME/.config/localllm/local.env"
@@ -10,4 +11,4 @@ if [[ -z "${FAN_PROFILE_BALANCED:-}" ]]; then
     exit 1
 fi
 
-eval "$FAN_PROFILE_BALANCED"
+bash -c "$FAN_PROFILE_BALANCED"
