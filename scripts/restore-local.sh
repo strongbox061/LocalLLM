@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# restore-backup.sh — restore LocalLLM settings and data from a backup directory
+# restore-local.sh — restore LocalLLM settings and data from a backup directory
 # (~/.config/localllm, EXTRA_BACKUP_FILES) read them.
 #   ./restore.sh                 overwrite; anything that differs is first kept as <name>.bak.<timestamp>
 #   ./restore.sh --missing-only  only restore what does not exist yet (what install.sh uses)
