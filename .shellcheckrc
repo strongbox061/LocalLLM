@@ -1,4 +1,4 @@
 # ShellCheck settings for this repo
+# Follow source paths relative to each script's directory
 source-path=SCRIPTDIR
 external-sources=true
-
