@@ -1,0 +1,47 @@
+<!doctype html>
+<!-- LocalLLM System Monitor, served by tools/monitor/monitor.py.
+     Self-contained: no external scripts, styles, or fonts, so it works offline. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LocalLLM System Monitor</title>
+<link rel="stylesheet" href="/monitor.css">
+</head>
+<body>
+
+<header>
+  <h1>LocalLLM Monitor</h1>
+  <div class="sub" id="updated">Loading metrics…</div>
+  <div class="controls">
+    <select id="intervalSel" aria-label="Auto-refresh interval">
+      <option value="3">3s</option>
+      <option value="5" selected>5s</option>
+      <option value="10">10s</option>
+      <option value="30">30s</option>
+    </select>
+    <button type="button" id="refreshBtn">Refresh now</button>
+  </div>
+  <div class="badges" id="badges">
+    <span class="badge muted" id="modeBadge">…</span>
+    <span class="badge muted" id="appsBadge">…</span>
+  </div>
+</header>
+
+<main>
+  <div id="errorBox"></div>
+  <section class="machines" id="machines" aria-label="PC resource usage"></section>
+</main>
+
+<div class="modal-backdrop" id="procBackdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal">
+    <h3 id="modalTitle">Processes</h3>
+    <div class="sub" id="modalSub"></div>
+    <button type="button" class="modal-close" id="modalCloseBtn" aria-label="Close popup">×</button>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<script src="/monitor.js"></script>
+</body>
+</html>

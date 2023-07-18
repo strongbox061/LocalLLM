@@ -1,0 +1,271 @@
+:root {
+  --bg: #f5f7fa;
+  --card: #ffffff;
+  --card-soft: #f9fafc;
+  --text: #1b222c;
+  --muted: #5c6775;
+  --line: #dde3ea;
+  --pie-free: #4a8db7;
+  --pie-used: #c86446;
+  --ok-bg: #dcfce7;
+  --ok-fg: #166534;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  padding: 1rem;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+main {
+  margin-top: 1rem;
+}
+
+header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+h1 {
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.sub {
+  color: var(--muted);
+  font-size: 0.85rem;
+  width: 100%;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+button {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+button:hover {
+  background: var(--card-soft);
+}
+
+select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  background: var(--card);
+}
+
+select:hover {
+  border-color: #aab4c0;
+}
+
+.badges {
+  display: flex;
+  gap: 0.4rem;
+  width: 100%;
+}
+
+.badge {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 99px;
+  background: var(--card-soft);
+  color: var(--muted);
+}
+
+.badge.ok {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+.machines {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.machine {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.machine-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.machine-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.machine-section {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.machine-section h4 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--muted);
+}
+
+/* Pie gauge */
+
+.pie-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.pie-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.pie-label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.pie-sub {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* GPU info */
+
+.gpu-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.9rem;
+}
+
+.gpu-info span {
+  color: var(--muted);
+}
+
+/* Process button */
+
+.proc-btn {
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+}
+
+/* Error banner */
+
+.error-banner {
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Modal */
+
+.modal-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-backdrop.open {
+  display: flex;
+}
+
+.modal {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 1.25rem;
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+.modal h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+}
+
+.modal-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  padding: 0.25rem;
+  line-height: 1;
+}
+
+.modal-close:hover {
+  background: var(--card-soft);
+  border-radius: 4px;
+}
+
+.modal-body {
+  margin-top: 0.75rem;
+}
+
+/* Process table */
+
+.proc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.proc-table th,
+.proc-table td {
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.proc-table th {
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+
+.col-pid { width: 70px; }
+.col-cpu { width: 100px; text-align: right; }
