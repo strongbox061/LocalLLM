@@ -5,50 +5,49 @@ const PIE_R = 24;
 const PIE_C = 2 * Math.PI * PIE_R;
 
 let latestData = null;
-
-/* ---- DOM helpers ---- */
+let openModalState = null; // { machineKey: "main"|"helper", machineTitle, component: "cpu"|"ram"|"gpu_vram"|"gpu_load", kindLabel }
 
 function h(tag, attrs, ...kids) {
   const el = tag.startsWith("svg:")
     ? document.createElementNS(SVG_NS, tag.slice(4))
     : document.createElement(tag);
-  if (attrs) {
-    for (const [k, v] of Object.entries(attrs)) {
-      if (k === "children") {
-        for (const c of v) el.appendChild(c);
-      } else if (k.startsWith("on")) {
-        el.addEventListener(k.slice(2).toLowerCase(), v);
-      } else if (k === "textContent") {
-        el.textContent = v;
-      } else {
-        el.setAttribute(k, v);
-      }
-    }
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v !== undefined && v !== null) el.setAttribute(k, String(v));
   }
-  for (const k of kids) {
-    if (k != null) el.appendChild(typeof k === "string" ? document.createTextNode(k) : k);
+  for (const kid of kids.flat()) {
+    if (kid !== null && kid !== undefined && kid !== false) {
+      el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
+    }
   }
   return el;
 }
 
-/* ---- Formatters ---- */
-
 function fmtMem(mib) {
-  if (mib >= 1024) return (mib / 1024).toFixed(1) + " GB";
-  return Math.round(mib) + " MB";
+  if (mib === null || mib === undefined || Number.isNaN(Number(mib))) return "–";
+  const v = Number(mib);
+  if (v < 1024) return `${Math.round(v).toLocaleString()} MB`;
+  const gb = v / 1024;
+  return (gb >= 10 ? gb.toFixed(1) : gb.toFixed(2)) + " GB";
 }
 
 function fmtCapacityGB(mib) {
-  return mib.toFixed(1) + " GB";
+  if (mib === null || mib === undefined || Number.isNaN(Number(mib))) return "";
+  const gb = Number(mib) / 1024;
+  const rounded = Math.round(gb);
+  if (rounded > 0 && Math.abs(gb - rounded) / rounded < 0.03) {
+    return `${rounded} GB`;
+  }
+  return `${gb >= 10 ? gb.toFixed(1) : gb.toFixed(2)} GB`;
 }
 
 function fmtPct(pct) {
-  return pct.toFixed(1) + "%";
+  if (pct === null || pct === undefined || Number.isNaN(Number(pct))) return "–";
+  return Number(pct).toFixed(1) + "%";
 }
 
 function fmtTime(ts) {
-  const d = new Date(ts * 1000);
-  return d.toLocaleTimeString();
+  if (!ts) return "never";
+  return new Date(ts * 1000).toLocaleTimeString();
 }
 
 /* ---- Brand / icon helpers (simple SVG icons) ---- */
