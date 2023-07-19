@@ -38,7 +38,7 @@ ELAPSED=$(( (END_TIME - START_TIME) / 1000000 ))
 
 echo ""
 echo "Prompt : ${PROMPT}"
-echo "Response: $(echo "${RESPONSE}" | grep -o '"response":"[^"]*"' | head -c 200)"
+echo "Response: $(echo "${RESPONSE}" | grep -o '"response": *"[^"]*"' | head -c 200 | sed 's/"response": *"//;s/"$//')"
 echo "Latency : ${ELAPSED}ms"
 echo ""
 
