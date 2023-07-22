@@ -42,6 +42,10 @@ echo "Response: $(echo "${RESPONSE}" | grep -o '"response": *"[^"]*"' | head -c 
 echo "Latency : ${ELAPSED}ms"
 echo ""
 
-# Clean up
-kill "${SERVE_PID}" 2>/dev/null || true
+# Clean up on exit (success or failure)
+cleanup() {
+    kill "${SERVE_PID}" 2>/dev/null || true
+}
+trap cleanup EXIT
+
 echo "Done."
