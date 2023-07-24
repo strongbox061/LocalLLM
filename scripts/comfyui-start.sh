@@ -30,6 +30,7 @@ if [[ ! -d "${VENV_DIR}" ]]; then
 fi
 
 source "${VENV_DIR}/bin/activate"
+trap 'deactivate' EXIT
 
 # ── GPU check (optional, runs on CPU if missing) ────────────────────────
 if command -v nvidia-smi &>/dev/null; then
