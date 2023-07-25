@@ -20,9 +20,34 @@
       "please": ["please", "pls", "kindly"],
       "latest": ["latest", "newest", "current", "currently", "most recent", "recent", "recently", "up to date", "new features", "new feature", "what's new", "changelog", "change log", "release notes", "release note"],
       "error": ["error", "errors", "exception", "exceptions", "traceback", "stack trace", "fail", "fails", "failed", "failing", "failure", "crash", "crashes", "crashed", "crashing", "segfault", "fix", "broken", "doesn't work", "does not work", "not working"],
-      "lookup": ["look this up", "look it up", "look that up", "not your memory", "not from memory", "search online", "look online"],
       "action_start": ["search", "find", "look up", "open", "read", "browse", "go to", "visit", "download", "edit"],
-      "question_start": ["what", "where", "when", "why", "how", "who", "which", "is there", "are there", "does", "do", "can", "should", "would", "could"]
+      "question_start": ["what", "why", "how", "where", "when", "who", "which", "is", "are", "does", "do", "did", "should", "could", "would", "can you explain"],
+      "local_current": ["current directory", "current folder", "current dir", "current file", "current branch", "working directory"],
+      "named_engine": ["search {engine}", "search on {engine}", "search with {engine}", "search using {engine}"],
+      "named_source": {"verbs": ["read", "open", "find"], "nouns": ["page", "article", "docs", "doc", "documentation", "readme", "homepage"], "phrases": ["according to", "model card", "model cards"]},
+      "lookup": ["look this up", "look it up", "look that up", "not your memory", "not from memory", "search online", "look online"],
+      "offer": ["would you like", "do you want", "want me to", "shall i", "let me know if"],
+      "from_memory": ["general knowledge", "from memory", "i already know", "no web research"],
+      "current_info": ["latest", "newest", "most recent", "recent", "recently", "currently", "current version", "current price", "current prices", "current rate", "right now", "as of now", "today", "this week", "this month", "this year", "up to date", "pricing", "price of", "prices of", "how much does", "how much is", "how much are", "cost of", "exchange rate", "interest rate", "interest rates", "deals on", "best deals", "on sale"],
+      "months": ["jan", "january", "feb", "february", "mar", "march", "apr", "april", "may", "jun", "june", "jul", "july", "aug", "august", "sep", "sept", "september", "oct", "october", "nov", "november", "dec", "december"],
+      "bot_check": ["making sure you're not a bot", "just a moment...", "checking your browser", "verify you are human", "verifying you are human", "performing security verification", "access denied", "unusual traffic", "something went wrong on our end", "oh noes!"]
+    },
+    "es": {
+      "name": "Spanish",
+      "please": ["por favor", "porfa"],
+      "latest": ["lo último", "lo más reciente", "última versión", "últimas versiones", "versión actual", "novedades", "qué hay de nuevo", "qué hay nuevo", "actualizado", "actualizada", "actualizados", "actualizadas", "recient*", "registro de cambios", "notas de la versión", "notas de versión", "nuevas funciones", "nuevas funcionalidades", "nuevas características"],
+      "error": ["error", "errores", "excepción", "excepciones", "falla*", "fallo*", "no funciona", "se cuelga", "se bloquea", "se rompe", "arregla*", "corrige", "corregir", "corrija"],
+      "action_start": ["busca", "buscar", "busque", "búscame", "encuentra", "encuentre", "abre", "abra", "lee", "lea", "navega", "ve a", "visita", "descarga", "edita", "consulta", "investiga"],
+      "question_start": ["qué", "por qué", "cómo", "dónde", "cuándo", "quién", "quiénes", "cuál", "cuáles", "cuánto", "cuánta", "cuántos", "cuántas", "puedes explicar", "puede explicar"],
+      "local_current": ["directorio actual", "carpeta actual", "archivo actual", "rama actual", "directorio de trabajo"],
+      "named_engine": ["busca en {engine}", "buscar en {engine}", "busque en {engine}", "busca con {engine}", "buscar con {engine}", "búscalo en {engine}", "búscame en {engine}", "haz una búsqueda en {engine}"],
+      "named_source": {"verbs": ["lee", "leer", "lea", "abre", "abrir", "abra", "encuentra", "consulta"], "nouns": ["página", "artículo", "documentación", "docs", "readme", "sitio web", "web oficial"], "phrases": ["según la", "según el", "según los", "según las", "de acuerdo con la", "de acuerdo con el", "ficha del modelo", "tarjeta del modelo"]},
+      "lookup": ["búscalo", "búscalo en internet", "no de memoria", "no uses tu memoria", "busca en internet", "busca en línea", "busca en la web"],
+      "offer": ["te gustaría", "le gustaría", "quieres que", "quiere que", "desea que", "deseas que", "si quieres", "si lo deseas", "avísame si", "dime si"],
+      "from_memory": ["conocimiento general", "conocimientos generales", "de memoria", "ya lo sé", "sin buscar en la web", "sin investigar en internet"],
+      "current_info": ["lo último", "más reciente", "más recientes", "últimas noticias", "última versión", "versión actual", "precio actual", "precios actuales", "actualmente", "ahora mismo", "hoy", "esta semana", "este mes", "este año", "cuánto cuesta", "cuánto vale", "precio de", "precios de", "tipo de cambio", "tasa de cambio", "ofertas de", "recientemente"],
+      "months": ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "setiembre", "octubre", "noviembre", "diciembre"],
+      "bot_check": ["verificando que no eres un robot", "verificando que usted es un ser humano", "verifique que es un ser humano", "comprobando tu navegador", "comprobando su navegador", "acceso denegado", "tráfico inusual", "realizando verificación de seguridad", "hubo un error accediendo a esta página"]
     }
   }
 }
