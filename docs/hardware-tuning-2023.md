@@ -52,6 +52,18 @@ While benchmarking, set a minimum fan speed to avoid thermal throttling:
 echo 255 | sudo tee /sys/class/hwmon/hwmon1/pwm1
 ```
 
+## Temperature Monitoring
+
+Watch temps while generating. Throttling above 85 °C kills performance:
+
+```bash
+# Read GPU and CPU temps in real time
+watch -n 1 'sensors | grep -E "(temp[0-9]|Package id 0)"'
+```
+
+If the laptop hits 90 °C, reduce `--ctx-size` (default 512 is fine for short prompts).
+A smaller context window uses less RAM and generates faster.
+
 ## Quick Checklist
 
 - [ ] Swap file ≥ 4 GiB
@@ -59,3 +71,4 @@ echo 255 | sudo tee /sys/class/hwmon/hwmon1/pwm1
 - [ ] Fan control running or manual fan override set
 - [ ] Model quantised to GGML q4_0 minimum
 - [ ] Test with `./llama.cpp/llama-cli` before switching to llama-server
+- [ ] Monitor temps — throttle if above 85 °C
