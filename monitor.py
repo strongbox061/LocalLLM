@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 LocalLLM System Monitor — web dashboard for CPU, GPU, and RAM usage on the main
-and helper PCs, plus the current setup mode (single/split) and apps (pi/pi).
+and helper PCs, plus the current setup mode (single/split) and apps (pi/pi,owui).
 
 Usage:
     python3 tools/monitor/monitor.py [--host 127.0.0.1] [--port 8095] [--interval 5]
@@ -38,76 +38,167 @@ MAX_PROCESSES = 30
 # Tiny launcher sent on the SSH command line; the full PowerShell script is piped via stdin
 # so it never hits Windows's 8191-character command-line limit.
 HELPER_PS_LAUNCHER = (
-    "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"-\""
+    'powershell -NoProfile -Command '
+    '"[Console]::InputEncoding=[Text.Encoding]::UTF8;'
+    '[Console]::OutputEncoding=[Text.Encoding]::UTF8;'
+    'Invoke-Expression ([Console]::In.ReadToEnd())"'
 )
 
+# PowerShell script piped over stdin to the Windows helper PC.
+# Uses locale-independent CIM/WMI classes and nvidia-smi so it works on any Windows language.
 HELPER_PS_SCRIPT = r"""
+$ErrorActionPreference = 'SilentlyContinue'
+
+$cpus = @(Get-CimInstance Win32_Processor)
+$cpuThreads = ($cpus | Measure-Object -Property NumberOfLogicalProcessors -Sum).Sum
+$cpuName = if ($cpus.Count -gt 0 -and $cpus[0].Name) { ($cpus[0].Name -replace '\s+', ' ').Trim() } else { '' }
+$cpuMaxMhz = ($cpus | Where-Object { $_.MaxClockSpeed } | Measure-Object -Property MaxClockSpeed -Maximum).Maximum
+$cpuCurMhz = ($cpus | Where-Object { $_.CurrentClockSpeed } | Measure-Object -Property CurrentClockSpeed -Maximum).Maximum
+
 # Locale-independent live CPU usage: Win32_PerfFormattedData_PerfOS_Processor is much more reliable than LoadPercentage.
-$perfTotal = Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor | Where-Object Id -eq "_Total"
-$cpuUsage = 0
+$perfTotal = Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor -Filter "Name='_Total'"
+$cpuPct = $null
 if ($perfTotal -and $null -ne $perfTotal.PercentProcessorTime) {
-    $cpuUsage = [math]::Round(100 - $perfTotal.PercentProcessorTime, 1)
-}
-
-# GPU stats via nvidia-smi
-$gpuInfo = @{}
-$smi = Get-Command nvidia-smi -ErrorAction SilentlyContinue
-if ($smi) {
-    $raw = & nvidia-smi --query-gpu=index,name,temperature.gpu,utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits 2>&1
-    if ($raw) {
-        $gpuInfo = $raw | ConvertFrom-Csv -Header "Index","Name","Temp","Util","MemUsed","MemTotal"
+    $cpuPct = [math]::Round([double]$perfTotal.PercentProcessorTime, 1)
+} else {
+    $loads = @($cpus | Where-Object { $null -ne $_.LoadPercentage } | ForEach-Object { [double]$_.LoadPercentage })
+    if ($loads.Count -gt 0) {
+        $cpuPct = [math]::Round(($loads | Measure-Object -Average).Average, 1)
     }
 }
 
-# RAM via Win32_OperatingSystem
 $os = Get-CimInstance Win32_OperatingSystem
-$totalGB = [math]::Round($os.TotalVisibleMemorySize / 1MB, 1)
-$freeGB = [math]::Round($os.FreePhysicalMemory / 1MB, 1)
-$usedGB = [math]::Round(($os.TotalVisibleMemorySize - $os.FreePhysicalMemory) / 1MB, 1)
-$pctUsed = [math]::Round(($usedGB / $totalGB) * 100, 1)
+$osCaption = if ($os -and $os.Caption) { ($os.Caption -replace '^Microsoft\s+', '').Trim() } else { 'Windows' }
+$ramTotalKib = if ($os) { [double]$os.TotalVisibleMemorySize } else { 0 }
+$ramFreeKib = if ($os) { [double]$os.FreePhysicalMemory } else { 0 }
+$ramUsedKib = [math]::Max(0, $ramTotalKib - $ramFreeKib)
 
-# DIMM details via WMIC (locale-safe)
-$dimms = @()
-foreach ($d in @(Get-CimInstance Win32_PhysicalMemory)) {
-    $dimms += @{
-        Bank = $d.BankLabel ?? "Bank N/A"
-        SizeGB = [math]::Round($d.Capacity / 1GB, 1)
-        Speed = $d.Speed
-        Type = $d.MemoryType
-    }
+$cs = Get-CimInstance Win32_ComputerSystem
+$brand = if ($cs -and $cs.Manufacturer) { $cs.Manufacturer.Trim() } else { '' }
+if (-not $brand -or $brand -match '^(To Be Filled|Default string|System manufacturer|Unknown|None)$') {
+    $bb = Get-CimInstance Win32_BaseBoard
+    if ($bb -and $bb.Manufacturer) { $brand = $bb.Manufacturer.Trim() }
 }
+
+$dimms = @(Get-CimInstance Win32_PhysicalMemory)
+$ramInstalledBytes = ($dimms | Measure-Object -Property Capacity -Sum).Sum
+$badDmi = '^(Unknown|Undefined|To Be Filled|Not Specified|0+|None)$'
+$ramParts = @()
+foreach ($d in $dimms) {
+    $m = if ($d.Manufacturer) { $d.Manufacturer.Trim() } else { '' }
+    $p = if ($d.PartNumber) { $d.PartNumber.Trim() } else { '' }
+    if ($m -match $badDmi) { $m = '' }
+    if ($p -match $badDmi) { $p = '' }
+    $label = (@($m, $p) | Where-Object { $_ }) -join ' '
+    if ($label) { $ramParts += $label }
+}
+$ramName = ($ramParts | Select-Object -Unique) -join ' / '
+$ramSpeed = ($dimms | Where-Object { $_.ConfiguredClockSpeed } | Measure-Object -Property ConfiguredClockSpeed -Maximum).Maximum
+if (-not $ramSpeed) { $ramSpeed = ($dimms | Where-Object { $_.Speed } | Measure-Object -Property Speed -Maximum).Maximum }
 
 # Process list (PID -> Name, CommandLine, WorkingSetSize) + per-process CPU %
-$processes = @()
-$procsByHandle = @{}
+$procMap = @{}
+$ramProcs = @()
 foreach ($pr in @(Get-CimInstance Win32_Process)) {
-    $procsByHandle[$pr.Handle] = @{
-        Name = $pr.Name
-        Cmd = ($pr.CommandLine -replace '\s+', ' ').Trim()
-        MemBytes = $pr.WorkingSetSize
+    $pidVal = [int]$pr.ProcessId
+    if ($pidVal -le 0) { continue }
+    $cmdVal = if ($pr.CommandLine) { [string]$pr.CommandLine } else { '' }
+    $nameVal = if ($pr.Name) { [string]$pr.Name } else { '' }
+    $rssMib = if ($pr.WorkingSetSize) { [math]::Round([double]$pr.WorkingSetSize / 1MB, 1) } else { 0.0 }
+    $procMap[$pidVal] = @{ name = $nameVal; cmd = $cmdVal; mem_mib = $rssMib }
+    if ($rssMib -ge 1.0) {
+        $ramProcs += [pscustomobject]@{ pid = $pidVal; raw_name = $nameVal; cmd = $cmdVal; mem_mib = $rssMib }
     }
 }
-foreach ($pp in @(Get-CimInstance Win32_PerfFormattedData_PerfProc_Process)) {
-    $pid = $pp.IDProcess
-    if ($procsByHandle.ContainsKey($pid)) {
-        $cpuPct = [math]::Round($pp.PercentProcessorTime, 1)
-        $procsByHandle[$pid]["Cpu"] = $cpuPct
-    }
-}
-$processes = $procsByHandle.Values | Sort-Object Cpu -Descending | Select-Object -First 20
+$ramProcs = @($ramProcs | Sort-Object -Property mem_mib -Descending | Select-Object -First 30)
 
-# Output as JSON
-[PSCustomObject]@{
-    cpu_percent = $cpuUsage
-    gpu = $gpuInfo
-    ram_total_gb = $totalGB
-    ram_used_gb = $usedGB
-    ram_free_gb = $freeGB
-    ram_percent = $pctUsed
-    dimms = $dimms
-    processes = $processes
-} | ConvertTo-Json -Depth 4
-"""
+$cpuDiv = if ($cpuThreads -and $cpuThreads -gt 0) { [double]$cpuThreads } else { 1.0 }
+$cpuProcs = @()
+foreach ($pp in @(Get-CimInstance Win32_PerfFormattedData_PerfProc_Process)) {
+    $pidVal = [int]$pp.IDProcess
+    if ($pidVal -le 0) { continue }
+    $rawPct = [double]$pp.PercentProcessorTime
+    if ($rawPct -le 0) { continue }
+    $normPct = [math]::Round($rawPct / $cpuDiv, 1)
+    if ($normPct -le 0) { continue }
+    $info = $procMap[$pidVal]
+    $cpuProcs += [pscustomobject]@{
+        pid = $pidVal
+        raw_name = if ($info) { $info.name } else { [string]$pp.Name }
+        cmd = if ($info) { $info.cmd } else { '' }
+        percent = $normPct
+    }
+}
+$cpuProcs = @($cpuProcs | Sort-Object -Property percent -Descending | Select-Object -First 30)
+
+$gpus = @()
+$gpuProcs = @()
+$smi = (Get-Command nvidia-smi -ErrorAction SilentlyContinue).Source
+if (-not $smi -and (Test-Path 'C:\Windows\System32\nvidia-smi.exe')) {
+    $smi = 'C:\Windows\System32\nvidia-smi.exe'
+}
+if ($smi) {
+    $lines = & $smi --query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu --format=csv,noheader,nounits 2>$null
+    foreach ($ln in $lines) {
+        if ($ln -and $ln.Trim()) {
+            $p = @($ln.Split(',') | ForEach-Object { $_.Trim() })
+            if ($p.Count -ge 4) {
+                $gpus += [pscustomobject]@{
+                    name = $p[0]
+                    util_percent = $p[1]
+                    mem_used_mib = $p[2]
+                    mem_total_mib = $p[3]
+                    temp_c = if ($p.Count -ge 5) { $p[4] } else { $null }
+                }
+            }
+        }
+    }
+    $appLines = & $smi --query-compute-apps=pid,process_name,used_memory --format=csv,noheader,nounits 2>$null
+    foreach ($ln in $appLines) {
+        if ($ln -and $ln.Trim()) {
+            $p = @($ln.Split(',') | ForEach-Object { $_.Trim() })
+            if ($p.Count -ge 3 -and $p[0] -match '^\d+$') {
+                $pidVal = [int]$p[0]
+                $info = $procMap[$pidVal]
+                $gpuProcs += [pscustomobject]@{
+                    pid = $pidVal
+                    raw_name = if ($info -and $info.name) { $info.name } else { [IO.Path]::GetFileName($p[1]) }
+                    cmd = if ($info) { $info.cmd } else { $p[1] }
+                    mem_mib = $p[2]
+                }
+            }
+        }
+    }
+}
+
+@{
+    hostname = $env:COMPUTERNAME
+    brand = $brand
+    os = $osCaption
+    os_id = 'windows'
+    cpu = @{
+        name = $cpuName
+        threads = $cpuThreads
+        percent = $cpuPct
+        normal_ghz = if ($cpuMaxMhz) { [math]::Round($cpuMaxMhz / 1000.0, 2) } else { $null }
+        performant_ghz = if ($cpuCurMhz -and $cpuCurMhz -gt $cpuMaxMhz) { [math]::Round($cpuCurMhz / 1000.0, 2) } elseif ($cpuMaxMhz) { [math]::Round($cpuMaxMhz / 1000.0, 2) } else { $null }
+    }
+    ram = @{
+        name = $ramName
+        speed_mhz = $ramSpeed
+        installed_mib = if ($ramInstalledBytes) { [math]::Round($ramInstalledBytes / 1MB, 1) } else { $null }
+        used_mib = [math]::Round($ramUsedKib / 1024.0, 1)
+        total_mib = [math]::Round($ramTotalKib / 1024.0, 1)
+    }
+    gpus = @($gpus)
+    processes = @{
+        cpu = @($cpuProcs)
+        ram = @($ramProcs)
+        gpu = @($gpuProcs)
+    }
+    gaming = [bool](Test-Path 'C:\ProgramData\LocalLLM\state\gaming.on')
+} | ConvertTo-Json -Depth 5 -Compress
+""".strip()
 
 # ---------------------------------------------------------------------------
 # Hardware detection (Linux, via dmidecode — requires sudo)
