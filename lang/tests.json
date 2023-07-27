@@ -34,12 +34,20 @@
       "not": {"latest": ["El precio actual de la acción"]}
     },
     "fr": {
-      "latest": ["Quelles sont les dernières nouveautés de Vite"],
-      "error": ["Ma compilation échoue avec un message étrange"],
-      "question_start": ["Comment configurer un proxy dans Vite"],
-      "local_current": ["Lister les fichiers du répertoire courant"],
-      "lookup": ["Veuillez le rechercher, pas de mémoire"],
-      "none": ["J'ai besoin des chiffres réels pour le rapport."]
+      "latest": ["Quoi de neuf dans la dernière version de Vite"],
+      "error": ["Le programme plante au démarrage"],
+      "action_start": ["Cherche des avis sur ce clavier"],
+      "question_start": ["Pourquoi le serveur ne démarre pas"],
+      "local_current": ["Affiche les fichiers du répertoire courant"],
+      "named_engine": ["Cherche sur Mojeek pi coding agent"],
+      "named_source": ["Lis la documentation de Vite sur le proxy"],
+      "lookup": ["Cherche en ligne, pas de mémoire"],
+      "offer": ["Voulez-vous que je compare d'autres versions ?"],
+      "from_memory": ["J'ai répondu de mémoire, sans recherche web."],
+      "current_info": ["Combien coûte une RTX 5090 en ce moment"],
+      "months": ["novembre 2025"],
+      "bot_check": ["Vérification de votre navigateur avant d'accéder au site"],
+      "none": ["Ma sœur a acheté un vélo rouge hier.", "Le jardin est très beau au printemps.", "Ce matin il pleut beaucoup."]
     },
     "de": {
       "latest": ["Was gibt es Neues in der neuesten Vite-Version"],
