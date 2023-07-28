@@ -13,13 +13,26 @@ The server has 2 slots (64K context each with the default model), so its two cli
 
 ## Model
 
-The model is described by a **profile** in `models/` — its download location (Hugging Face repository and file), context per slot, number of slots, longest answer, prompt cache, sampling settings, and reasoning mode (`REASONING`). Profile files live in `models/` as `.env` files and are referenced by filename. The quantization level is baked into the model filename, not passed as a flag.
+The model is described by a **profile** in `models/`: where to download it (Hugging Face repository and file), its context per slot, the number of slots, the longest answer, the prompt cache, the default CPU/GPU split for models with experts, sampling, and how its reasoning is switched off (`REASONING`).
+`lib/model.sh` reads it for `install/llama.sh` (the download), `services/llm-server.sh` (llama-server's flags),
+and writes `~/.config/localllm/model.json` for Pi's `thinking-switch` extension.
 
-To export model metadata as JSON:
+The default profile (`models/default`) is for general chat and writing. It handles basic conversation, translation,
+and code assistance. The model files are kept in `~/LocalLLM/models/`; `install/llama.sh` downloads them from Hugging Face
+(checking their size against the free space first), and no copy is kept anywhere else.
 
-```bash
-bash model.sh --json
-```
+To use another model (or another GGML build, if the uploader renames or removes the file):
+
+1. Add a profile in `models/`: copy the default one and change its values. Leave `MMPROJ_*` empty without image input, and `MOE_LAYERS`/`N_CPU_MOE` empty without experts.
+2. Set `MODEL_PROFILE="<file name without .env>"` in `~/.config/localllm/local.env`.
+3. Run `install/llama.sh` (downloads it), `stop/llama.sh && start/llama.sh`,
+
+What depends on the PC rather than the model (GPU, threads, the CPU/GPU split) stays in `local.env` and wins over
+the profile (see "Tuning llama-server").
+
+Before the alias `local`, the model was served under its own name and the service had the model's name too.
+`install/llama.sh` stops and removes that old service (`llama-7b`), `install/pi.sh` rewrites Pi's `llamacpp`
+provider, and moves the admin's chats to `local` (the names in the profile's `OLD_ALIASES`).
 
 ### Reinstalling from scratch
 
