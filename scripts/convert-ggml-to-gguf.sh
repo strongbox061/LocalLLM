@@ -26,6 +26,17 @@ if [[ ! -x "$CONVERTER" ]]; then
     exit 1
 fi
 
+if ! command -v python3 &>/dev/null; then
+    echo "Error: python3 is required but not found" >&2
+    exit 1
+fi
+
 echo "Converting: $INPUT -> $OUTPUT"
 python3 "$CONVERTER" --outfile "$OUTPUT" "$INPUT"
+
+if [[ ! -f "$OUTPUT" ]]; then
+    echo "Error: conversion failed — output file not created: $OUTPUT" >&2
+    exit 1
+fi
+
 echo "Done. Output: $OUTPUT ($(du -h "$OUTPUT" | cut -f1))"
