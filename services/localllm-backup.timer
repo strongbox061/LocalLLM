@@ -1,5 +1,6 @@
 # Runs the LocalLLM off-site backup (upload-backup.sh) 4 times a day, every 6 hours. To change the times, edit
 # OnCalendar and run install/backup-timer.sh again. Persistent=true: runs missed while the PC was off or asleep are
+# made up by a single run at the next boot or wake (or log-in), never one per missed run.
 
 [Unit]
 Description=LocalLLM off-site backup every 6 hours
