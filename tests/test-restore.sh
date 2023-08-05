@@ -11,14 +11,15 @@
 # Programs of your own that aren't part of this setup (in ~/.local/bin, the Nix profile) go one name per line in
 # ~/.config/localllm/restorability-ignore, which stays on this machine.
 
-set -euo pipefail
+set -uo pipefail
+
+source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
 
 RESTORABILITY_IGNORE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/localllm/restorability-ignore"
 FAIL=0
-
 ok()   { printf '  ok    %s\n' "$*"; }
 bad()  { printf '  FAIL  %s\n' "$*"; FAIL=1; }
-note() { printf '  note  %s\n' "$*"; }
+note()   { printf '  note  %s\n' "$*"; }
 
 # check_list <label> <listing command output> <covered names...> -- <ignored names...>
 # Every name in the listing must be covered (brought back) or ignored (caches, other projects).
