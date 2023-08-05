@@ -1,10 +1,8 @@
 """
-OpenAI-compatible /v1/audio/transcriptions endpoint using faster-whisper.
+OpenAI-compatible /v1/audio/transcriptions with faster-whisper.
 
-Runs a small HTTP server that accepts audio uploads and transcribes them.
-The model is loaded once at startup so the first request doesn't pay
-the cold-load penalty.  Transcriptions run one-at-a time to avoid
-spiking GPU memory.
+The model is loaded before the port opens, so the first recording is as fast as
+the others, and one recording is transcribed at a time (one GPU).
 """
 
 import json
@@ -16,6 +14,12 @@ import time
 from email.parser import BytesParser
 from email.policy import HTTP
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+if os.name == "nt":
+    # On Windows, CUDA's libraries come with torch; loading it first lets CTranslate2 find them (without it, the first
+    # transcription on the GPU hangs).
+    import torch  # noqa: F401
+
 import numpy as np
 from faster_whisper import WhisperModel, decode_audio
 from faster_whisper.audio import pad_or_trim
@@ -30,35 +34,37 @@ BEAM_SIZE = int(os.environ.get("WHISPER_BEAM_SIZE", "5"))
 MAX_UPLOAD = 100 * 1024 * 1024
 
 _lock = threading.Lock()
-_model = None
+_model: WhisperModel | None = None
+_reuse: "EncoderReuse | None" = None
 
 
 def log(text: str):
-    ts = time.strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[WHISPER {ts}] {text}", flush=True)
+    print(f"[whisper] {text}", flush=True)
 
 
 class EncoderReuse:
-    """Wrap a WhisperModel so the underlying encoder is reused across calls."""
+    """Runs Whisper's encoder once per clip instead of twice.
 
-    def __init__(self, model_path: str, device: str, compute_type: str):
-        log(f"loading model from {model_path} on {device}")
-        self._model = WhisperModel(
-            model_size_or_path=model_path,
-            device=device,
-            compute_type=compute_type,
-            num_workers=2,
-        )
-        self._last_used = 0.0
+    Detecting the language needs the encoder's output for the clip's first 30 s, and faster-whisper's transcribe()
+    computes the same output again. pick_language() leaves the result here; the next encode() of an identical
+    window takes it instead of running the encoder.
+    """
 
-    def transcribe(self, audio_array, language=None):
-        self._last_used = time.time()
-        kwargs = {"beam_size": BEAM_SIZE}
-        if language:
-            kwargs["language"] = language
-        segments, info = self._model.transcribe(audio_array, **kwargs)
-        text = " ".join(seg.text for seg in segments).strip()
-        return {"text": text, "language": info.language}
+    def __init__(self, model: WhisperModel):
+        self.encode = model.encode
+        self.kept = None
+        self.reused = False
+        model.encode = self.reuse_or_encode
+
+    def keep(self, window, output):
+        self.kept = (window, output)
+
+    def reuse_or_encode(self, window):
+        kept, self.kept = self.kept, None
+        if kept is not None and kept[0].shape == window.shape and np.array_equal(kept[0], window):
+            self.reused = True
+            return kept[1]
+        return self.encode(window)
 
 
 def speech_only(audio):
