@@ -15,6 +15,7 @@ Phrase syntax (lang/phrases.json):
 import json
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -31,30 +32,21 @@ MARKS = "̀-֑ͯ-ׇֽֿׁׂًׅׄ-ٰٟ"
 
 # Same-meaning characters written differently: curly apostrophes, Greek final sigma, Arabic/Persian yeh and kaf,
 # and the Persian zero-width non-joiner (written or left out at will).
-SAME = {"'": "'", "‘": "'", "ʼ": "'", "`": "'", "ς": "σ",
-        "ي": ["ي", "ى"], "ك": ["ك", "ک"]}
+SAME = {"'": "'", "'": "'", "ʼ": "'", "`": "'", "ς": "σ",
+        "ي": "ي", "ى": "ي", "ك": "ک", "\u200c": "", "\u200d": ""}
 
 NOSPACE = re.compile(r"[^\w\s]")
 GAP_MARK = "…"
 PUNCT = ".!?,:;"
 STOP = r".?!。？！\n"
 
+_MARKS_RE = re.compile(f"[{MARKS}]")
+
 
 def norm(text: str) -> str:
-    """Remove diacritics and normalise same-meaning characters."""
-    # Decompose Unicode, strip combining marks in the MARKS range
-    out = []
-    for ch in text:
-        cat = unicodedata.category(ch)
-        if cat.startswith("M"):
-            continue
-        out.append(ch)
-    text = "".join(out)
-    # Normalise same-meaning characters to the canonical form
-    for key, values in SAME.items():
-        for v in values:
-            text = text.replace(v, key)
-    return text
+    t = unicodedata.normalize("NFD", str(text).lower())
+    t = unicodedata.normalize("NFC", _MARKS_RE.sub("", t))
+    return "".join(SAME.get(c, c) for c in t)
 
 
 class Flavor:
