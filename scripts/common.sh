@@ -14,6 +14,7 @@ SEARXNG_DIR="$LLM_HOME/searxng"
 # encrypted archives and the upload remote are.
 LOCAL_ENV_FILE="$HOME/.config/localllm/local.env"
 # shellcheck source=/dev/null
+[[ -f "$LOCAL_ENV_FILE" ]] && source "$LOCAL_ENV_FILE"
 BACKUP_PASSPHRASE_FILE="${BACKUP_PASSPHRASE_FILE:-}"
 BACKUP_ARCHIVE_DIR="${BACKUP_ARCHIVE_DIR:-}"
 BACKUP_REMOTE="${BACKUP_REMOTE:-}"
@@ -21,6 +22,8 @@ BACKUP_KEEP_COUNT="${BACKUP_KEEP_COUNT:-}"
 # The versions running when the last backup was made (written by backup.sh, part of the settings backup). On a fresh
 # install the installers use them for anything they install new; --update ignores them and takes the newest.
 VERSIONS_FILE="$HOME/.config/localllm/versions.env"
+# shellcheck source=/dev/null
+[[ -f "$VERSIONS_FILE" ]] && source "$VERSIONS_FILE"
 # Your own programs that tests/restorability-check.sh ignores (part of the settings backup).
 RESTORABILITY_IGNORE_FILE="$HOME/.config/localllm/restorability-ignore"
 CHAT_TYPES_DIR="$HOME/.config/localllm/chat-types"
