@@ -43,13 +43,7 @@ search:
 EOF
 fi
 
-# The images of the last backup (versions.env), when they aren't here yet.
-if [ -f "versions.env" ]; then
-  while IFS='=' read -r key value; do
-    case "$key" in
-      searxng|searxng*)
-        docker pull "${value}" 2>/dev/null || true
-        ;;
-    esac
-  done < versions.env
-fi
+searxng_sync_override || true
+# Pin images from versions.env, then start containers.
+pin_image "${SEARXNG_IMAGE:-}" docker-compose.yml
+docker_cmd compose up -d
