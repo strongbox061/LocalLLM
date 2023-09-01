@@ -39,14 +39,21 @@ def check(name, ok, detail=""):
 
 
 def load_module(name, path):
-    spec = importlib.util.spec_from_file_location(name, str(path))
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def load_tool():
-    return load_module("tool", ROOT / "lang" / "tool.py")
+    if importlib.util.find_spec("aiohttp") is None:
+        sys.modules["aiohttp"] = types.ModuleType("aiohttp")
+    if importlib.util.find_spec("pydantic") is None:
+        pydantic = types.ModuleType("pydantic")
+        pydantic.BaseModel = type("BaseModel", (), {})
+        pydantic.Field = lambda default=None, **_: default
+        sys.modules["pydantic"] = pydantic
+    return load_module("search_gateway_engine", ROOT / "services" / "search_gateway_engine.py")
 
 
 # ---------------------------------------------------------------- generated copies
@@ -104,7 +111,7 @@ def check_tool(tool):
     return ok
 
 
-TOOL_TEST = {"current_info": lambda s: False, "bot_check": lambda s: False}
+TOOL_TEST = {"current_info": tool.wants_current_info, "bot_check": tool.looks_like_bot_check}
 
 
 # ---------------------------------------------------------------- collisions between languages
