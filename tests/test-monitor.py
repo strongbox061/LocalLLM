@@ -60,6 +60,20 @@ def test_parsers() -> None:
     check("parse_kv_lines key1", parsed.get("key1") == "val1")
 
 
+def test_helpers() -> None:
+    """Test helper-related parsing and utility functions."""
+    check(
+        "helper SSH launcher stays tiny (script piped over stdin)",
+        len(monitor.HELPER_PS_LAUNCHER) < 300,
+        f"len={len(monitor.HELPER_PS_LAUNCHER)}",
+    )
+    check(
+        "friendly_process_name extracts GGUF model from llama-server",
+        monitor.friendly_process_name("llama-server", "/usr/bin/llama-server -m /models/demo-model-q4.gguf --port 8081")
+        == "llama-server (demo-model-q4)",
+    )
+
+
 def test_http_server() -> None:
     """Start a minimal HTTP server and verify response."""
     handler = monitor.create_json_handler({"status": "ok"})
