@@ -30,15 +30,11 @@
 # then the main PC's, llama-server last. SearXNG keeps running on stop (it starts at boot); `stop searxng` stops it.
 # When the helper can't be reached, the main PC's part still runs and the helper is reported as unreachable.
 
-set -euo pipefail
+set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_DIR="$HOME/.config/localllm"
-ENV_FILE="$CONFIG_DIR/local.env"
-SERVICES_JSON="$SCRIPT_DIR/config/services.json"
-
-# Load per-PC settings (source lib/helper.sh for shared helpers)
-source "$SCRIPT_DIR/lib/helper.sh"
+source "$(dirname -- "${BASH_SOURCE[0]}")/lib/common.sh"
+# shellcheck source=lib/helper.sh
+source "$REPO_DIR/lib/helper.sh"
 
 # The main PC's services, in start order; stop goes the other way round and leaves SearXNG running. Each has
 # a status check that tests its HTTP endpoint.
