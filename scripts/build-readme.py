@@ -37,18 +37,32 @@ def strip_md_inline(text: str) -> str:
 
 
 def split_table_row(line: str) -> list[str]:
-    """Split a Markdown table row on unescaped pipe characters."""
-    parts = []
-    current = []
-    for ch in line:
-        if ch == '|' and not current or (ch == '|' and current):
-            parts.append(''.join(current).strip())
-            current = []
+    """Split a GFM table row into cells without splitting on pipes inside backticks."""
+    s = line.strip()
+    if s.startswith("|"):
+        s = s[1:]
+    if s.endswith("|"):
+        s = s[:-1]
+    cells: list[str] = []
+    buf: list[str] = []
+    in_code = False
+    i = 0
+    while i < len(s):
+        ch = s[i]
+        if ch == "`":
+            in_code = not in_code
+            buf.append(ch)
+        elif ch == "\\" and i + 1 < len(s) and s[i + 1] == "|" and not in_code:
+            buf.append("|")
+            i += 1
+        elif ch == "|" and not in_code:
+            cells.append("".join(buf).strip())
+            buf = []
         else:
-            current.append(ch)
-    if current:
-        parts.append(''.join(current).strip())
-    return parts
+            buf.append(ch)
+        i += 1
+    cells.append("".join(buf).strip())
+    return cells
 
 
 def is_table_sep(line: str) -> bool:
