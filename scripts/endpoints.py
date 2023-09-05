@@ -27,8 +27,7 @@ class SettingsError(Exception):
 
 
 def env_name(name):
-    """Return the environment variable name for a service endpoint."""
-    return f"ENDPOINT_{name.upper().replace('-', '_')}"
+    return name.upper().replace("-", "_")
 
 
 def tailscale_self_name():
