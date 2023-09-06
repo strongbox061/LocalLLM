@@ -22,6 +22,16 @@ Control what gets returned by the search engine. Set environment variables befor
 - `MAX_RESULTS=5` to limit results per query
 - `SAFE_SEARCH=true` to filter explicit content
 
+| # | Prompt | Expected |
+|---|---|---|
+| A1 | How do I fix "error: failed to commit transaction (invalid or corrupted package)" with pacman? | `site:wiki.archlinux.org`; the fix comes from a page it opened |
+| A2 | How do I cancel a fetch() request in JavaScript? | `site:developer.mozilla.org`; the answer mentions AbortController |
+| A3 | What does rsync's --partial flag do? | `site:man.archlinux.org`; the answer comes from the man page text |
+| A4 | Is there an official Docker image for Ollama? | `site:hub.docker.com`; names ollama/ollama |
+| A5 | What's the latest version of the httpx Python package? | `site:pypi.org`, then opens the PyPI page and gives the version from it |
+| A6 | Find recent papers on speculative decoding for LLMs. | lists papers, mostly with arXiv links (`site:arxiv.org` preferred); titles and dates as the results give them |
+| A7 | Who developed the Mamba state space model architecture? | `site:wikipedia.org` or no filter; names Albert Gu and Tri Dao |
+
 ## B. Reading pages
 
 Test that page extraction works correctly. The tool extracts readable text from HTML pages, strips navigation and footers, and returns the main content.
