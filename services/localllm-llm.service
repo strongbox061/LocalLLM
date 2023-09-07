@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=root
+User=@USER@
 EnvironmentFile=%h/.config/localllm/local.env
 # GPU_MAX_CLOCK_MHZ / GPU_POWER_LIMIT_W from local.env, as root ("+"); it never blocks the start.
 ExecStart=/opt/llama.cpp/main \
