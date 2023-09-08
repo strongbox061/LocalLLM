@@ -157,18 +157,48 @@ function buildOsIcon(osId, osName) {
   return h("span", { class: "icon-badge", title }, svg);
 }
 
+/**
+ * Filled SVG pie chart:
+ * - Full circle in blue (--pie-free): max capacity / memory (100%)
+ * - Red slice (--pie-used): occupied capacity / memory (0..100%)
+ */
 function buildPieSvg(percent, ariaLabel) {
-  const clamped = Math.max(0, Math.min(100, percent));
-  const offset = PIE_C * (1 - clamped / 100);
-  return h("svg:svg", { viewBox: "0 0 56 56", width: "56", height: "56", "aria-label": ariaLabel },
-    h("svg:circle", { cx: "28", cy: "28", r: String(PIE_R), fill: "none",
-      stroke: "var(--pie-free)", "stroke-width": "6" }),
-    h("svg:circle", { cx: "28", cy: "28", r: String(PIE_R), fill: "none",
-      stroke: "var(--pie-used)", "stroke-width": "6",
-      "stroke-dasharray": String(PIE_C), "stroke-dashoffset": String(offset),
-      "stroke-linecap": "round", transform: "rotate(-90 28 28)" }),
+  const valid = percent !== null && percent !== undefined && !Number.isNaN(Number(percent));
+  const clamped = valid ? Math.max(0, Math.min(100, Number(percent))) : 0;
+  const usedLen = (clamped / 100) * PIE_C;
+
+  const svg = h("svg:svg", { viewBox: "0 0 100 100", role: "img", "aria-label": ariaLabel },
+    h("svg:title", null, ariaLabel),
+    h("svg:circle", {
+      cx: 50, cy: 50, r: 48,
+      fill: valid ? "var(--pie-free)" : "var(--pie-empty)",
+    })
   );
+
+  if (valid && clamped > 0) {
+    svg.append(h("svg:circle", {
+      class: "pie-slice",
+      cx: 50, cy: 50, r: PIE_R,
+      fill: "none",
+      stroke: "var(--pie-used)",
+      "stroke-width": 48,
+      "stroke-dasharray": `${usedLen} ${PIE_C}`,
+      transform: "rotate(-90 50 50)",
+    }));
+  }
+
+  svg.append(h("svg:circle", {
+    cx: 50, cy: 50, r: 48,
+    fill: "none",
+    stroke: "var(--line)",
+    "stroke-width": 1.2,
+  }));
+  return svg;
 }
+
+const LIST_ICON = () => h("svg:svg", { viewBox: "0 0 16 16", "aria-hidden": "true" },
+  h("svg:path", { d: "M3 4h10M3 8h10M3 12h7", fill: "none", stroke: "currentColor", "stroke-width": 1.8, "stroke-linecap": "round" })
+);
 
 /* ---- Pie card (gauge + label) ---- */
 
