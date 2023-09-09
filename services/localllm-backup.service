@@ -2,6 +2,7 @@
 
 [Unit]
 Description=LocalLLM encrypted off-site backup
+After=network-online.target
 
 [Service]
 Type=oneshot
