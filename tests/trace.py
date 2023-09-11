@@ -26,25 +26,16 @@ RESULT_CHARS = 300
 
 
 def text_of(content) -> str:
-    """Extract string text from a message content (list of blocks or plain string)."""
+    if isinstance(content, str):
+        return content
     if isinstance(content, list):
-        parts = []
-        for item in content:
-            if isinstance(item, dict):
-                if item.get('type') == 'text':
-                    parts.append(item.get('text', ''))
-            elif isinstance(item, str):
-                parts.append(item)
-        return '\n'.join(parts)
-    return str(content)
+        return "\n".join(p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text")
+    return ""
 
 
 def one_line(text: str, limit: int) -> str:
-    """Collapse text to a single line and truncate."""
-    text = text.replace('\n', ' ').replace('\r', '')
-    if len(text) > limit:
-        return text[:limit] + '...'
-    return text
+    text = " | ".join(line.strip() for line in str(text).splitlines() if line.strip())
+    return text if len(text) <= limit else text[:limit] + " …"
 
 
 def load(path: str) -> dict:
