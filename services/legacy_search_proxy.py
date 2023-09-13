@@ -18,21 +18,33 @@ def searxng_search(query, engines=None):
         params["engines"] = ",".join(engines)
     url = f"{SEARXNG_URL}/search?{urllib.parse.urlencode(params)}"
     req = urllib.request.Request(url)
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        return json.loads(resp.read())
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError(f"SearXNG request failed: {exc.code} {exc.reason}") from exc
 
 
 def brave_search(query):
     if not BRAVE_API_KEY:
         raise RuntimeError("BRAVE_API_KEY is not set")
     url = (
-        f"https://api.brave.com/v1/search"
+        f"https://api.search.brave.com/res/v1/web/search"
         f"?q={urllib.parse.quote(query)}"
     )
     req = urllib.request.Request(url)
     req.add_header("Authorization", f"Bearer {BRAVE_API_KEY}")
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        return json.loads(resp.read())
+    req.add_header("Accept", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError(f"Brave search failed: {exc.code} {exc.reason}") from exc
+
+
+def _extract_results(data, max_results=10):
+    results = data.get("results", [])
+    return [{"title": r.get("title", ""), "url": r.get("url", ""), "snippet": r.get("content", "")} for r in results[:max_results]]
 
 
 def search(query, source="searxng", engines=None):
@@ -44,5 +56,6 @@ def search(query, source="searxng", engines=None):
 if __name__ == "__main__":
     import sys
     query = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else "python llm"
-    result = search(query)
-    print(json.dumps(result, indent=2))
+    results = _extract_results(search(query))
+    for r in results:
+        print(f"{r['title']}\n  {r['url']}\n  {r['snippet']}\n")
