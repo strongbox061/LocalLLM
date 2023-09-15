@@ -14,11 +14,13 @@
   <h1>LocalLLM Monitor</h1>
   <div class="sub" id="updated">Loading metrics…</div>
   <div class="controls">
+    <label class="sub" for="intervalSel">Auto-refresh:</label>
     <select id="intervalSel" aria-label="Auto-refresh interval">
-      <option value="3">3s</option>
-      <option value="5" selected>5s</option>
-      <option value="10">10s</option>
-      <option value="30">30s</option>
+      <option value="2000">2 s</option>
+      <option value="5000" selected>5 s</option>
+      <option value="10000">10 s</option>
+      <option value="30000">30 s</option>
+      <option value="0">Paused</option>
     </select>
     <button type="button" id="refreshBtn">Refresh now</button>
   </div>
