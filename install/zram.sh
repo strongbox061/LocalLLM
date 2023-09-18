@@ -7,35 +7,32 @@
 # Safe to run again: files are only written when they differ.
 set -euo pipefail
 
-# Source environment if available
-if [[ -f "$(dirname "$0")/../local.env" ]]; then
-    source "$(dirname "$0")/../local.env"
-fi
+source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
 
 # --- zram ---
+pacman -Q zram-generator >/dev/null 2>&1 || sudo pacman -S --needed zram-generator
+
 ZRAM_CONF="[zram0]
 # Up to half the RAM of (uncompressed) swapped pages; RAM is only used as it fills, about 1/3 of that with zstd.
+zram-size = ram / 2
+compression-algorithm = zstd
 # Used before the disk swap partition (priority -1 or so).
-DiskSize = 50%
-CompressionAlgo = zstd"
+swap-priority = 100"
 
+if install_system_file /etc/systemd/zram-generator.conf "$ZRAM_CONF"; then
+    sudo systemctl daemon-reload
+    sudo systemctl restart systemd-zram-setup@zram0.service
+fi
+
+# --- swap tuning for zram ---
+# swappiness above 100 tells the kernel swapping to zram is cheaper than dropping file cache; page-cluster 0 reads
+# back one page at a time (no read-ahead, which only helps disks); the watermarks start reclaiming a little earlier.
 SYSCTL_CONF="vm.swappiness = 180
-# page-cluster 0 reads back one page at a time (no read-ahead, which only helps disks);
-# the watermarks start reclaiming a little earlier.
 vm.page-cluster = 0
-vm.vfs_cache_pressure = 80"
+vm.watermark_boost_factor = 0
+vm.watermark_scale_factor = 125"
 
-write_if_changed() {
-    local file="$1"
-    local content="$2"
-    if [[ -f "$file" ]] && [[ "$(cat "$file")" == "$content" ]]; then
-        return 0
-    fi
-    echo "$content" | sudo tee "$file" >/dev/null
-}
-
-# Write zram config (used by systemd-zram-generator or similar)
-write_if_changed /etc/systemd/zram-config.conf "$ZRAM_CONF"
-
-# Write sysctl tuning for zram
-write_if_changed /etc/sysctl.d/99-zram.conf "$SYSCTL_CONF"
+if install_system_file /etc/sysctl.d/99-localllm-zram.conf "$SYSCTL_CONF"; then
+    sudo sysctl --system >/dev/null
+    echo "Applied the swap settings."
+fi
