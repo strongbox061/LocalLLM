@@ -50,12 +50,20 @@
       "none": ["Ma sœur a acheté un vélo rouge hier.", "Le jardin est très beau au printemps.", "Ce matin il pleut beaucoup."]
     },
     "de": {
-      "latest": ["Was gibt es Neues in der neuesten Vite-Version"],
-      "error": ["Mein Build schlägt mit einer seltsamen Meldung fehl"],
-      "question_start": ["Wie konfiguriere ich einen Proxy in Vite"],
-      "local_current": ["Dateien im aktuellen Verzeichnis auflisten"],
-      "lookup": ["Bitte suchen Sie es nach, nicht aus dem Gedächtnis"],
-      "none": ["Ich brauche die tatsächlichen Zahlen für den Bericht."]
+      "latest": ["Was ist neu in der neuesten Version von Vite"],
+      "error": ["Der Build schlägt fehl mit einer seltsamen Meldung"],
+      "action_start": ["Suche Testberichte zu dieser Tastatur"],
+      "question_start": ["Wie richte ich einen Proxy in Vite ein"],
+      "local_current": ["Zeig die Dateien im aktuellen Verzeichnis"],
+      "named_engine": ["Suche auf Mojeek nach pi coding agent"],
+      "named_source": ["Lies die Dokumentation von Vite zum Proxy"],
+      "lookup": ["Schlag es nach, nicht aus dem Kopf"],
+      "offer": ["Möchtest du, dass ich weitere Versionen vergleiche?"],
+      "from_memory": ["Ich habe aus dem Gedächtnis geantwortet, ohne Websuche."],
+      "current_info": ["Was kostet eine RTX 5090 gerade jetzt"],
+      "months": ["November 2025", "März 2024"],
+      "bot_check": ["Zugriff verweigert"],
+      "none": ["Es ist ein Gift.", "Meine Schwester hat gestern ein rotes Fahrrad gekauft.", "Der Garten ist im Frühling sehr schön."]
     },
     "ja": {
       "latest": ["最新のViteの新機能は何ですか"],
