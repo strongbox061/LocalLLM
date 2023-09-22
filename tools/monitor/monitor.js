@@ -200,16 +200,37 @@ const LIST_ICON = () => h("svg:svg", { viewBox: "0 0 16 16", "aria-hidden": "tru
   h("svg:path", { d: "M3 4h10M3 8h10M3 12h7", fill: "none", stroke: "currentColor", "stroke-width": 1.8, "stroke-linecap": "round" })
 );
 
-/* ---- Pie card (gauge + label) ---- */
-
 function pieCard(opts) {
-  const { percent, label, sublabel } = opts;
+  const { machineKey, machineTitle, component, kind, deviceName, specLine, percent, occupiedText, detailText } = opts;
+  const label = `${kind} (${deviceName}${specLine ? " · " + specLine : ""}): ${occupiedText} occupied`;
+  const open = () => openProcessModal(machineKey, machineTitle, component, kind);
+  const btn = h("button", {
+    type: "button",
+    class: "pie-kind-btn",
+    title: `Click to view ${kind} processes on ${machineTitle}`,
+  }, kind, LIST_ICON());
+  btn.addEventListener("click", open);
+
+  const deviceEl = h("div", {
+    class: "pie-device",
+    role: "button",
+    tabindex: "0",
+    title: `Click to view ${kind} processes on ${machineTitle}`,
+  },
+    h("span", null, deviceName),
+    specLine ? h("span", { class: "pie-spec" }, specLine) : null
+  );
+  deviceEl.addEventListener("click", open);
+  deviceEl.addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); }
+  });
+
   return h("div", { class: "pie-card" },
-    buildPieSvg(percent, label),
-    h("div", { class: "pie-info" },
-      h("div", { class: "pie-label" }, label),
-      h("div", { class: "pie-sub" }, sublabel || fmtPct(percent)),
-    ),
+    btn,
+    deviceEl,
+    h("div", { class: "pie-wrap" }, buildPieSvg(percent, label)),
+    h("div", { class: "pie-occupied" }, occupiedText),
+    detailText ? h("div", { class: "pie-detail" }, detailText) : null
   );
 }
 
