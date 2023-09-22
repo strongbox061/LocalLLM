@@ -42,14 +42,19 @@ copy_dir() {
 # snapshot_db <source .db> <destination>: a consistent copy of a SQLite database, safe while the app is running.
 # .backup includes what is still in the WAL file; the copy is switched to a single file (no -wal/-shm next to it).
 snapshot_db() {
-  local src="$1" dst="$2"
-  if [[ -f "$src" ]]; then
-    mkdir -p "$(dirname -- "$dst")"
-    sqlite3 "$src" ".backup '$dst'"
-    log_info "Snapshot DB $src -> $dst"
-  else
+  local src="$1" dst="$2" tmp="$2.tmp"
+  if [[ ! -f "$src" ]]; then
     log_warn "Skipping missing database: $src"
+    return 0
   fi
+  mkdir -p "$(dirname -- "$dst")"
+  rm -f "$tmp"
+  sqlite3 "$src" ".backup '$tmp'"
+  [[ "$(sqlite3 "$tmp" 'pragma integrity_check;')" == "ok" ]] || die "The snapshot of $src is corrupt: $tmp"
+  sqlite3 "$tmp" 'pragma journal_mode=delete;' >/dev/null
+  rm -f "$dst" "$dst-wal" "$dst-shm"
+  mv "$tmp" "$dst"
+  log_info "Snapshot DB $src -> $dst"
 }
 
 # write_versions <file>: the versions running now, so a fresh install from this backup gets the same ones
