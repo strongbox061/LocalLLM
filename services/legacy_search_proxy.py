@@ -44,6 +44,8 @@ def brave_search(query):
 
 def _extract_results(data, max_results=10):
     results = data.get("results", [])
+    if not isinstance(results, list):
+        return []
     return [{"title": r.get("title", ""), "url": r.get("url", ""), "snippet": r.get("content", "")} for r in results[:max_results]]
 
 
