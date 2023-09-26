@@ -48,6 +48,23 @@
       "current_info": ["lo último", "más reciente", "más recientes", "últimas noticias", "última versión", "versión actual", "precio actual", "precios actuales", "actualmente", "ahora mismo", "hoy", "esta semana", "este mes", "este año", "cuánto cuesta", "cuánto vale", "precio de", "precios de", "tipo de cambio", "tasa de cambio", "ofertas de", "recientemente"],
       "months": ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "setiembre", "octubre", "noviembre", "diciembre"],
       "bot_check": ["verificando que no eres un robot", "verificando que usted es un ser humano", "verifique que es un ser humano", "comprobando tu navegador", "comprobando su navegador", "acceso denegado", "tráfico inusual", "realizando verificación de seguridad", "hubo un error accediendo a esta página"]
+    },
+    "fr": {
+      "name": "French",
+      "please": ["s'il vous plaît", "s'il te plaît", "svp", "stp", "merci de"],
+      "latest": ["dernière version", "dernières versions", "la dernière", "le dernier", "plus récent*", "récemment", "récent*", "nouveautés", "quoi de neuf", "à jour", "actuel", "actuelle", "actuellement", "journal des modifications", "notes de version", "nouvelles fonctionnalités"],
+      "error": ["erreur", "erreurs", "exception", "exceptions", "échoue", "échoué", "échec", "plante", "planté", "plantage", "bug", "ne marche pas", "ne fonctionne pas", "corrige", "corriger", "répare", "réparer"],
+      "action_start": ["cherche", "chercher", "cherchez", "recherche", "rechercher", "recherchez", "trouve", "trouvez", "ouvre", "ouvrez", "lis", "lisez", "va sur", "allez sur", "visite", "visitez", "télécharge", "téléchargez", "modifie", "modifiez"],
+      "question_start": ["qu'est-ce", "que", "quoi", "pourquoi", "où", "quand", "qui", "quel", "quelle", "quels", "quelles", "combien", "est-ce que", "peux-tu expliquer", "pouvez-vous expliquer"],
+      "local_current": ["répertoire courant", "répertoire actuel", "dossier courant", "dossier actuel", "fichier courant", "fichier actuel", "branche courante", "branche actuelle", "répertoire de travail"],
+      "named_engine": ["cherche sur {engine}", "chercher sur {engine}", "cherchez sur {engine}", "recherche sur {engine}", "rechercher sur {engine}", "recherchez sur {engine}", "cherche avec {engine}", "recherche avec {engine}"],
+      "named_source": {"verbs": ["lis", "lire", "lisez", "ouvre", "ouvrir", "ouvrez", "trouve", "trouver", "trouvez", "consulte", "consultez"], "nouns": ["page", "article", "documentation", "doc", "docs", "readme", "site officiel", "page d'accueil"], "phrases": ["selon la", "selon le", "selon les", "d'après la", "d'après le", "d'après les", "fiche du modèle", "carte du modèle"]},
+      "lookup": ["cherche-le", "cherche ça", "cherchez-le", "recherche-le", "pas de mémoire", "pas ta mémoire", "cherche en ligne", "cherche sur internet", "recherche en ligne"],
+      "offer": ["voulez-vous", "veux-tu", "souhaitez-vous", "souhaites-tu", "aimeriez-vous", "voudriez-vous", "tu veux que", "vous voulez que", "n'hésitez pas", "faites-moi savoir", "dis-moi si"],
+      "from_memory": ["connaissances générales", "de mémoire", "je sais déjà", "sans recherche web", "sans recherche sur le web"],
+      "current_info": ["dernière version", "dernières nouvelles", "plus récent*", "récemment", "actuellement", "en ce moment", "aujourd'hui", "cette semaine", "ce mois-ci", "cette année", "à jour", "prix actuel", "prix de", "combien coûte", "combien coûtent", "taux de change", "bons plans"],
+      "months": ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"],
+      "bot_check": ["vérification que vous n'êtes pas un robot", "vérification que vous êtes un humain", "vérifiez que vous êtes un humain", "vérification de votre navigateur", "accès refusé", "trafic inhabituel", "un instant...", "oh non!"]
     }
   }
 }
