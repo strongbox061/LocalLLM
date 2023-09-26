@@ -44,6 +44,29 @@ EOF
 fi
 
 searxng_sync_override || true
-# Pin images from versions.env, then start containers.
+# The images of the last backup (versions.env), when they aren't here yet.
 pin_image "${SEARXNG_IMAGE:-}" docker-compose.yml
-docker_cmd compose up -d
+
+echo "Waiting for SearXNG..."
+
+for _ in $(seq 1 30); do
+    if curl -fsS "$SEARXNG_URL/" >/dev/null 2>&1; then
+        break
+    fi
+
+    if ! docker_cmd compose ps --status running --services | grep -qx core; then
+        echo "ERROR: SearXNG container stopped."
+        docker_cmd compose logs --tail=100 core
+        exit 1
+    fi
+
+    sleep 1
+done
+
+if ! curl -fsS "$SEARXNG_URL/" >/dev/null 2>&1; then
+    echo "ERROR: SearXNG did not become ready."
+    docker_cmd compose logs --tail=100 core
+    exit 1
+fi
+
+docker_cmd compose ps
