@@ -20,11 +20,11 @@ from typing import Any
 
 
 def slugify(text: str) -> str:
-    """Convert a heading title into a URL-safe anchor slug."""
-    text = text.lower().strip()
-    text = re.sub(r'[^\w\s-]', '', text)
-    text = re.sub(r'[\s]+', '-', text)
-    return text
+    s = text.lower().strip()
+    s = re.sub(r"[^\w\s-]", "", s)
+    s = re.sub(r"[\s_]+", "-", s)
+    s = re.sub(r"-{2,}", "-", s).strip("-")
+    return s or "section"
 
 
 def strip_md_inline(text: str) -> str:
