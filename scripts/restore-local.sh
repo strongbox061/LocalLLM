@@ -26,35 +26,26 @@ as_owner() {
     fi
 }
 
-restore_file() {
-    # restore_file <backup file> <target> [mode]
-    local src="$1" dst="$2" mode="${3:-}"
-
-    if [ "$MISSING_ONLY" = true ] && [ -f "$dst" ]; then
-        echo "SKIP (exists): $dst"
-        return 0
+restore_file() {   # restore_file <backup file> <target> [mode]
+    local src="$1" dst="$2" mode="${3:-}" dir
+    dir="$(dirname -- "$dst")"
+    [[ -f "$src" ]] || return 0
+    if [[ -f "$dst" ]]; then
+        if cmp -s "$src" "$dst"; then
+            echo "  same    $dst"
+            return 0
+        fi
+        if $MISSING_ONLY; then
+            echo "  kept    $dst (differs from the backup)"
+            return 0
+        fi
+        as_owner "$dir" cp -a "$dst" "$dst.bak.$STAMP"
+        echo "  old one $dst.bak.$STAMP"
     fi
-
-    if [ ! -f "$src" ]; then
-        echo "MISSING: $src -> $dst"
-        return 0
-    fi
-
-    if [ -f "$dst" ] && ! cmp -s "$src" "$dst"; then
-        cp -p "$dst" "${dst}.bak.${STAMP}"
-        echo "BACKED UP: ${dst}.bak.${STAMP}"
-    fi
-
-    local dst_dir
-    dst_dir="$(dirname "$dst")"
-    mkdir -p "$dst_dir"
-    as_owner "$dst_dir" cp -p "$src" "$dst"
-
-    if [ -n "$mode" ]; then
-        as_owner "$dst_dir" chmod "$mode" "$dst"
-    fi
-
-    echo "RESTORED: $src -> $dst"
+    as_owner "$dir" mkdir -p "$dir"
+    as_owner "$dir" cp "$src" "$dst"
+    [[ -z "$mode" ]] || as_owner "$dir" chmod "$mode" "$dst"
+    echo "  restored $dst"
 }
 
 restore_dir() {
