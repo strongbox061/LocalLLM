@@ -5,5 +5,6 @@ set -euo pipefail
 
 cd "$(dirname -- "${BASH_SOURCE[0]}")/.."
 
+# TODO: refactor to use searxng_compose helper from lib/common.sh
 docker compose -f docker-compose.searxng.yml down
 echo "SearXNG stopped."
