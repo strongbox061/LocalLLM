@@ -57,61 +57,30 @@ def load_tool():
 
 
 # ---------------------------------------------------------------- generated copies
-def check_generated(tool):
-    ok = True
-    for label, gen_path in [("pi", ROOT / "lang" / "lang-words.ts"), ("tool", None)]:
-        if not gen_path.exists():
-            ok &= check(f"generated:{label}", False, f"{gen_path} missing")
-            continue
-        content = gen_path.read_text(encoding="utf-8")
-        ok &= check(f"generated:{label}", "LANG_WORDS" in content or "lang_words" in content.lower())
-    return ok
-
+r = subprocess.run([sys.executable, "-I", str(ROOT / "lang" / "build.py"), "--check"], capture_output=True, text=True)
+check("lang/build.py --check: generated copies up to date", r.returncode == 0, (r.stdout + r.stderr).strip())
 
 # ---------------------------------------------------------------- coverage of lang/tests.json
-def check_coverage():
-    ok = True
-    for code, lang_tests in TESTS.items():
-        phrases = PHRASES.get(code, {})
-        for rule in PHRASES.get("rules", []):
-            if rule in NOT_TESTED:
-                continue
-            key = f"r-{rule}"
-            sentences = lang_tests.get(key, [])
-            has_phrases = any(phrases.get(p, {}).get("rule") == rule for p in phrases)
-            ok &= check(f"coverage:{code}/{rule}", len(sentences) > 0 or has_phrases,
-                        f"no test sentences for {key}")
-    return ok
-
+check("every language has test sentences", sorted(TESTS) == sorted(PHRASES["languages"]),
+      f"missing: {sorted(set(PHRASES['languages']) - set(TESTS))}, unknown: {sorted(set(TESTS) - set(PHRASES['languages']))}")
+for code, lang in PHRASES["languages"].items():
+    t = TESTS.get(code, {})
+    missing = [rule for rule, entry in lang.items() if rule not in NOT_TESTED and entry and rule not in t]  # [] = can't be tested
+    check(f"{code}: a test sentence for each rule", not missing, f"no sentences for {missing}")
+    check(f"{code}: at least 2 ordinary sentences", len(t.get("none", [])) >= 2)
 
 # ---------------------------------------------------------------- the tool
-def check_tool(tool):
-    ok = True
-
-    # current_info and bot_check sentences should match their own rules
-    for rule_name, matcher in TOOL_TEST.items():
-        sentences = TESTS["en"].get(f"r-{rule_name}", [])
-        if sentences:
-            matched = [s for s in sentences if matcher(s)]
-            ok &= check(f"tool:{rule_name}_match", len(matched) > 0, f"no match for {len(sentences)} sentences")
-
-    # months with a year should be dropped from queries
-    test_query = "What happened in January 2023?"
-    cleaned = tool.normalize_query(test_query) if hasattr(tool, "normalize_query") else test_query
-    ok &= check("tool:month_dropped", "january" not in cleaned.lower() or "2023" not in cleaned,
-                f"'{test_query}' -> '{cleaned}'")
-
-    # ordinary sentences should NOT match tool rules
-    none_sentences = TESTS["en"].get("none", [])
-    if none_sentences:
-        for rule_name, matcher in TOOL_TEST.items():
-            hits = [s for s in none_sentences if matcher(s)]
-            ok &= check(f"tool:none_no_match:{rule_name}", len(hits) == 0, f"{len(hits)} false positives")
-
-    return ok
-
-
+tool = load_tool()
 TOOL_TEST = {"current_info": tool.wants_current_info, "bot_check": tool.looks_like_bot_check}
+for code, t in TESTS.items():
+    for rule, test in TOOL_TEST.items():
+        for s in t.get(rule, []):
+            check(f"tool {code}.{rule}: {s}", test(s))
+        for s in t.get("none", []) + t.get("not", {}).get(rule, []):
+            check(f"tool {code}: not {rule}: {s}", not test(s))
+    for s in t.get("months", []):
+        out = tool._strip_unasked_years(f"vite release {s}", "vite release")
+        check(f"tool {code}.months: \"{s}\" dropped", out == "vite release", out)
 
 
 # ---------------------------------------------------------------- collisions between languages
@@ -134,29 +103,42 @@ def culprits(code, rule, text):
     return hits
 
 
-if __name__ == "__main__":
-    tool = load_tool()
-    all_ok = True
-    all_ok &= check_generated(tool)
-    all_ok &= check_coverage()
-    all_ok &= check_tool(tool)
+# ---------------------------------------------------------------- collisions between languages
+# Each language's rule on its own (Python flavor of the same regexes); on a hit, the phrase that caused it is named.
+build = load_module("lang_build", ROOT / "lang" / "build.py")
+py = build.Flavor(False)
+please = build.please_re(PHRASES, py)
+engine = build.engine_re(PHRASES, py)
 
-    # collisions: each language's phrases against other languages' ordinary sentences
-    for src_code, src_tests in TESTS.items():
-        none_sentences = src_tests.get("none", [])
-        if not none_sentences:
+
+def phrase_regex(rule, raw, anchor):
+    return re.compile(build.combine([build.phrase_re(raw, py, anchor, engine if rule == "named_engine" else "")], py, please))
+
+
+def culprits(code, rule, text):
+    entry = PHRASES["languages"][code][rule]
+    anchor = PHRASES["rules"][rule].get("anchor", "any")
+    raws = entry.get("phrases", []) if rule == "named_source" else entry
+    found = [raw for raw in raws if phrase_regex(rule, raw, anchor).search(text)]
+    return found or ["(a verb … noun pair)"]
+
+
+rules = [r for r, info in PHRASES["rules"].items() if r not in ("please", "months")]
+for code in PHRASES["languages"]:
+    one = {**PHRASES, "languages": {code: PHRASES["languages"][code]}}
+    for rule in rules:
+        if not PHRASES["languages"][code].get(rule):
             continue
-        for dst_code, dst_phrases in PHRASES.items():
-            if dst_code == src_code:
+        pattern = re.compile(build.build_rule(one, rule, py))
+        hits = []
+        for other, t in TESTS.items():
+            if other == code:
                 continue
-            for name, info in dst_phrases.items():
-                if name in ("rules",):
-                    continue
-                rule = info.get("rule")
-                for sentence in none_sentences:
-                    match_hits = culprits(dst_code, rule, sentence)
-                    if match_hits:
-                        print(f"COLUMN:{src_code} vs {dst_code}/{name}: '{sentence}' matches {match_hits}")
-                        all_ok = False
+            for s in t.get("none", []) + t.get("not", {}).get(rule, []):
+                text = build.norm(s)
+                if pattern.search(text):
+                    hits.append(f"{other} \"{s}\" ← {', '.join(culprits(code, rule, text))}")
+        check(f"{code}.{rule}: no phrase matches another language's ordinary sentences", not hits, "\n        ".join(hits))
 
-    sys.exit(0 if all_ok else 1)
+print(f"lang-check: {passed} passed, {failed} failed")
+sys.exit(1 if failed else 0)
