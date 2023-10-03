@@ -50,81 +50,103 @@ def norm(text: str) -> str:
 
 
 class Flavor:
-    """Controls how phrase pieces are turned into regex fragments."""
+    """The regex dialect: JavaScript (u flag) or Python re."""
 
-    def __init__(self, strict: bool = False):
-        self.strict = strict  # True = anchor to ^/edge
+    def __init__(self, js: bool):
+        self.js = js
+        # A vowel sign is a mark, not a letter, but part of the word: "बग" (bug) isn't in "बगीचा" (garden). Python's re
+        # has no \p{M}; the marks norm() keeps in scripts written with spaces are in the Indic blocks.
+        word = r"[\p{L}\p{M}\p{N}]" if js else r"[\w\u0300-\u036f\u0900-\u0dff]"
+        self.before = f"(?<!{word})"
+        self.after = f"(?!{word})"
+        self.letters = r"[\p{L}\p{M}\p{N}_]*" if js else word + "*"
+        stop = STOP
+        self.gap_spaced = rf"(?:[\s-]+[^{stop}]{{0,80}}?)?[\s-]+"
+        self.gap_tight = rf"[^{stop}]{{0,80}}?"
 
 
 def escape(text: str) -> str:
-    """Escape regex special characters in a literal string."""
-    return re.escape(text)
+    return re.sub(r"([\\^$.|?*+()\[\]{}/])", r"\\\1", text)
 
 
 def piece(text: str, f: Flavor, tight: bool, engine: str) -> str:
-    """Build a single phrase piece into a regex fragment.
-
-    Handles wildcards (*), engine placeholders ({engine}), and word boundaries.
-    """
-    text = norm(text)
-    if text.endswith("*"):
-        text = text[:-1]
-        pat = escape(text) + r"\w*"
-    else:
-        pat = escape(text)
-    # Replace {engine} placeholder
-    if "{engine}" in pat:
-        eng_list = data.get("engines", [])
-        pat = "|".join(re.escape(e) for e in eng_list)
-    return pat
+    """One phrase without anchors or gaps, as a regex."""
+    out = []
+    i = 0
+    while i < len(text):
+        c = text[i]
+        if text.startswith("{engine}", i):
+            if not engine:
+                raise ValueError(f"{{engine}} outside named_engine: {text!r}")
+            out.append(rf"\s*{engine}\s*")
+            i += len("{engine}")
+            continue
+        if c == "*":
+            out.append(f.letters)
+        elif c == " ":
+            out.append(r"\s*" if tight else r"[\s-]+")
+        elif c == "-":
+            out.append(r"[\s-]*")
+        elif c == "'":
+            out.append("'?")
+        elif c in PUNCT:
+            out.append(r"\s*" + escape(c))
+        else:
+            out.append(escape(c))
+        i += 1
+    return "".join(out)
 
 
 def phrase_re(raw: str, f: Flavor, default_anchor: str, engine: str = "") -> tuple:
-    """Convert a raw phrase string into a regex pattern and anchor info.
-
-    Returns (pattern, anchor) where anchor is 'start', 'end', or 'any'.
-    """
-    text = norm(raw).strip()
+    """A phrase from phrases.json as (anchor, regex, word boundary before, word boundary after)."""
     anchor = default_anchor
-    if text.startswith("^"):
-        text = text[1:]
-        anchor = "start"
-    if text.endswith("$"):
-        text = text[:-1]
-        anchor = "end"
-
-    # Split on ellipsis for multi-part phrases
-    parts = [p.strip() for p in re.split(r"\.\.\.|…", text)]
-    fragments = [piece(p, f, tight=True, engine=engine) for p in parts]
-
-    if len(fragments) > 1:
-        pattern = r".*?".join(fragments)
-    else:
-        pattern = fragments[0]
-
-    # Apply anchors
-    if anchor == "start":
-        pattern = r"^" + pattern
-    elif anchor == "end":
-        pattern = pattern + r"$"
-
-    return (pattern, anchor)
+    p = norm(raw).strip()
+    if p.startswith("^"):
+        anchor, p = "start", p[1:]
+    elif p.startswith("~"):
+        anchor, p = "any", p[1:]
+    if p.endswith("$"):
+        anchor, p = "end", p[:-1]
+    p = p.strip()
+    if not p:
+        raise ValueError(f"empty phrase: {raw!r}")
+    tight = bool(NOSPACE.search(p))
+    if tight and anchor == "start" and not raw.lstrip().startswith("^"):
+        anchor = "any"  # no spaces, and the verb or question word often comes late: anywhere
+    if tight and len(re.sub(r"[\s*…]\|\{engine\}", "", p)) < 2:
+        raise ValueError(f"phrase in a script without spaces needs at least 2 characters: {raw!r}")
+    parts = [s.strip() for s in p.split(GAP_MARK)]
+    gap = f.gap_tight if tight else f.gap_spaced
+    body = gap.join(piece(s, f, tight, engine) for s in parts)
+    before = not tight and not parts[0].startswith("{engine}")
+    after = not tight and not (parts[-1].endswith("{engine}") or parts[-1][-1] in PUNCT)
+    return anchor, body, before, after
 
 
 def alternation(patterns) -> str:
-    """Join patterns with | for regex alternation."""
-    return "|".join(f"(?:{p})" for p in patterns)
+    seen, out = set(), []
+    for p in sorted(patterns, key=lambda s: (-len(s), s)):
+        if p not in seen:
+            seen.add(p)
+            out.append(p)
+    return "|".join(out)
 
 
 def combine(phrases, f: Flavor, please: str) -> str:
-    """Combine multiple phrase variants into one regex."""
-    fragments = []
-    for raw in phrases:
-        pat, _ = phrase_re(raw, f, default_anchor="any")
-        fragments.append(pat)
-    if please:
-        return alternation(fragments)
-    return alternation(fragments)
+    """One regex for many phrases: grouped by anchor and word boundaries, so each is written once."""
+    groups = {}
+    for anchor, body, before, after in phrases:
+        groups.setdefault((anchor, before, after), []).append(body)
+    out = []
+    for (anchor, before, after), bodies in sorted(groups.items()):
+        g = f"(?:{alternation(bodies)})" if len(bodies) > 1 else bodies[0]
+        g = (f.before if before else "") + g + (f.after if after else "")
+        if anchor == "start":
+            g = rf"^\s*(?:(?:{please})[\s,]+)?{g}"
+        elif anchor == "end":
+            g = rf"{g}(?:[\s,]+(?:{please}))?{f.end_punct}"
+        out.append(g)
+    return "|".join(out)
 
 
 def please_re(data: dict, f: Flavor) -> str:
