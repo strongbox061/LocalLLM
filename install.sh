@@ -26,7 +26,6 @@ docker compose version >/dev/null 2>&1 || die "'docker compose' does not work. I
 systemctl is-enabled --quiet docker.service \
     || die "docker.service is not enabled, so SearXNG would not start at boot: sudo systemctl enable --now docker.service"
 echo "NVIDIA driver and Docker are ready."
-
 # This setup is only installed from a backup (README, "Reinstalling from scratch"): on a machine that doesn't have its
 # settings yet, backup/ must hold them (the newest archive unpacked into the repo, README "Opening a backup").
 if [[ ! -f "$LOCAL_ENV_FILE" ]]; then
@@ -47,6 +46,14 @@ PACKAGES=(
     base-devel cmake git cuda uv nodejs npm python diffutils sqlite openssl openssh curl gnupg rclone shellcheck bubblewrap libnotify dmidecode
     ffmpeg nss nspr at-spi2-core libcups libdrm libxkbcommon mesa pango cairo alsa-lib libxcomposite libxdamage libxfixes libxrandr
 )
+if pacman -Q "${PACKAGES[@]}" >/dev/null 2>&1; then
+    echo "Already installed."
+else
+    sudo pacman -S --needed "${PACKAGES[@]}"
+fi
+
+log "Restore settings from backup/ (only what is missing)"
+"$REPO_DIR/restore.sh" --missing-only
 
 # Packages this PC needs beyond the setup's own (EXTRA_PACKAGES in local.env, e.g. your laptop vendor's fan tool for
 # tools/fans/). Read again after the restore, which may just have brought local.env back.

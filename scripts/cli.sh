@@ -44,25 +44,8 @@ MAIN_SERVICES=(llama-server searxng api)
 HELPER_SERVICES_PS1="$HELPER_REPO\\windows\\services.ps1"
 
 usage() {
-    cat <<EOF
-Usage: ./scripts/cli.sh <command> [target] [service]
-
-Commands:
-  start|stop|restart|status   Run the command on all services, main only, helper only, or a single service
-  endpoints                   Regenerate endpoints.json and display addresses
-  setup-helper                Set up SSH connection to the helper PC
-  install-helper              Install or update everything on the helper PC
-  deploy                      Send changed files and settings to the helper PC
-  apps [mode]                 Show or switch running apps (pi, pi+owui)
-  gaming on|off|status        Toggle gaming mode on the helper PC
-  settings                    Open search settings page (SSH tunnel in split mode)
-  chat-types                  Serve chat types page locally
-  monitor [port]              Web monitor for CPU, GPU, RAM on both PCs
-
-Targets: main, helper (or omit for all)
-Services: llama-server, searxng, api, or any service from services.json
-EOF
-    exit 1
+    sed -n '2,/^set -uo/p' "${BASH_SOURCE[0]}" | grep '^#' | sed -E 's/^# ?//'
+    exit 2
 }
 
 # The services config/services.json lists, in its order.
