@@ -200,67 +200,46 @@ if ($smi) {
 } | ConvertTo-Json -Depth 5 -Compress
 """.strip()
 
-# ---------------------------------------------------------------------------
-# Hardware detection (Linux, via dmidecode — requires sudo)
-# ---------------------------------------------------------------------------
-
-_RAM_CACHE_PATH = Path("/tmp/localllm-ram-cache.json")
-_ram_cache_lock = threading.Lock()
-
-
-def _read_ram_cache() -> dict | None:
-    """Return cached RAM info or None if missing/expired (>24h)."""
-    try:
-        if _RAM_CACHE_PATH.exists():
-            age = time.time() - _RAM_CACHE_PATH.stat().st_mtime
-            if age < 86400:
-                with open(_RAM_CACHE_PATH) as f:
-                    return json.load(f)
-    except (json.JSONDecodeError, OSError):
-        pass
-    return None
-
-
-def _write_ram_cache(data: dict) -> None:
-    with _ram_cache_lock:
-        with open(_RAM_CACHE_PATH, "w") as f:
-            json.dump(data, f)
-
-
-def detect_ram_info() -> dict | None:
-    """Run sudo dmidecode to get RAM brand/model, cache and return it."""
-    cached = _read_ram_cache()
-    if cached:
-        return cached
-
-    try:
-        result = subprocess.run(
-            ["sudo", "dmidecode", "-t", "memory"],
-            capture_output=True, text=True, timeout=30,
-        )
-        if result.returncode != 0:
-            return None
-
-        dimms_raw = result.stdout.split("Memory Device$")
-        brands = []
-        for block in dimms_raw[1:]:
-            size_match = re.search(r"Size:\s+(\d+ [GM]B)", block)
-            manufacturer = re.search(r"Manufacturer:\s+(.+)", block)
-            part_match = re.search(r"Part Number:\s+(.+)", block)
-            if size_match and manufacturer:
-                brands.append({
-                    "size": size_match.group(1).strip(),
-                    "manufacturer": manufacturer.group(1).strip(),
-                    "part_number": part_match.group(1).strip() if part_match else "",
-                })
-
-        if not brands:
-            return None
-
-        _write_ram_cache({"dimms": brands})
-        return {"dimms": brands}
-    except (subprocess.TimeoutExpired, OSError):
+def _to_float(value) -> float | None:
+    if value is None or isinstance(value, bool):
         return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _to_int(value) -> int | None:
+    f = _to_float(value)
+    return int(round(f)) if f is not None else None
+
+
+def _clamp_pct(value) -> float | None:
+    f = _to_float(value)
+    if f is None:
+        return None
+    return round(max(0.0, min(100.0, f)), 1)
+
+
+_DMI_PLACEHOLDERS = {
+    "",
+    "unknown",
+    "undefined",
+    "none",
+    "not specified",
+    "to be filled by o.e.m.",
+    "default string",
+    "system manufacturer",
+    "no module installed",
+    "[empty]",
+}
+
+
+def _clean_dmi_field(val: str) -> str:
+    s = re.sub(r"\s+", " ", (val or "").strip())
+    if s.lower() in _DMI_PLACEHOLDERS or re.fullmatch(r"0+", s):
+        return ""
+    return s
 
 
 # ---------------------------------------------------------------------------
