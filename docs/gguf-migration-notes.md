@@ -43,6 +43,18 @@ llama-server --model ./models/llama-2-13b-chat.Q4_K_M.gguf \
 - [ ] Remove old `.ggml` files after verification
 - [ ] Re-test inference quality on a sample prompt set
 
+## Qwen-7B-Chat Notes
+
+Qwen-7B-Chat (GGUF) fits comfortably in 8 GB VRAM at q4_k_m quantization. Use it with:
+
+```bash
+llama-server --model ./models/Qwen-7B-Chat.Q4_K_M.gguf \
+  --ctx-size 8192 \
+  --batch-size 512
+```
+
+The model supports an 8k context window and produces good instruction-following results.
+
 ## Notes
 
 - GGUF stores metadata (tokenizer, architecture) inside the file; no separate config needed.
