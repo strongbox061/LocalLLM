@@ -13,7 +13,9 @@ The server has 2 slots (64K context each with the default model), so its two cli
 
 ## Model
 
-The model is described by a **profile** in `models/`: where to download it (Hugging Face repository and file), its context per slot, the number of slots, the longest answer, the prompt cache, the default CPU/GPU split for models with experts, sampling, and how its reasoning is switched off (`REASONING`).
+The model is described by a **profile** in `models/`: where to download it (Hugging Face repository and file), its
+vision projector (or none), the context per slot, the number of slots, the longest answer, the prompt cache, the
+default CPU/GPU split for models with experts, sampling, and how its reasoning is switched off (`REASONING`).
 `lib/model.sh` reads it for `install/llama.sh` (the download), `services/llm-server.sh` (llama-server's flags),
 and writes `~/.config/localllm/model.json` for Pi's `thinking-switch` extension.
 
