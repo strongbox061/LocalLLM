@@ -3,3 +3,4 @@
 set -euo pipefail
 
 sudo systemctl stop localllm-llm
+echo "llama-server stopped."
