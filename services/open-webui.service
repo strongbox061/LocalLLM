@@ -1,0 +1,10 @@
+[Unit]
+Description=Open WebUI web interface
+
+[Service]
+Type=simple
+ExecStart=@REPO_DIR@/services/open-webui.sh start
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
