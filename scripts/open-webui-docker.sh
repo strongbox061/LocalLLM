@@ -9,9 +9,16 @@ IMAGE_NAME="ghcr.io/open-webui/open-webui:main"
 HOST_PORT=8080
 DATA_DIR="${HOME}/.local/share/open-webui"
 
-# Check if container is already running
-if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-    echo "Open WebUI is already running (container: ${CONTAINER_NAME})"
+# Check if container is already running or exists
+if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+    echo "Open WebUI container '${CONTAINER_NAME}' already exists"
+    if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+        echo "Container is already running"
+        exit 0
+    fi
+    echo "Starting stopped container..."
+    docker start "${CONTAINER_NAME}"
+    echo "Open WebUI starting on http://localhost:${HOST_PORT}"
     exit 0
 fi
 
