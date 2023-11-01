@@ -22,7 +22,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 import jwt
 
-HERE = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parent.parent
 KINDS = {"tools": "tool", "functions": "function"}
 # Old tool id -> new id (tools/<new id>.py).
 RENAMED_TOOLS = {"local_web_research": "search_gateway"}
