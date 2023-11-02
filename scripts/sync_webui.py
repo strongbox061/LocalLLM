@@ -20,14 +20,16 @@ import time
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+
 import jwt
 
-HERE = Path(__file__).resolve().parent.parent
+HERE = Path(__file__).resolve().parent
 KINDS = {"tools": "tool", "functions": "function"}
 # Old tool id -> new id (tools/<new id>.py).
 RENAMED_TOOLS = {"local_web_research": "search_gateway"}
 # The search gateway's settings, and the only Valves its thin client in Open WebUI has.
 GATEWAY_SETTINGS = Path.home() / ".config" / "localllm" / "search-gateway.json"
+GATEWAY_TOOL, GATEWAY_TOOL_VALVES = "search_gateway", {"gateway_url", "timeout_seconds"}
 NOT_FOUND = "We could not find what you're looking for :/"
 # Filters that work for every model and are switched on (and global) here; the others are left as the admin set them.
 GLOBAL_FILTERS = ("old_pages",)
