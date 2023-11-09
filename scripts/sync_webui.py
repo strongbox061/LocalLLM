@@ -36,8 +36,15 @@ GLOBAL_FILTERS = ("old_pages",)
 
 
 def replace_imports(content: str) -> str:
-    """Replace top-level imports with relative imports for Open WebUI."""
-    return re.sub(r'^(import |from )', 'from .\\1', content, flags=re.MULTILINE)
+    """The rewrite Open WebUI applies to the code when it saves it (utils/plugin.py), so the comparison is fair."""
+    for old, new in {
+        "from utils": "from open_webui.utils",
+        "from apps": "from open_webui.apps",
+        "from main": "from open_webui.main",
+        "from config": "from open_webui.config",
+    }.items():
+        content = content.replace(old, new)
+    return content
 
 
 def header(content: str, field: str) -> str:
