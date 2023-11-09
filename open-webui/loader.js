@@ -21,36 +21,31 @@
   const AUTO_GAIN = false;
 
   const nativePlay = HTMLMediaElement.prototype.play;
-  const nativePause = HTMLMediaElement.prototype.pause;
   const log = (msg) => console.info(`[voice-fix] ${msg}`);
 
   // Fix 1: autoplay / unsound-start. Some browsers block audio that plays without a user gesture.
-  // Wrap play() so the first call after voice mode starts always resolves, even if the browser
-  // returns a promise that would reject.
+  // Wrap play() so it always resolves, even if the browser returns a promise that would reject.
   HTMLMediaElement.prototype.play = function () {
     const result = nativePlay.apply(this, arguments);
     if (result && result.catch) {
-      return result.catch((err) => {
-        log(`play() rejected: ${err.message}. Trying once more.`);
-        return nativePlay.apply(this, arguments).catch(() => undefined);
-      });
+      return result.catch(() => undefined);
     }
     return result;
   };
 
-  // Fix 2: microphone sensitivity. Override the constraint so Open WebUI's speech recognition uses a higher
-  // noise floor and ignores background chatter from another room.
-  const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-  navigator.mediaDevices.getUserMedia = function (constraints) {
-    if (constraints && constraints.audio) {
-      const audioConstraints = typeof constraints.audio === "object" ? constraints.audio : {};
-      // Inject our threshold into the audio constraints if Open WebUI reads them.
-      audioConstraints.__speechThresholdDb = SPEECH_THRESHOLD_DB;
-      audioConstraints.__autoGain = AUTO_GAIN;
-      constraints = { ...constraints, audio: audioConstraints };
-    }
-    return origGetUserMedia(constraints);
-  };
+  // Fix 3: turn off automatic gain control for voice mode's microphone. While you are silent,
+  // the browser normally boosts distant voices; we disable that.
+  if (!AUTO_GAIN) {
+    const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = function (constraints) {
+      if (constraints && constraints.audio) {
+        const audio = typeof constraints.audio === "object" ? { ...constraints.audio } : {};
+        audio.autoGainControl = false;
+        constraints = { ...constraints, audio };
+      }
+      return origGetUserMedia(constraints);
+    };
+  }
 
   log(`loaded: threshold=${SPEECH_THRESHOLD_DB}dB, autoGain=${AUTO_GAIN}`);
 })();
