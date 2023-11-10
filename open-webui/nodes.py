@@ -10,7 +10,7 @@ processed, PDF handling, reranker, and image generation.
           titles, tags, follow-ups and image prompts, the helper's whisper service for speech-to-text
           from windows/versions.json (none: it doesn't fit on the helper's GPU).
 
-Usage: python cluster_map.py <single|split> [--base-url URL]
+Usage: python nodes.py <single|split> [--base-url URL]
 """
 
 import json
