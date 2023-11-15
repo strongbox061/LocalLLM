@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installs Open WebUI with uv and its user service (not enabled). Start it with ./start.sh.
+# Installs Open WebUI and configures its user service (not enabled). Start it with ./start.sh.
 #   install/open-webui.sh            only if it is missing
 #   install/open-webui.sh --update   reinstall the latest version
 #   A fresh install uses the version recorded by the last backup (~/.config/localllm/versions.env), if any.
