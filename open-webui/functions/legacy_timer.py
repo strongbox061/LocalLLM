@@ -15,6 +15,7 @@ class ResponseTimer:
         self._threshold_ms = slow_threshold_ms
         self._start: Optional[float] = None
         self._elapsed_ms: Optional[float] = None
+        self._history: list[float] = []
 
     def start(self) -> None:
         self._start = time.monotonic()
@@ -29,8 +30,16 @@ class ResponseTimer:
         self.start()
         return self
 
+    def reset(self) -> None:
+        self._start = None
+        self._elapsed_ms = None
+
+    def get_elapsed(self) -> Optional[float]:
+        return self._elapsed_ms
+
     def __exit__(self, *args: object) -> None:
         elapsed = self.stop()
+        self._history.append(elapsed)
         if elapsed > self._threshold_ms:
             print(
                 f"[timer] Slow response: {elapsed:.0f}ms "
@@ -44,5 +53,5 @@ def measure_completion(prompt: str) -> dict:
     timer = ResponseTimer(slow_threshold_ms=3000)
     with timer:
         # Placeholder — real call would hit the Open WebUI API
-        result = {"text": "", "latency_ms": timer._elapsed_ms or 0}
+        result = {"text": "", "latency_ms": timer.get_elapsed() or 0}
     return result
