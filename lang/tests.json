@@ -65,6 +65,22 @@
       "bot_check": ["Zugriff verweigert"],
       "none": ["Es ist ein Gift.", "Meine Schwester hat gestern ein rotes Fahrrad gekauft.", "Der Garten ist im Frühling sehr schön."]
     },
+    "it": {
+      "latest": ["Quali sono le novità dell'ultima versione di Vite"],
+      "error": ["Il programma si blocca all'avvio"],
+      "action_start": ["Cerca recensioni di questa tastiera"],
+      "question_start": ["Perché il server non parte"],
+      "local_current": ["Elenca i file della cartella corrente"],
+      "named_engine": ["Cerca su Mojeek pi coding agent"],
+      "named_source": ["Leggi la documentazione di Vite sul proxy"],
+      "lookup": ["Cerca online, non a memoria"],
+      "offer": ["Vuoi che confronti altre versioni?"],
+      "from_memory": ["Ho risposto a memoria, senza ricerca web."],
+      "current_info": ["Quanto costa una RTX 5090 in questo momento"],
+      "months": ["novembre 2025"],
+      "bot_check": ["Accesso negato"],
+      "none": ["Mia sorella ha comprato una bicicletta rossa ieri.", "Il giardino è molto bello in primavera."]
+    },
     "ja": {
       "latest": ["最新のViteの新機能は何ですか"],
       "error": ["ビルドが奇妙なメッセージで失敗します"],
