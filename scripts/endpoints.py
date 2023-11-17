@@ -47,10 +47,15 @@ def tailscale_self_name():
 
 
 def parse_apps(raw):
-    """Parse a comma-separated apps string into a list, defaulting to ['pi', 'owui']."""
-    if not raw:
-        return ["pi", "owui"]
-    return [a.strip() for a in raw.split(",") if a.strip()]
+    val = (raw or "").strip().lower()
+    if not val:
+        return "pi,owui"
+    parts = {p.strip() for p in val.split(",") if p.strip()}
+    if parts == {"pi"}:
+        return "pi"
+    if parts == {"pi", "owui"}:
+        return "pi,owui"
+    raise SettingsError(f"LOCALLLM_APPS is '{raw}' in local.env: it must be pi or pi,owui.")
 
 
 def build(environ, services_file=SERVICES_FILE, self_name=tailscale_self_name):
