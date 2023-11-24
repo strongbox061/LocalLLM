@@ -41,6 +41,7 @@ COMMON_CAPITALISED = set(
     "august september october november december monday tuesday wednesday thursday friday saturday sunday".split()
 )
 
+
 HONORIFIC_RE = re.compile(
     r"(?i)\b(?:señor|señora|sr|sra|srta|doctor|doctora|dr|dra|don|doña|mr|mrs|ms|miss|mister)\.?\s+"
     r"((?:[A-ZÁÉÍÓÚÑÜ][\wáéíóúñü'-]+\s*){1,4})"
@@ -123,7 +124,6 @@ def numbers_in(text: str) -> set:
 
 
 def _spans(regex, text):
-    """Return list of (start, end) spans for regex matches in text."""
     return [(m.start(), m.end()) for m in regex.finditer(text)]
 
 
