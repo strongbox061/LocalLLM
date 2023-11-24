@@ -12,6 +12,7 @@ import unicodedata
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
+
 from pydantic import BaseModel, Field
 
 META_KEY = "protected_chat"

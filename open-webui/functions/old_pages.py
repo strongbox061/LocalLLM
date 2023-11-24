@@ -2,7 +2,7 @@
 title: Old Pages
 author: LocalLLM
 version: 1.1.0
-description: Once a chat gets long, the text of web pages read for earlier answers is replaced by a short note with the page's address before the chat goes to the model. The answer being written keeps its pages in full, your messages and their pages too.
+description: Once a chat gets long, the text of web pages read for earlier answers is replaced by a short note with the page's address before the chat goes to the model. The answer being written keeps its pages in full, your messages and the answers stay as they are, and the model can read a page again when you ask about something its answer left out. Without it, every page is sent again with each follow-up.
 """
 
 import json
@@ -12,7 +12,8 @@ from pydantic import BaseModel, Field
 
 
 NOTE = (
-    "The page text was removed from earlier messages to save context space."
+    "[Page text removed to save space: {url} ({chars} characters). What you used from it is in your answer above. "
+    "If the user asks about something that isn't there, read this page again with {tool}{again}.]"
 )
 NOTE_START = "[Page text removed to save space:"
 IMAGE_NOTE = "Here are the images from the tool results above."  # Open WebUI's own user message after tool images
