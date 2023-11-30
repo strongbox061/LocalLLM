@@ -15,14 +15,14 @@ TIMER_LINE_RE = re.compile(r"\n*\*⏱ Answered in [^*\n]*\*\s*$")
 
 
 def _fmt(seconds: float) -> str:
-    """Format seconds into a human-readable string like '12.3s'."""
+    seconds = int(round(seconds))
     if seconds < 60:
-        return f"{seconds:.1f}s"
-    minutes = int(seconds // 60)
-    secs = seconds % 60
-    if secs < 1:
-        return f"{minutes}m"
-    return f"{minutes}m {secs:.0f}s"
+        return f"{seconds} s"
+    minutes, s = divmod(seconds, 60)
+    if minutes < 60:
+        return f"{minutes} min {s:02d} s"
+    hours, m = divmod(minutes, 60)
+    return f"{hours} h {m:02d} min"
 
 
 def _strip(content):
