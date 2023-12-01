@@ -1,7 +1,7 @@
 """
 title: Protected Lookup
 author: LocalLLM
-version: 0.2.1
+version: 0.2.0
 description: The only way out of a protected chat (a chat type made by install/chat-types.sh). Searches only the websites chosen for that chat type, through the local search gateway (same services, cache and usage counts as Search Gateway), and reads the best page on those sites. Every query is checked first: names and numbers from this chat's documents and messages, emails, phone numbers, addresses, long numbers and the chat type's own patterns are removed. The final query is shown in a confirmation box and nothing is sent without the user's click. With no allowed sites in the chat type (a hand edit dropped them), every lookup is refused.
 """
 
