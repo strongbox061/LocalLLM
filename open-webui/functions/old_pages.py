@@ -2,7 +2,7 @@
 title: Old Pages
 author: LocalLLM
 version: 1.1.0
-description: Once a chat gets long, the text of web pages read for earlier answers is replaced by a short note with the page's address before the chat goes to the model. The answer being written keeps its pages in full, your messages and the answers stay as they are, and the model can read a page again when you ask about something its answer left out. Without it, every page is sent again with each follow-up.
+description: Once a chat gets long, the text of web pages read for earlier answers is replaced by a short note with the page's address before the chat goes to the model. The answer being written keeps its pages in full, your messages and the answers stay as they are, and the model can read a page again when you ask about something its answer left out. Without it, every page is sent again with each new message, so research chats compact after a few messages.
 """
 
 import json
@@ -19,78 +19,100 @@ NOTE_START = "[Page text removed to save space:"
 IMAGE_NOTE = "Here are the images from the tool results above."  # Open WebUI's own user message after tool images
 
 
-def _text(content):
-    """Extract plain text from a message content field."""
+def _text(content) -> str:
     if isinstance(content, str):
         return content
     if isinstance(content, list):
-        parts = []
-        for item in content:
-            if isinstance(item, dict):
-                if item.get("type") == "text":
-                    parts.append(item.get("text", ""))
-        return "\n".join(parts)
-    return str(content)
+        return "".join(str(p.get("text") or "") for p in content if isinstance(p, dict))
+    return ""
 
 
 def _chars(message: dict) -> int:
-    """Count total characters in a message."""
-    return len(_text(message.get("content", "")))
+    """Characters the model reads for this message (its text, thinking and tool calls)."""
+    n = len(_text(message.get("content"))) + len(str(message.get("reasoning_content") or ""))
+    for call in message.get("tool_calls") or []:
+        n += len(str((call.get("function") or {}).get("arguments") or ""))
+    return n
 
 
 def _is_prompt(message: dict) -> bool:
-    """Check if a message is from the user (a prompt)."""
-    role = message.get("role", "")
-    return role == "user"
+    return message.get("role") == "user" and not _text(message.get("content")).startswith(IMAGE_NOTE)
 
 
-class Filter(BaseModel):
-    """Filter that trims old web page content from chat history."""
+class Filter:
+    class Valves(BaseModel):
+        priority: int = Field(default=0, description="Order among filters (lower runs first).")
+        tools: str = Field(
+            default="read_page, fetch_url",
+            description="Tools whose results count as pages (comma-separated). Search results are short and stay.",
+        )
+        start_at_tokens: int = Field(
+            default=0,
+            description=(
+                "Start once the chat, counted with every page in full, is about this many tokens (4 characters each). "
+                "0: 40% of Open WebUI's compaction threshold (CONTEXT_COMPACTION_TOKEN_THRESHOLD, set by "
+                "services/open-webui.sh), 20,000 with a 64K slot. Below it nothing changes, so llama-server's cache "
+                "is reused as it is and follow-up questions still have the pages."
+            ),
+        )
+        min_chars: int = Field(default=1500, description="Pages shorter than this stay as they are.")
+        debug: bool = Field(default=False, description="Print what the filter does to the Open WebUI terminal.")
 
-    max_chars: int = Field(default=100000, description="Max characters for the full message list")
-    note_text: str = Field(default=NOTE, description="Replacement note for trimmed pages")
+    def __init__(self):
+        self.valves = self.Valves()
 
-    def apply(self, messages: list) -> list:
-        """Trim page content from old user messages that exceed max_chars."""
-        total = sum(_chars(m) for m in messages)
+    def _start_tokens(self) -> int:
+        if self.valves.start_at_tokens > 0:
+            return self.valves.start_at_tokens
+        try:
+            threshold = int(os.environ.get("CONTEXT_COMPACTION_TOKEN_THRESHOLD") or 0)
+        except ValueError:
+            threshold = 0
+        return threshold * 2 // 5 if threshold > 0 else 20000
 
-        if total <= self.max_chars:
-            return messages
+    def request(self, body: dict) -> dict:
+        """Runs before every call to the model, including each round of tool calls within an answer."""
+        messages = body.get("messages")
+        if not isinstance(messages, list):
+            return body
+        prompt = max((i for i, m in enumerate(messages) if isinstance(m, dict) and _is_prompt(m)), default=-1)
+        if prompt <= 0:
+            return body  # nothing before the current message
+        # Counted with the pages in full, so the decision never flips back once a chat has grown past it.
+        tokens = sum(_chars(m) for m in messages if isinstance(m, dict) and m.get("role") != "system") // 4
+        if tokens < self._start_tokens():
+            return body
 
-        result = []
-        trimmed = False
+        tools = {t.strip() for t in self.valves.tools.split(",") if t.strip()}
+        calls = {}  # tool call id -> (tool name, URL)
+        for m in messages[:prompt]:
+            for call in (m.get("tool_calls") or []) if isinstance(m, dict) else []:
+                fn = call.get("function") or {}
+                if fn.get("name") in tools:
+                    try:
+                        args = json.loads(fn.get("arguments") or "{}")
+                    except (TypeError, ValueError):
+                        args = {}
+                    args = args if isinstance(args, dict) else {}
+                    try:
+                        part = int(args.get("part") or 1)
+                    except (TypeError, ValueError):
+                        part = 1
+                    again = f" (part={part})" if part > 1 else ""
+                    calls[call.get("id")] = (fn["name"], str(args.get("url") or "the page"), again)
 
-        for msg in messages:
-            if _is_prompt(msg) and not trimmed:
-                content = _text(msg.get("content", ""))
-                new_content = self._trim_page_text(content)
-                if new_content != content:
-                    trimmed = True
-                if isinstance(msg.get("content"), list):
-                    msg = {**msg, "content": [{"type": "text", "text": new_content}]}
-                else:
-                    msg = {**msg, "content": new_content}
-            result.append(msg)
-
-        return result
-
-    def _trim_page_text(self, text: str) -> str:
-        """Replace full page content with a short note."""
-        if "[Page text removed to save space:" not in text:
-            return text
-
-        lines = text.split("\n")
-        new_lines = []
-        skip = False
-
-        for line in lines:
-            if line.startswith(NOTE_START):
-                skip = True
-                url = line[len(NOTE_START):].strip().rstrip("]")
-                new_lines.append(f"{NOTE_START} {url}]")
-            elif skip and line.strip() == "]":
-                skip = False
-            elif not skip:
-                new_lines.append(line)
-
-        return "\n".join(new_lines)
+        removed = saved = 0
+        for m in messages[:prompt]:
+            if not isinstance(m, dict) or m.get("role") != "tool" or m.get("tool_call_id") not in calls:
+                continue
+            text = _text(m.get("content"))
+            if len(text) < self.valves.min_chars or text.startswith(NOTE_START):
+                continue
+            tool, url, again = calls[m["tool_call_id"]]
+            m["content"] = NOTE.format(url=url, chars=f"{len(text):,}", tool=tool, again=again)
+            removed += 1
+            saved += len(text) - len(m["content"])
+        if self.valves.debug:
+            print(f"[old-pages] chat ~{tokens} tokens: {removed} earlier page(s) shortened, ~{saved // 4} tokens saved",
+                  flush=True)
+        return body
