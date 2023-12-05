@@ -1,5 +1,6 @@
 # Tests
 
+These checks and tests keep Pi (the model with this repo's extensions and `pi/AGENTS.md`), Open WebUI and the setup on
 both PCs working after a change. Three kinds: **guard checks** (no model, no live services, seconds; after every
 change), **system checks** (the live setup as it runs, no model; after a section of work or a change to the setup) and
 **model tests** (real questions to the model; only when wanted):
@@ -12,24 +13,20 @@ change), **system checks** (the live setup as it runs, no model; after a section
 
 - **System checks**: verify the live setup is running correctly. No model needed. Run from the project root.
 
-- **Model tests**: ask real questions to Qwen-7B-Chat and verify responses. Only run when you want model feedback.
+- **Model tests**: ask real questions to Qwen-14B-Chat and verify responses. Only run when you want model feedback.
 
 ## A. Search filters
 
-Control what gets returned by the search engine. Set environment variables before running:
-
-- `SEARCH_ENGINE=google` (default) or `SEARCH_ENGINE=duckduckgo`
-- `MAX_RESULTS=5` to limit results per query
-- `SAFE_SEARCH=true` to filter explicit content
+The `site:` table in AGENTS.md. Results come through the search gateway.
 
 | # | Prompt | Expected |
 |---|---|---|
-| A1 | How do I fix "error: failed to commit transaction (invalid or corrupted package)" with pacman? | `site:wiki.archlinux.org`; the fix comes from a page it opened |
-| A2 | How do I cancel a fetch() request in JavaScript? | `site:developer.mozilla.org`; the answer mentions AbortController |
+| A1 | How do I fix "error: failed to commit transaction (invalid or corrupted package)" with pacman? | `site:wiki.archlinux.org` (or a general retry); the fix comes from a page it opened |
+| A2 | How do I cancel a fetch() request in JavaScript? | `site:developer.mozilla.org` (or a docs tool); the answer mentions AbortController |
 | A3 | What does rsync's --partial flag do? | `site:man.archlinux.org`; the answer comes from the man page text |
 | A4 | Is there an official Docker image for Ollama? | `site:hub.docker.com`; names ollama/ollama |
 | A5 | What's the latest version of the httpx Python package? | `site:pypi.org`, then opens the PyPI page and gives the version from it |
-| A6 | Find recent papers on speculative decoding for LLMs. | lists papers, mostly with arXiv links (`site:arxiv.org` preferred); titles and dates as the results give them |
+| A6 | Find recent papers on speculative decoding for LLMs. | lists papers, mostly with arXiv links (`site:arxiv.org` preferred, not required); titles and dates as the results or pages give them |
 | A7 | Who developed the Mamba state space model architecture? | `site:wikipedia.org` or no filter; names Albert Gu and Tri Dao |
 
 ## B. Reading pages
