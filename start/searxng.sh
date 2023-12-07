@@ -18,3 +18,24 @@ else
     docker-compose up -d
 fi
 wait_for "$SEARXNG_URL/" 30 || die "SearXNG did not become ready. Logs: docker compose logs core (in $SEARXNG_DIR)"
+
+if searxng_online; then
+    echo "Internet from the container: OK"
+elif ! host_online; then
+    warn "This machine is offline, so SearXNG cannot search either. Connect to a network, then run this again."
+else
+    echo "The container has no internet while this machine does (stale network settings). Recreating..."
+    cd "$(dirname -- "${BASH_SOURCE[0]}")/../docker/searxng" || exit 1
+    docker-compose up -d --force-recreate
+    wait_for "$SEARXNG_URL/" 30 || die "SearXNG did not become ready. Logs: docker compose logs core (in $SEARXNG_DIR)"
+    if searxng_online; then
+        echo "Internet from the container: OK"
+    else
+        warn "SearXNG still has no internet. Check in $SEARXNG_DIR:"
+        warn "  docker compose exec core cat /etc/resolv.conf"
+        warn "  docker compose exec core wget -q --spider -T 5 http://1.1.1.1 && echo 'IP works: DNS problem'"
+        warn "A firewall or VPN started after Docker can also cause this: sudo systemctl restart docker"
+        exit 1
+    fi
+fi
+echo "SearXNG: $SEARXNG_URL"
