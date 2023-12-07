@@ -20,27 +20,41 @@ def _parse_iso(date_str: str) -> datetime | None:
         return None
 
 
-def filter_chats(messages: list[dict[str, Any]], cutoff: str | None = None) -> list[dict[str, Any]]:
+def filter_chats(
+    messages: list[dict[str, Any]],
+    cutoff: str | None = None,
+    max_messages: int | None = None,
+) -> list[dict[str, Any]]:
     """Return *messages* keeping only those on or after *cutoff*.
 
     *cutoff* is an ISO-8601 string (e.g. ``2023-11-01T00:00:00-05:00``).
-    When omitted all messages are returned.
+    When omitted all messages are returned.  *max_messages* limits the
+    final result to that many entries (applied after filtering).
     """
     if cutoff is None:
-        return list(messages)
+        filtered = list(messages)
+    else:
+        threshold = _parse_iso(cutoff)
+        if threshold is None:
+            print(f"warning: invalid cutoff '{cutoff}', returning all", file=sys.stderr)
+            filtered = list(messages)
+        else:
+            filtered = [
+                m for m in messages
+                if _parse_iso(m.get("timestamp", ""))
+                and _parse_iso(m["timestamp"]) >= threshold
+            ]
 
-    threshold = _parse_iso(cutoff)
-    if threshold is None:
-        print(f"warning: invalid cutoff '{cutoff}', returning all", file=sys.stderr)
-        return list(messages)
-
-    return [m for m in messages if _parse_iso(m.get("timestamp", "")) and _parse_iso(m["timestamp"]) >= threshold]
+    if max_messages is not None:
+        filtered = filtered[:max_messages]
+    return filtered
 
 
 if __name__ == "__main__":
     raw = sys.stdin.read()
     data: dict[str, Any] = json.loads(raw)
     cutoff = data.get("cutoff")
+    max_msgs = data.get("max_messages")
     messages = data.get("messages", [])
-    result = filter_chats(messages, cutoff)
+    result = filter_chats(messages, cutoff, max_msgs)
     print(json.dumps({"count": len(result), "messages": result}))
