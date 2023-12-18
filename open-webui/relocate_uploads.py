@@ -16,7 +16,7 @@ import sys
 
 def main(argv):
     if len(argv) < 2:
-        print("Usage: move_uploads.py <uploads-root>")
+        print("Usage: relocate_uploads.py <uploads-root>")
         sys.exit(1)
 
     uploads_root = argv[1]
