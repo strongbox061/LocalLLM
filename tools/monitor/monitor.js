@@ -234,9 +234,68 @@ function pieCard(opts) {
   );
 }
 
-/* ---- Machine card ---- */
+function statusBadge(machine, isHelper, mode) {
+  const st = machine.status;
+  if (st === "online") {
+    if (isHelper && mode === "single") {
+      return h("span", { class: "badge warn" }, "Online (standby · single mode)");
+    }
+    return h("span", { class: "badge ok" }, "Online");
+  }
+  if (st === "loading") return h("span", { class: "badge muted" }, "Connecting…");
+  if (st === "not_configured") return h("span", { class: "badge muted" }, "Not configured");
+  return h("span", { class: "badge bad" }, "Offline / Unreachable");
+}
 
-function renderMachineCard(machineKey, title, machine, isHelper) {
+function formatCpuSpec(cpu) {
+  const parts = [];
+  if (cpu.normal_ghz && cpu.performant_ghz && cpu.performant_ghz !== cpu.normal_ghz) {
+    parts.push(`Normal ${cpu.normal_ghz.toFixed(2)} GHz · Performant ${cpu.performant_ghz.toFixed(2)} GHz`);
+  } else if (cpu.performant_ghz) {
+    parts.push(`Max ${cpu.performant_ghz.toFixed(2)} GHz`);
+  } else if (cpu.normal_ghz) {
+    parts.push(`${cpu.normal_ghz.toFixed(2)} GHz`);
+  }
+  return parts.join(" · ");
+}
+
+function renderMachineCard(machineKey, title, machine, isHelper, setup) {
+  const badges = [statusBadge(machine, isHelper, setup.mode)];
+  if (isHelper && machine.gaming) {
+    badges.push(h("span", { class: "badge warn" }, "Gaming mode ON"));
+  }
+
+  const metaParts = [machine.os || (isHelper ? "Windows" : "Linux")];
+  if (machine.hostname) metaParts.push(machine.hostname);
+  if (isHelper && machine.host && machine.host !== machine.hostname) metaParts.push(machine.host);
+  if (machine.collected_at) metaParts.push("updated " + fmtTime(machine.collected_at));
+
+  const icons = h("span", { class: "icon-pair" },
+    buildBrandIcon(machine.brand || ""),
+    buildOsIcon(machine.os_id || (isHelper ? "windows" : "linux"), machine.os || (isHelper ? "Windows" : "Linux"))
+  );
+
+  const head = h("div", { class: "machine-head" },
+    h("div", { class: "machine-title" },
+      h("div", { class: "machine-title-row" },
+        h("h2", null, title),
+        icons
+      ),
+      h("div", { class: "machine-meta" }, metaParts.join(" · "))
+    ),
+    h("div", { class: "machine-badges" }, badges)
+  );
+
+  if (machine.status !== "online") {
+    const msg = machine.error || (machine.status === "loading"
+      ? "Querying helper PC over SSH…"
+      : "Helper PC is not reachable.");
+    return h("article", { class: "machine" },
+      head,
+      h("div", { class: "notice" }, msg)
+    );
+  }
+
   const cards = [];
 
   // CPU gauge
@@ -276,11 +335,8 @@ function renderMachineCard(machineKey, title, machine, isHelper) {
     h("button", { type: "button", class: "proc-btn", "data-machine": machineKey }, "View processes"),
   ));
 
-  return h("div", { class: "machine", "data-machine": machineKey },
-    h("div", { class: "machine-head" },
-      h("h2", { class: "machine-title" }, title),
-      isHelper ? h("span", { class: "badge single" }, "Helper") : h("span", { class: "badge single" }, "Main"),
-    ),
+  return h("article", { class: "machine" },
+    head,
     ...cards,
   );
 }
