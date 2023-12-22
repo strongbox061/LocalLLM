@@ -42,7 +42,6 @@ COMMON_CAPITALISED = set(
     "august september october november december monday tuesday wednesday thursday friday saturday sunday".split()
 )
 
-
 HONORIFIC_RE = re.compile(
     r"(?i)\b(?:señor|señora|sr|sra|srta|doctor|doctora|dr|dra|don|doña|mr|mrs|ms|miss|mister)\.?\s+"
     r"((?:[A-ZÁÉÍÓÚÑÜ][\wáéíóúñü'-]+\s*){1,4})"
