@@ -28,12 +28,11 @@ def slugify(text: str) -> str:
 
 
 def strip_md_inline(text: str) -> str:
-    """Remove Markdown inline formatting, returning plain text."""
-    text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
-    text = re.sub(r'\*(.+?)\*', r'\1', text)
-    text = re.sub(r'`(.+?)`', r'\1', text)
-    text = re.sub(r'\[(.+?)\]\(.+?\)', r'\1', text)
-    return text
+    s = re.sub(r"`([^`]+)`", r"\1", text)
+    s = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", s)
+    s = re.sub(r"\*\*([^*]+)\*\*", r"\1", s)
+    s = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"\1", s)
+    return s.strip()
 
 
 def split_table_row(line: str) -> list[str]:
