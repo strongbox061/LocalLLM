@@ -70,3 +70,12 @@ if ! curl -fsS "$SEARXNG_URL/" >/dev/null 2>&1; then
 fi
 
 docker_cmd compose ps
+
+echo
+echo "SearXNG search test:"
+
+curl -fsS "$SEARXNG_URL/search?q=llama.cpp&format=json" | head -c 2000
+
+echo
+echo
+echo "SearXNG: $SEARXNG_URL"
