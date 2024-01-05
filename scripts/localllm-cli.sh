@@ -3,28 +3,28 @@
 # "Two-PC setup"). The mode and the helper's name come from ~/.config/localllm/local.env (LOCALLLM_MODE, HELPER_HOST,
 # HELPER_USER); where each service runs and its address from config/services.json (lib/endpoints.py).
 #
-#   ./scripts/cli.sh start|stop|restart|status            every service on both PCs (start.sh and stop.sh run these)
-#   ./scripts/cli.sh start|stop|restart|status main       only the main PC's
-#   ./scripts/cli.sh start|stop|restart|status helper     only the helper PC's (windows\services.ps1 there, over SSH)
-#   ./scripts/cli.sh start|stop|restart|status <service>  one service, wherever it runs (names: ./scripts/cli.sh status)
-#   ./scripts/cli.sh endpoints                            writes endpoints.json again and shows where everything runs
-#   ./scripts/cli.sh setup-helper                         the SSH connection to the helper PC (README, "Connecting the
+#   ./scripts/localllm-cli.sh start|stop|restart|status            every service on both PCs (start.sh and stop.sh run these)
+#   ./scripts/localllm-cli.sh start|stop|restart|status main       only the main PC's
+#   ./scripts/localllm-cli.sh start|stop|restart|status helper     only the helper PC's (windows\services.ps1 there, over SSH)
+#   ./scripts/localllm-cli.sh start|stop|restart|status <service>  one service, wherever it runs (names: ./scripts/localllm-cli.sh status)
+#   ./scripts/localllm-cli.sh endpoints                            writes endpoints.json again and shows where everything runs
+#   ./scripts/localllm-cli.sh setup-helper                         the SSH connection to the helper PC (README, "Connecting the
 #                                                      helper PC"); safe to run again
 
-#   ./scripts/cli.sh install-helper [step,step]           installs (or updates) everything on the helper PC; safe to run
+#   ./scripts/localllm-cli.sh install-helper [step,step]           installs (or updates) everything on the helper PC; safe to run
 #                                                      again (steps: windows/setup.ps1)
-#   ./scripts/cli.sh deploy                               sends the repo's changed files and the helper's settings to
+#   ./scripts/localllm-cli.sh deploy                               sends the repo's changed files and the helper's settings to
 #                                                      it, after the guard checks, and applies them
 #                                                      other PC, with checks, and runs everything there
-#   ./scripts/cli.sh apps [pi|pi,owui]                    shows or switches which apps run (pi = Pi only: 1 full slot
+#   ./scripts/localllm-cli.sh apps [pi|pi,owui]                    shows or switches which apps run (pi = Pi only: 1 full slot
 #                                                      back on it, with checks (README, "Rebuilding only the helper
 #                                                      PC")
-#   ./scripts/cli.sh gaming on|off|status                 the helper's gaming mode (frees its GPU for a game)
-#   ./scripts/cli.sh settings                             the search settings page: in split mode it opens an SSH
+#   ./scripts/localllm-cli.sh gaming on|off|status                 the helper's gaming mode (frees its GPU for a game)
+#   ./scripts/localllm-cli.sh settings                             the search settings page: in split mode it opens an SSH
 #                                                      tunnel to the helper's and waits (Ctrl+C closes it)
-#   ./scripts/cli.sh chat-types                           the chat types page: in split mode it serves it here, from
+#   ./scripts/localllm-cli.sh chat-types                           the chat types page: in split mode it serves it here, from
 #                                                      this PC's files, and waits (Ctrl+C ends it)
-#   ./scripts/cli.sh monitor [port]                       web monitor for CPU, GPU and RAM on main and helper PCs, plus
+#   ./scripts/localllm-cli.sh monitor [port]                       web monitor for CPU, GPU and RAM on main and helper PCs, plus
 #                                                      single/split and apps mode (default port 8095; Ctrl+C ends it)
 # Order: start = the main PC's services first (llama-server first), then the helper's; stop = the helper's first,
 # then the main PC's, llama-server last. SearXNG keeps running on stop (it starts at boot); `stop searxng` stops it.
