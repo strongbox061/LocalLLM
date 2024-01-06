@@ -31,7 +31,6 @@ ADDRESS_RE = re.compile(
     r"road|rd|boulevard|blvd|lane|ln|drive|dr)\.?\s*\d+\s*[a-z]?\b(?:\s*(?:#|no\.?|n[º°o]\.?)\s*\d+[a-z]?(?:\s*-\s*\d+)?)?"
     r"|\b\d+\s+[A-Z][a-z]+\s+(?:Street|St|Avenue|Ave|Road|Rd|Lane|Ln|Drive|Boulevard|Blvd)\b"
 )
-
 # Capitalised words that are never names, in any chat type: function words, titles, months and days. A chat type adds
 # its own (institutions, places) in "allowed_terms".
 COMMON_CAPITALISED = set(
