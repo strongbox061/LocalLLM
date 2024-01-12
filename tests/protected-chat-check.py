@@ -10,8 +10,10 @@ Run by tests/guard-tests.mjs. Checks, through the filter's and the tool's own me
   - personal data from a sample document and message is removed (names, ID/case/phone numbers, emails, addresses,
     the chat type's patterns), while public references and plain terms stay;
   - the confirmation box comes before any request, and a "no" sends nothing;
-
-Requires: python3.8+
+  - results outside the allowed sites are dropped; the best allowed page is read;
+  - the chat type files: the example builds a preset with only the filter and the lookup; building it twice gives no
+    differences (a second install/chat-types.sh run changes nothing); a broken file is refused.
+The tool and filter import pydantic, which only Open WebUI has; a small stand-in is used here.
 """
 
 import asyncio
@@ -23,7 +25,10 @@ import types
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-passed = failed = 0
+
+lookup_mod = load("protected_lookup", ROOT / "open-webui" / "tools" / "protected_lookup.py")
+filter_mod = load("protected_chat", ROOT / "open-webui" / "functions" / "protected_chat.py")
+chat_types = load("chat_types", ROOT / "open-webui" / "chat_types.py")
 
 
 def check(name, ok, detail=""):
@@ -51,14 +56,19 @@ if importlib.util.find_spec("pydantic") is None:
 
 
 CFG = {
-    "chat_type": "protected",
-    "allowed_sites": [],
-    "data_fields": ["name", "ssn", "phone", "email", "address"],
+    "allowed_sites": ["rules.example"],
+    "patterns": [{"name": "file number", "regex": r"\b\d{5}-\d{2}-\d{2}-\d{3}\b"}],
+    "reference_words": ["norma", "normas", "sección", "rule", "section"],
+    "allowed_patterns": [{"name": "rule code", "regex": r"\bR-\d{3,4}\b"}],
+    "allowed_terms": ["Boletín", "Reglamento", "Técnico"],
 }
 
 DOCUMENT = (
-    "Mi clienta Ficticia quiere saber si puede terminar el acuerdo antes; "
-    "el proveedor es Inventado."
+    "ACUERDO DE SERVICIO\n"
+    "Entre los suscritos Fulana Ficticia Ejemplar, identificada con documento 1.111.111.111, y el señor Mengano "
+    "Inventado, se acuerda el mantenimiento del equipo ubicado en la Calle 00 # 00-00. Expediente 99999-00-00-000. "
+    "Valor mensual 2350 unidades. Correo: persona@ejemplo.invalid, teléfono 300 000 0000. Según la norma 1973 del "
+    "Reglamento Técnico y el código R-123 de 2001, publicado en el Boletín."
 )
 MESSAGE = "Mi clienta Ficticia quiere saber si puede terminar el acuerdo antes; el proveedor es Inventado."
 

@@ -21,42 +21,29 @@ import types
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-
-
-# --- Minimal pydantic stand-in (filter needs it, we don't) ---
-class _BaseModel:
-    class Config:
-        arbitrary_types_allowed = True
-
-
-def _make_pydantic():
-    mod = types.ModuleType("pydantic")
-    mod.BaseModel = _BaseModel
-    return mod
-
-
-sys.modules.setdefault("pydantic", _make_pydantic())
-
-# --- Load the filter under test ---
-_FILTER_PATH = ROOT / "open-webui" / "functions" / "old_pages.py"
-if not _FILTER_PATH.exists():
-    sys.exit(f"filter not found: {_FILTER_PATH}")
-
-_spec = importlib.util.spec_from_file_location("old_pages", _FILTER_PATH)
-_filter = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_filter)
-
-
-# --- Helpers ---
-_errors = []
+passed = failed = 0
 
 
 def check(name, ok, detail=""):
-    if not ok:
-        _errors.append(f"FAIL {name}: {detail}")
-        print(f"  FAIL {name}")
+    global passed, failed
+    if ok:
+        passed += 1
+        print(f"  ok    {name}")
     else:
-        print(f"  OK   {name}")
+        failed += 1
+        print(f"  FAIL  {name}" + (f"\n        {detail}" if detail else ""))
+
+
+if importlib.util.find_spec("pydantic") is None:
+    pydantic = types.ModuleType("pydantic")
+    pydantic.BaseModel = type("BaseModel", (), {})
+    pydantic.Field = lambda default=None, **_: default
+    sys.modules["pydantic"] = pydantic
+
+os.environ.pop("CONTEXT_COMPACTION_TOKEN_THRESHOLD", None)
+spec = importlib.util.spec_from_file_location("old_pages", ROOT / "open-webui" / "functions" / "old_pages.py")
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
 
 
 def call(name, **args):
