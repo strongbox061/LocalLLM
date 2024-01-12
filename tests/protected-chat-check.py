@@ -23,23 +23,31 @@ import types
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+passed = failed = 0
 
 
 def check(name, ok, detail=""):
-    """Print a test result line."""
-    status = "PASS" if ok else "FAIL"
-    msg = f"[{status}] {name}"
-    if detail:
-        msg += f" — {detail}"
-    print(msg)
-    return ok
+    global passed, failed
+    if ok:
+        passed += 1
+        print(f"  ok    {name}")
+    else:
+        failed += 1
+        print(f"  FAIL  {name}" + (f"\n        {detail}" if detail else ""))
 
 
 def load(name, path):
-    """Load a module from a file path without executing its top-level code."""
     spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    return mod
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+if importlib.util.find_spec("pydantic") is None:
+    pydantic = types.ModuleType("pydantic")
+    pydantic.BaseModel = type("BaseModel", (), {})
+    pydantic.Field = lambda default=None, **_: default
+    sys.modules["pydantic"] = pydantic
 
 
 CFG = {
@@ -129,8 +137,6 @@ async def call(event):
 
 # --- Test entry point ---
 if __name__ == "__main__":
-    passed = 0
-    failed = 0
 
     # Test 1: filter settings for protected chat
     result = run(call({"chat_type": "protected", "message": "test"}))
