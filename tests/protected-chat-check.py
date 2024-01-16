@@ -25,10 +25,7 @@ import types
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-
-lookup_mod = load("protected_lookup", ROOT / "open-webui" / "tools" / "protected_lookup.py")
-filter_mod = load("protected_chat", ROOT / "open-webui" / "functions" / "protected_chat.py")
-chat_types = load("chat_types", ROOT / "open-webui" / "chat_types.py")
+passed = failed = 0
 
 
 def check(name, ok, detail=""):
@@ -54,6 +51,9 @@ if importlib.util.find_spec("pydantic") is None:
     pydantic.Field = lambda default=None, **_: default
     sys.modules["pydantic"] = pydantic
 
+lookup_mod = load("protected_lookup", ROOT / "open-webui" / "tools" / "protected_lookup.py")
+filter_mod = load("protected_chat", ROOT / "open-webui" / "functions" / "protected_chat.py")
+chat_types = load("chat_types", ROOT / "open-webui" / "chat_types.py")
 
 CFG = {
     "allowed_sites": ["rules.example"],
@@ -74,54 +74,49 @@ MESSAGE = "Mi clienta Ficticia quiere saber si puede terminar el acuerdo antes; 
 
 
 def model(cfg):
-    """Return a minimal model config appropriate for the chat type."""
-    return {
-        "name": "qwen-14b-chat",
-        "context_length": 4096,
-        "max_tokens": 512,
-    }
+    return {"id": "chat-test", "info": {"meta": {"protected_chat": cfg}}}
 
 
 class FakeServer:
-    """Minimal mock of an Open WebUI server for testing."""
+    """Stands in for the search gateway: records every request."""
 
-    def __init__(self):
-        self.calls = []
+    def __init__(self, results, page="Norma 1973. Texto oficial de la norma. " * 20):
+        self.requests, self.results, self.page = [], results, page
 
-    async def send(self, message):
-        self.calls.append(message)
+    def install(self, tool):
+        def get(path, params):
+            self.requests.append((path, params))
+            if path == "/search":
+                return {"results": self.results}
+            return {"url": params["url"], "text": self.page}
 
-    async def receive(self):
-        return {"type": "no", "content": None}
+        tool._get = get
 
 
 class FakeUser:
-    """Minimal mock of a user interacting with the chat."""
+    def __init__(self, answer):
+        self.answer, self.asked, self.events = answer, [], []
 
-    def __init__(self, name="Test User"):
-        self.name = name
-        self.messages = []
+    async def call(self, event):
+        self.asked.append(event)
+        return self.answer
 
-    def add_message(self, text):
-        self.messages.append({"role": "user", "content": text})
+    async def emit(self, event):
+        self.events.append(event)
 
 
 def run(coro):
-    """Run an async coroutine in a new event loop."""
-    try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(coro)
-        return result
-    finally:
-        loop.close()
+    return asyncio.run(coro)
 
 
 def lookup(tool, query, cfg=CFG, user=None, messages=None, files=None):
-    """Call the lookup tool and return its response."""
-    # Simple synchronous wrapper for testing
-    response = {"status": "ok", "data": []}
-    return response
+    user = user or FakeUser(True)
+    out = run(tool.protected_lookup(
+        query, __metadata__={"model_id": "chat-test"}, __model__=model(cfg),
+        __messages__=messages if messages is not None else [{"role": "user", "content": MESSAGE}],
+        __files__=files if files is not None else [{"type": "file", "file": {"data": {"content": DOCUMENT}}}],
+        __event_emitter__=user.emit, __event_call__=user.call))
+    return out, user
 
 
 async def call(event):
