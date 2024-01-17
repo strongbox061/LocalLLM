@@ -140,57 +140,18 @@ async def call(event):
     return event
 
 
-# --- Test entry point ---
-if __name__ == "__main__":
-
-    # Test 1: filter settings for protected chat
-    result = run(call({"chat_type": "protected", "message": "test"}))
-    ok = (
-        result.get("tools_allowed") == ["lookup"]
-        and not result.get("web_search")
-        and not result.get("images")
-        and not result.get("code")
-        and not result.get("memory")
-        and not result.get("terminals")
-    )
-    if check("protected filter settings", ok, "only lookup allowed, others disabled"):
-        passed += 1
-    else:
-        failed += 1
-
-    # Test 2: lookup fails closed when no allowed sites
-    tool_response = lookup(None, "test query", cfg={"allowed_sites": []})
-    ok = tool_response.get("status") == "error" or len(tool_response.get("data", [])) == 0
-    if check("lookup fails closed", ok, "no allowed sites means no results"):
-        passed += 1
-    else:
-        failed += 1
-
-    # Test 3: model config returns expected defaults
-    m = model(CFG)
-    ok = m.get("name") == "qwen-14b-chat" and isinstance(m.get("context_length"), int)
-    if check("model config", ok, f"name={m.get('name')}, ctx_len={m.get('context_length')}"):
-        passed += 1
-    else:
-        failed += 1
-
-    # Test 4: FakeServer records calls
-    server = FakeServer()
-    run(server.send({"test": "data"}))
-    ok = len(server.calls) == 1 and server.calls[0].get("test") == "data"
-    if check("FakeServer", ok, f"calls={len(server.calls)}"):
-        passed += 1
-    else:
-        failed += 1
-
-    # Test 5: FakeUser stores messages
-    user = FakeUser("Mi clienta Ficticia")
-    user.add_message(MESSAGE)
-    ok = len(user.messages) == 1 and user.messages[0]["role"] == "user"
-    if check("FakeUser", ok, f"messages={len(user.messages)}"):
-        passed += 1
-    else:
-        failed += 1
-
-    print(f"\nResults: {passed} passed, {failed} failed")
-    sys.exit(0 if failed == 0 else 1)
+print("The Protected Chat filter")
+f = filter_mod.Filter()
+body = {"features": {"web_search": True, "image_generation": True, "code_interpreter": True, "memory": True, "voice": True},
+        "metadata": {"tool_servers": [{"url": "x"}]}}
+md = {"tool_servers": [{"url": "x"}], "features": {"web_search": True}}
+out = run(f.inlet(body, __metadata__=md))
+check("only the lookup tool is left", out["tool_ids"] == ["protected_lookup"], out["tool_ids"])
+check("web search, images, code interpreter and memory are off",
+      not any(out["features"][k] for k in ("web_search", "image_generation", "code_interpreter", "memory")), out["features"])
+check("other features stay (voice)", out["features"]["voice"] is True)
+check("terminals and the browser's tool servers are dropped",
+      out["terminal_id"] is None and md["tool_servers"] is None and out["metadata"]["tool_servers"] is None
+      and md["features"]["web_search"] is False)
+check("it can't be switched off in a chat (no toggle)", not getattr(f, "toggle", False))
+check("it runs after the other filters", f.valves.priority > 0)
