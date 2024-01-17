@@ -46,118 +46,107 @@ mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
 
+_n = 0
+
+
 def call(name, **args):
-    """Call the filter's request hook as Open WebUI would."""
-    try:
-        result = _filter.call(name, **args)
-        return result
-    except Exception as exc:
-        _errors.append(f"EXCEPTION {name}: {exc}")
-        print(f"  EXCEPTION {name}: {exc}")
-        return None
+    global _n
+    _n += 1
+    cid = f"call_{_n}"
+    return cid, {
+        "role": "assistant",
+        "content": "",
+        "reasoning_content": "thinking",
+        "tool_calls": [
+            {"id": cid, "type": "function", "function": {"name": name, "arguments": json.dumps(args)}}
+        ],
+    }
 
 
 def answer(question, pages, searches=1, page_chars=20000):
-    """Build a realistic message list for a short or long chat."""
-    messages = [{"role": "user", "content": question}]
+    """One question and its answer: searches, page reads, the final text."""
+    out = [{"role": "user", "content": question}]
     for i in range(searches):
-        messages.append({
-            "role": "assistant",
-            "content": f"Search results for part {i+1}.",
-            "tool_calls": [{"type": "searx_search", "args": {"query": f"q{i+1}"}}],
-        })
-    for p in pages:
-        messages.append({
-            "role": "assistant",
-            "content": f"Page content from {p['address']} ({p.get('tool', 'read')} tool).",
-            "metadata": {"page": p},
-        })
-    messages.append({"role": "assistant", "content": "Here is my answer."})
-    return messages
+        cid, m = call("web_search", query=f"{question} {i}")
+        out += [m, {"role": "tool", "tool_call_id": cid, "content": f"1. Result\n   https://r.example\n   {'s' * 1400}"}]
+    for url in pages:
+        cid, m = call("read_page", url=url)
+        out += [m, {"role": "tool", "tool_call_id": cid, "content": f"{url}\n{'p' * page_chars}"}]
+    out.append({"role": "assistant", "content": f"Answer to {question}, from {', '.join(pages)}."})
+    return out
 
 
 def run(messages, **valves):
-    """Run the filter and return the processed messages."""
-    return call("request", messages=messages, valves=valves)
+    f = mod.Filter()
+    for k, v in valves.items():
+        setattr(f.valves, k, v)
+    body = {"model": "local", "messages": copy.deepcopy(messages)}
+    return f.request(body)["messages"]
 
 
 SYSTEM = [{"role": "system", "content": "x" * 30000}]  # not counted: the same for every chat
 
-# --- Tests ---
-print("=" * 60)
-print("Old Pages filter — test suite")
-print("=" * 60)
-
 # A short chat: one answer with two small pages, then a follow-up.
-print("\n[1] Short chat — pages should stay unchanged")
-short_msgs = answer(
-    "What is pi?",
-    pages=[
-        {"address": "https://en.wikipedia.org/wiki/Pi", "tool": "read", "part": 0},
-        {"address": "https://mathworld.wolfram.com/Pi.html", "tool": "read", "part": 0},
-    ],
-)
-result = run(short_msgs)
-check("short: message count unchanged", len(result) == len(short_msgs))
-check("short: pages preserved", all("metadata" in m for m in result if m["role"] == "assistant"))
+short = SYSTEM + answer("first", ["https://a.example/1"], page_chars=3000) + [{"role": "user", "content": "more?"}]
+check("a short chat goes to the model unchanged", run(short) == short)
 
 # A long chat: two answers with big pages, and a third being written (with its own page already read).
-print("\n[2] Long chat — older pages become notes")
-long_pages = [
-    {"address": "https://en.wikipedia.org/wiki/History_of_computing", "tool": "read", "part": 0},
-    {"address": "https://www.computerhistory.org/timeline/", "tool": "read", "part": 1},
-]
-long_msgs = answer(
-    "Tell me about computing history.",
-    pages=long_pages,
-    searches=2,
-)
-result = run(long_msgs)
-check("long: message count unchanged", len(result) == len(long_msgs))
+first = answer("first", ["https://a.example/1", "https://a.example/2"])
+second = answer("second", ["https://b.example/1", "https://b.example/2"])
+current = answer("third", ["https://c.example/1"])[:-1]  # still being written: no final text yet
+long = SYSTEM + first + second + current
+out = run(long)
+tools_before = [m for m in out[: len(SYSTEM) + len(first) + len(second)] if m["role"] == "tool"]
+pages_before = [m for m in tools_before if m["content"].startswith(mod.NOTE_START)]
+check("pages of earlier answers become notes (4 of 4)", len(pages_before) == 4, str([m["content"][:60] for m in tools_before]))
+check("a note keeps the page's address and says how to read it again",
+      "https://a.example/1" in pages_before[0]["content"] and "read_page" in pages_before[0]["content"]
+      and "20,0" in pages_before[0]["content"], pages_before[0]["content"])
+check("the answer being written keeps its page in full", out[-1]["content"] == current[-1]["content"])
+check("search results stay", all(m["content"].startswith("1. Result") for m in tools_before if m not in pages_before))
+check("your messages and the answers stay as they are",
+      [m for m in out if m["role"] in ("user", "system") or (m["role"] == "assistant")] ==
+      [m for m in long if m["role"] in ("user", "system") or (m["role"] == "assistant")])
+before = sum(len(m["content"]) for m in long if m["role"] == "tool") // 4
+after = sum(len(m["content"]) for m in out if m["role"] == "tool") // 4
+check(f"the chat shrinks (tool text ~{before} -> ~{after} tokens)", after < before / 3)
+check("running it twice changes nothing more", run(out) == out)
+check("the stored chat isn't touched (only the request's copy)", long[len(SYSTEM) + 4]["content"].startswith("https://a.example/1\n"))
 
 # A later part of a long page: the note says which part to ask for again.
-print("\n[3] Partial page — note includes part info")
-partial_pages = [
-    {"address": "https://example.com/long-article", "tool": "read", "part": 1},
-]
-partial_msgs = answer("Tell me more.", pages=partial_pages, searches=0)
-result = run(partial_msgs)
-check("partial: page note present", any("part" in str(m.get("metadata", {})) for m in result if m["role"] == "assistant"))
+cid, m = call("read_page", url="https://long.example/doc#install", part=3)
+parted = SYSTEM + first + second + [{"role": "user", "content": "q"}, m, {"role": "tool", "tool_call_id": cid, "content": "z" * 20000},
+                                    {"role": "assistant", "content": "a"}, {"role": "user", "content": "next"}]
+note = [x["content"] for x in run(parted) if x["role"] == "tool" and "long.example" in x["content"]]
+check("a later part's note keeps its #section and part", note and "doc#install" in note[0] and "part=3" in note[0], note)
 
 # Below the starting point, nothing changes; the starting point is counted with the pages in full.
-print("\n[4] Below threshold — no modification")
-tiny_msgs = answer("Hi there.", pages=[], searches=0)
-result = run(tiny_msgs)
-check("below threshold: unchanged", result == tiny_msgs)
+check("nothing changes below start_at_tokens", run(long, start_at_tokens=10**6) == long)
+check("short pages stay", all(not m["content"].startswith(mod.NOTE_START)
+                               for m in run(long, min_chars=10**6) if m["role"] == "tool"))
 
 # Other tools' results (e.g. the protected chats' lookup) stay.
-print("\n[5] Other tools — left alone")
-mixed_msgs = answer(
-    "Check my chats.",
-    pages=[],
-)
-mixed_msgs.append({
-    "role": "assistant",
-    "content": "Protected lookup result: no matches.",
-    "tool_calls": [{"type": "protected_lookup", "args": {"query": "admin"}}],
-})
-result = run(mixed_msgs)
-check("other tools: preserved", any("protected_lookup" in str(m.get("tool_calls", [])) for m in result))
+cid, m = call("protected_lookup", query="norma")
+other = SYSTEM + [{"role": "user", "content": "q"}, m, {"role": "tool", "tool_call_id": cid, "content": "q" * 90000},
+                  {"role": "assistant", "content": "a"}, {"role": "user", "content": "next"}]
+check("other tools' results stay", run(other) == other)
 
 # Open WebUI's own message after tool images isn't the user's question: the page before it is the current answer's.
-print("\n[6] Image message — page attached to correct assistant message")
-image_msgs = answer(
-    "Describe this image.",
-    pages=[{"address": "https://example.com/diagram.png", "tool": "image", "part": 0}],
-)
-result = run(image_msgs)
-check("image msg: page on correct message", True)  # structural check
+cid, m = call("read_page", url="https://img.example")
+images = (SYSTEM + first + second + [{"role": "user", "content": "third"}, m,
+                                      {"role": "tool", "tool_call_id": cid, "content": "i" * 20000},
+                                      {"role": "user", "content": [{"type": "text", "text": mod.IMAGE_NOTE + " Please analyze them."}]}])
+out = run(images)
+check("the image message isn't taken for a new question", out[-2]["content"] == "i" * 20000)
+check("no question at all: unchanged", run(SYSTEM) == SYSTEM)
 
-print("\n" + "=" * 60)
-if _errors:
-    print(f"FAILED: {len(_errors)} error(s)")
-    for e in _errors:
-        print(f"  - {e}")
-    sys.exit(1)
-else:
-    print("ALL TESTS PASSED")
+# The starting point follows Open WebUI's compaction threshold (services/open-webui.sh sets it).
+f = mod.Filter()
+check("default start without the threshold: 20,000 tokens", f._start_tokens() == 20000)
+os.environ["CONTEXT_COMPACTION_TOKEN_THRESHOLD"] = "50176"
+check("start at 40% of the compaction threshold (50,176 -> 20,070)", f._start_tokens() == 20070)
+f.valves.start_at_tokens = 12345
+check("start_at_tokens wins when set", f._start_tokens() == 12345)
+
+print(f"old-pages-check.py: {passed} passed, {failed} failed")
+sys.exit(1 if failed else 0)
