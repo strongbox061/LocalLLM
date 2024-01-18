@@ -155,3 +155,20 @@ check("terminals and the browser's tool servers are dropped",
       and md["features"]["web_search"] is False)
 check("it can't be switched off in a chat (no toggle)", not getattr(f, "toggle", False))
 check("it runs after the other filters", f.valves.priority > 0)
+
+print("Personal data is removed before anything is sent")
+chat_text = MESSAGE + "\n" + DOCUMENT
+cases = [
+    ("terminación anticipada acuerdo mantenimiento Ficticia Inventado", ["Ficticia", "Inventado"]),
+    ("Fulana Ficticia documento 1.111.111.111 acuerdo mantenimiento equipo", ["Fulana", "Ficticia", "1.111.111.111"]),
+    ("expediente 99999-00-00-000 estado del trámite", ["99999-00-00-000"]),
+    ("acuerdo mantenimiento persona@ejemplo.invalid 300 000 0000 notificación", ["persona@ejemplo.invalid", "300 000 0000"]),
+    ("mantenimiento equipo Calle 00 # 00-00 normas", ["Calle 00 # 00-00"]),
+    ("cuota mensual 2350 incremento permitido mantenimiento", ["2350"]),
+    ("reclamo del señor Perengano Prueba mantenimiento", ["Perengano", "Prueba"]),
+    ("mantenimiento 12345-67-89-012 terminación anticipada", ["12345-67-89-012"]),
+]
+for query, gone in cases:
+    clean, removed, refusal = lookup_mod.check_query(query, CFG, chat_text)
+    left = [g for g in gone if g in clean]
+    check(f"removed from {query!r}", not left and not refusal, f"left {left} in {clean!r}; refusal {refusal!r}")
