@@ -39,17 +39,34 @@ def one_line(text: str, limit: int) -> str:
 
 
 def load(path: str) -> dict:
-    """Load the last JSON object from a JSONL session file."""
-    last = None
-    with open(path, 'r') as fh:
-        for line in fh:
-            line = line.strip()
-            if line:
-                try:
-                    last = json.loads(line)
-                except json.JSONDecodeError:
-                    pass
-    return last or {}
+    run = {"steps": [], "thinking": 0, "answer": "", "tools": Counter(), "blocked": 0, "errors": 0}
+    for line in open(path, encoding="utf-8"):
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        message = entry.get("message") or {}
+        role, content = message.get("role"), message.get("content")
+        if role == "assistant" and isinstance(content, list):
+            for part in content:
+                if part.get("type") == "thinking" and (part.get("thinking") or "").strip():
+                    run["thinking"] += 1
+                elif part.get("type") == "toolCall":
+                    run["tools"][part.get("name", "?")] += 1
+                    run["steps"].append(("call", part.get("name", "?"), json.dumps(part.get("arguments"), ensure_ascii=False)))
+            answer = text_of(content).strip()
+            if answer:
+                run["answer"] = answer
+        elif role == "toolResult":
+            text = text_of(content)
+            error = bool(message.get("isError"))
+            if error:
+                run["errors"] += 1
+                if text.startswith(("Not sent to", "You already", "Don't search", "You've used enough", "Search budget",
+                    "You have reached your daily limit for", "Rate limit exceeded", "Too many requests", "Quota exceeded")):
+                    run["blocked"] += 1
+            run["steps"].append(("result", message.get("toolName", "?"), ("ERROR: " if error else "") + text))
+    return run
 
 
 def report(path: str, args) -> str:
