@@ -1,0 +1,21 @@
+{
+  "_help": "A chat type (README, \"Protected chats in Open WebUI\"). Copy this file to ~/.config/localllm/chat-types/<name>.json, edit it, then run install/chat-types.sh.",
+  "name": "Protected research (example)",
+  "description": "Questions about your own documents, with lookups only on the sites chosen for it.",
+  "system_prompt": "You help with questions about the documents in this chat. Answer from the documents and the attached Knowledge base first, and quote the exact wording you rely on. Only when they don't answer the question, use the protected search to find more information.",
+  "_allowed_sites": "Domains a lookup may search and read; each one includes its subdomains.",
+  "allowed_sites": ["example.org"],
+  "_sources": "Official pages downloaded into this chat type's Knowledge base by install/chat-types.sh --refresh-sources.",
+  "sources": [
+    {
+      "name": "Example documentation",
+      "urls": ["https://example.org/docs"]
+    }
+  ],
+  "_patterns": "Personal data formats never sent in a lookup, besides the built-in ones.",
+  "patterns": [],
+  "_reference_words": "A number right after one of these words is a public reference and may be sent.",
+  "reference_words": ["rule", "rules", "section", "sections"],
+  "_allowed_patterns": "Public reference codes whose numbers may be sent.",
+  "allowed_patterns": []
+}
