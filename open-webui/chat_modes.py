@@ -10,6 +10,13 @@ Knowledge base ("<name> - sources"), attached to the preset. The files are the s
 is overwritten on the next run; a preset whose file is gone is reported, not deleted.
 
   --refresh-sources  also download each source's official pages into its Knowledge base (a changed text replaces the
+                     old file; an unchanged one is left alone). A url with {n:03} is a numbered series of pages
+                     (..._pr001.html, ..._pr002.html, ...), read until the first missing one.
+  --dry-run          check the files and print the presets that would be sent; change nothing (no login needed)
+  --only <id>        only that chat type (with or without --refresh-sources)
+  --remove <id>      delete the preset chat-<id> and its Knowledge base (not the file)
+
+Usage: python chat_types.py <Open WebUI URL> <webui.db> <.webui_secret_key> <model.json> <chat types dir> [options]
 """
 
 import datetime
@@ -26,36 +33,31 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
 
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
 DOMAIN_RE = re.compile(r"^[a-z0-9-]+(?:\.[a-z0-9-]+)+$")
-
+FILTER_ID, TOOL_ID, META_KEY = "protected_chat", "protected_lookup", "protected_chat"
 CAPABILITIES = {
-    "web_search": False,
-    "image_generation": False,
-    "code_interpreter": False,
-    "memory": False,
-    "terminal": False,
-    "file_upload": True,
-    "vision": True,
-    "citations": True,
+    "vision": True, "file_upload": True, "citations": True, "status_updates": True, "builtin_tools": True,
+    "web_search": False, "image_generation": False, "code_interpreter": False, "terminal": False, "memory": False,
 }
 
 # Open WebUI's built-in tools: only the ones that stay inside the chat (time, its files, its Knowledge, asking the
 # user, a task list). Everything that reaches other chats, notes, schedules, webhooks, other models or new code is off.
 BUILTIN_TOOLS = {
-    "time": True,
-    "file": True,
-    "knowledge": True,
-    "ask_user": True,
-    "tasklist": True,
+    "time": True, "files": True, "knowledge": True, "user_input": True, "tasks": True,
+    "web_search": False, "image_generation": False, "code_interpreter": False, "memory": False, "chats": False,
+    "notes": False, "channels": False, "automations": False, "calendar": False, "notifications": False,
+    "subagents": False, "tools": False, "skills": False,
 }
 
 PROMPT_NOTE = (
-    " Protected: nothing leaves the computer but lookups you approve; switching to another model in a chat ends the protection there."
+    "\n\nThis is a protected chat: the documents and messages stay on this computer. The only way out is the "
+    "protected_lookup tool, which searches only this chat type's allowed websites ({sites}) and asks the user to "
+    "approve each query. Never put names, ID or reference numbers, addresses or other details from the documents in a "
+    "query. If the user switches this chat to another model, the protection no longer applies to that chat."
 )
-
-DESCRIPTION_NOTE = " Protected: nothing leaves the computer but lookups you approve; switching to another model in a chat ends the protection there."
 
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) LocalLLM-chat-types"
 
@@ -66,16 +68,22 @@ MAX_PARTS = 400
 
 
 def load_chat_type(path: Path) -> tuple[dict, list]:
-    """Load a single chat type JSON file and return (chat_type_dict, source_urls)."""
-    with open(path, "r", encoding="utf-8") as f:
-        ct = json.load(f)
-
-    if not ID_RE.match(ct.get("id", "")):
-        print(f"warn: {path.name} has invalid id '{ct.get('id')}'", file=sys.stderr)
-        return {}, []
-
-    sources = ct.get("sources", [])
-    return ct, sources
+    """(chat type, problems). The chat type is usable only when there are no problems."""
+    problems = []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        return {}, [f"can't read it: {e}"]
+    if not isinstance(data, dict):
+        return {}, ["it isn't a JSON object"]
+    ct = {k: v for k, v in data.items() if not k.startswith("_")}
+    ct["id"] = path.stem
+    if not ID_RE.match(path.stem):
+        problems.append("the file name must be lower case letters, digits and dashes")
+    for key in ("name", "system_prompt"):
+        if key not in ct:
+            problems.append(f"missing required key: {key}")
+    return ct, problems
 
 
 def preset_id(ct: dict) -> str:
