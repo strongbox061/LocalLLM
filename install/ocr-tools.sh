@@ -1,52 +1,26 @@
 #!/usr/bin/env bash
-# OCR for scanned PDFs (tools/ocr/ocr-pdfs.sh): Tesseract with Spanish and English data.
-# Requires a working Python 3 environment to run OCRmyPDF (installed via pip).
-
+# OCR for scanned PDFs (tools/ocr/ocr-pdfs.sh): Tesseract with Spanish and English data, and OCRmyPDF (with uv, like
+# Open WebUI; Arch has no package for it). It belongs where Open WebUI runs; nothing runs in the background, so it
+# takes disk only (about 0.2 GB), and RAM only while a folder is being read.
+#   install/ocr.sh            install what is missing
+#   install/ocr.sh --update   also update OCRmyPDF
 set -euo pipefail
 
-UPDATE=false
-if [[ "${1:-}" == "--update" ]]; then
-    UPDATE=true
-fi
+source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
 
 PACKAGES=(tesseract tesseract-data-spa tesseract-data-eng tesseract-data-osd ghostscript)
-
-install_packages() {
-    echo "Installing OCR packages..."
-    if command -v apt-get &>/dev/null; then
-        sudo apt-get update && sudo apt-get install -y "${PACKAGES[@]}"
-    elif command -v pacman &>/dev/null; then
-        sudo pacman -Sy --noconfirm "${PACKAGES[@]}"
-    else
-        echo "ERROR: Unsupported package manager. Please install the following packages manually:"
-        printf '  %s\n' "${PACKAGES[@]}"
-        exit 1
-    fi
-}
-
-install_ocrmypdf() {
-    echo "Installing OCRmyPDF via pip..."
-    pip3 install --user ocrmypdf
-}
-
-if [[ "$UPDATE" == true ]]; then
-    install_packages
-    install_ocrmypdf
+if pacman -Q "${PACKAGES[@]}" >/dev/null 2>&1; then
+    echo "Tesseract and its Spanish and English data are already installed."
 else
-    missing=()
-    for pkg in "${PACKAGES[@]}"; do
-        if ! command -v "$pkg" &>/dev/null; then
-            missing+=("$pkg")
-        fi
-    done
-
-    if [[ ${#missing[@]} -gt 0 ]]; then
-        install_packages
-    fi
-
-    if ! command -v ocrmypdf &>/dev/null; then
-        install_ocrmypdf
-    fi
+    sudo pacman -S --needed "${PACKAGES[@]}"
 fi
 
-echo "OCR setup complete. Use tools/ocr/ocr-pdfs.sh to process scanned PDFs."
+if command -v ocrmypdf >/dev/null && [[ "${1:-}" != "--update" ]]; then
+    echo "OCRmyPDF is already installed ($(ocrmypdf --version))."
+elif command -v ocrmypdf >/dev/null; then
+    echo "Updating OCRmyPDF via pip3..."
+    pip3 install --user --upgrade ocrmypdf
+else
+    echo "Installing OCRmyPDF via pip3..."
+    pip3 install --user ocrmypdf
+fi
