@@ -48,21 +48,8 @@ def replace_imports(content: str) -> str:
 
 
 def header(content: str, field: str) -> str:
-    """Return the docstring/header block from a file's content."""
-    lines = content.split('\n')
-    result = []
-    in_header = False
-    for line in lines:
-        if line.startswith('"""'):
-            if not in_header:
-                in_header = True
-                result.append(line)
-            elif result:
-                result.append(line)
-                break
-        elif in_header:
-            result.append(line)
-    return '\n'.join(result)
+    m = re.search(rf"^\s*{field}:\s*(.+?)\s*$", content.split('"""', 2)[1] if content.count('"""') >= 2 else "", re.M)
+    return m.group(1) if m else ""
 
 
 def token(db_path: str, key_path: str) -> str:
