@@ -21,7 +21,15 @@ def encode(tokenizer, model, texts: list[str]) -> list[list[float]]:
     with torch.no_grad():
         outputs = model(**inputs)
     embeddings = outputs.last_hidden_state.mean(dim=1).tolist()
-    return embeddings
+    # L2-normalize so dot product ≈ cosine similarity
+    return [
+        [v / (sum(vv * vv for vv in emb) ** 0.5) for v in emb]
+        for emb in embeddings
+    ]
+
+
+def cosine_similarity(a: list[float], b: list[float]) -> float:
+    return sum(x * y for x, y in zip(a, b))
 
 
 if __name__ == "__main__":
