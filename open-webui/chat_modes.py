@@ -42,7 +42,6 @@ CAPABILITIES = {
     "vision": True, "file_upload": True, "citations": True, "status_updates": True, "builtin_tools": True,
     "web_search": False, "image_generation": False, "code_interpreter": False, "terminal": False, "memory": False,
 }
-
 # Open WebUI's built-in tools: only the ones that stay inside the chat (time, its files, its Knowledge, asking the
 # user, a task list). Everything that reaches other chats, notes, schedules, webhooks, other models or new code is off.
 BUILTIN_TOOLS = {
@@ -51,16 +50,14 @@ BUILTIN_TOOLS = {
     "notes": False, "channels": False, "automations": False, "calendar": False, "notifications": False,
     "subagents": False, "tools": False, "skills": False,
 }
-
 PROMPT_NOTE = (
     "\n\nThis is a protected chat: the documents and messages stay on this computer. The only way out is the "
     "protected_lookup tool, which searches only this chat type's allowed websites ({sites}) and asks the user to "
     "approve each query. Never put names, ID or reference numbers, addresses or other details from the documents in a "
     "query. If the user switches this chat to another model, the protection no longer applies to that chat."
 )
-
+DESCRIPTION_NOTE = " Protected: nothing leaves the computer but lookups you approve; switching to another model in a chat ends the protection there."
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) LocalLLM-chat-types"
-
 MAX_PARTS = 400
 
 
