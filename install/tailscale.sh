@@ -8,10 +8,9 @@ set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
 
 if pacman -Q tailscale >/dev/null 2>&1; then
-  info "tailscale already installed, skipping install"
+    echo "Tailscale is installed ($(pacman -Q tailscale | cut -d' ' -f2))."
 else
-  info "Installing tailscale..."
-  sudo pacman -S --noconfirm tailscale
+    sudo pacman -S --needed tailscale
 fi
 
 # Share DNS between NetworkManager and Tailscale through systemd-resolved, so NetworkManager doesn't overwrite
@@ -37,11 +36,26 @@ else
     sudo systemctl enable --now tailscaled
 fi
 
-# Sign in if this node isn't authenticated yet
-if ! tailscale status >/dev/null 2>&1; then
-  info "Tailscale not signed in. Open this URL to authenticate:"
-  sudo tailscale up --login-server https://login.tailscale.com
-  info "Signed in successfully."
-fi
+# tailscaled may need a moment after a fresh start before it answers.
+backend=""
+for _ in 1 2 3 4 5; do
+    backend="$(tailscale status --json 2>/dev/null \
+        | python3 -c 'import json,sys; print(json.load(sys.stdin).get("BackendState",""))' 2>/dev/null || true)"
+    [[ -n "$backend" ]] && break
+    sleep 1
+done
 
-info "Tailscale setup complete. You can now use 'tailscale serve' without sudo."
+if [[ "$backend" == Running ]]; then
+    echo "Signed in: $(tailscale status --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')"
+    # You (not only root) may change `tailscale serve`; set once, kept by tailscaled.
+    if ! tailscale serve status >/dev/null 2>&1; then
+        sudo tailscale set --operator="$USER"
+        echo "You can now run tailscale serve without sudo."
+    fi
+elif [[ -t 0 ]]; then
+    echo "This PC isn't signed in to Tailscale yet ($backend). Scan the QR code on your phone or open the link below"
+    echo "on any device (no browser needed on this PC) and sign in (the same account on every PC of this setup):"
+    sudo tailscale up --qr --operator="$USER"
+else
+    warn "This PC isn't signed in to Tailscale yet ($backend): run install/tailscale.sh in a terminal to sign in."
+fi
