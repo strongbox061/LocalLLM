@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The active model profile (models/<name>.env). Source it, don't run it; it doesn't need lib/common.sh, so the
-# shellcheck disable is only on this file.
+# llama-server service script can use it too.
+# shellcheck disable=SC2034
 #   load_model_profile          sets the profile's values (MODEL_*, CTX_PER_SLOT...), local.env's overrides applied
 #   llama_server_args           command-line flags for llama.cpp's main binary
 #   model_json / write_model_json   the profile as JSON for Pi's extensions (~/.config/localllm/model.json)
@@ -15,55 +16,51 @@ MODELS_HOME="$HOME/LocalLLM/models"
 MODEL_JSON_FILE="${LOCALLLM_MODEL_JSON:-$HOME/.config/localllm/model.json}"
 # This machine's own settings: MODEL_PROFILE and the LLAMA_* overrides.
 # shellcheck source=/dev/null
+[[ -f "$HOME/.config/localllm/local.env" ]] && source "$HOME/.config/localllm/local.env"
 
+# load_model_profile [name|path]: the given profile, else MODEL_PROFILE from local.env, else models/default.
+# Prints what is wrong and returns 1 when the profile is missing or incomplete.
 load_model_profile() {
-  local profile_name="${1:-}"
-
-  if [[ -n "$profile_name" ]]; then
-    # Accept a name or a path to a profile .env file
-    if [[ -f "$profile_name" ]]; then
-      PROFILE_PATH="$profile_name"
-    elif [[ -f "$MODELS_HOME/$profile_name.env" ]]; then
-      PROFILE_PATH="$MODELS_HOME/$profile_name.env"
-    else
-      echo "load_model_profile: profile '$profile_name' not found" >&2
-      return 1
+    local name="${1:-${MODEL_PROFILE:-}}"
+    [[ -n "$name" ]] || name="$(tr -d '[:space:]' < "$MODEL_REPO_DIR/models/default")"
+    local file="$MODEL_REPO_DIR/models/$name.env"
+    # A path (with a /) is a profile file elsewhere, e.g. one the tests make.
+    [[ "$name" == */* ]] && file="$name" && name="$(basename -- "$name" .env)"
+    if [[ ! -f "$file" ]]; then
+        local known=() f
+        for f in "$MODEL_REPO_DIR"/models/*.env; do known+=("$(basename -- "$f" .env)"); done
+        echo "ERROR: no model profile $file (MODEL_PROFILE in ~/.config/localllm/local.env; profiles: ${known[*]})" >&2
+        return 1
     fi
-  else
-    # Read from local.env in the repo root, fall back to models/default
-    if [[ -f "$MODEL_REPO_DIR/local.env" ]]; then
-      PROFILE_PATH="$MODELS_HOME/$(. "$MODEL_REPO_DIR/local.env" && echo "${MODEL_PROFILE:-default}").env"
-    else
-      PROFILE_PATH="$MODELS_HOME/default.env"
+    # Nothing left over from another profile.
+    MODEL_NAME="" MODEL_REPO="" MODEL_FILE="" CTX_PER_SLOT="" SLOTS="" MAX_TOKENS=""
+    # shellcheck source=/dev/null
+    source "$file"
+    MODEL_PROFILE="$name"
+
+    local problems=() v
+    for v in MODEL_NAME MODEL_REPO MODEL_FILE; do
+        [[ -n "${!v}" ]] || problems+=("$v is empty")
+    done
+    for v in CTX_PER_SLOT SLOTS MAX_TOKENS; do
+        [[ "${!v}" =~ ^[1-9][0-9]*$ ]] || problems+=("$v must be a number")
+    done
+    if [[ ${#problems[@]} -gt 0 ]]; then
+        printf 'ERROR: model profile %s: %s\n' "$file" "${problems[@]}" >&2
+        return 1
     fi
-  fi
 
-  if [[ ! -f "$PROFILE_PATH" ]]; then
-    echo "load_model_profile: cannot find profile at '$PROFILE_PATH'" >&2
-    return 1
-  fi
-
-  # Source the profile to get MODEL_REPO, MODEL_FILE, MODEL_NAME, etc.
-  # shellcheck source=/dev/null
-  . "$PROFILE_PATH"
-
-  # Apply any LLAMA_* overrides from local.env (if it exists and we haven't sourced the profile through it)
-  if [[ -f "$MODEL_REPO_DIR/local.env" && -z "${1:-}" ]]; then
-    . "$MODEL_REPO_DIR/local.env"
-  fi
-
-  # Defaults for fields a profile might omit
-  MODEL_NAME="${MODEL_NAME:-$(basename "${MODEL_FILE%.bin}")}"
-  CTX_PER_SLOT="${CTX_PER_SLOT:-2048}"
-  SLOTS="${SLOTS:-1}"
-  AT_ONCE="${AT_ONCE:-1}"
-  SUB_MAX="${SUB_MAX:-5}"
-  MAX_TOKENS="${MAX_TOKENS:-512}"
-  REASONING="${REASONING:-off}"
-  REASONING_OFF_EFFORT="${REASONING_OFF_EFFORT:-fast}"
-  VISION="${VISION:-off}"
-
-  MODEL_PROFILE="$(basename "${PROFILE_PATH%.env}")"
+    # Defaults for fields a profile might omit
+    MODEL_NAME="${MODEL_NAME:-$(basename "${MODEL_FILE%.bin}")}"
+    CTX_PER_SLOT="${CTX_PER_SLOT:-2048}"
+    SLOTS="${SLOTS:-1}"
+    MAX_TOKENS="${MAX_TOKENS:-512}"
+    REASONING="${REASONING:-off}"
+    REASONING_OFF_EFFORT="${REASONING_OFF_EFFORT:-fast}"
+    VISION="${VISION:-off}"
+    AT_ONCE="${AT_ONCE:-1}"
+    SUB_MAX="${SUB_MAX:-5}"
+    return 0
 }
 
 llm_server_args() {
