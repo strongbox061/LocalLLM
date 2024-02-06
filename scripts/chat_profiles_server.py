@@ -1,7 +1,7 @@
 """
-chat_types_server.py: the "Chat types" page (services/chat_types_web.py) on the main PC in split mode, where the search
-gateway, which serves it in single mode, runs on the helper PC (README, "Two-PC setup"). Started in the foreground by
-`./localllm.sh chat-types`; Ctrl+C ends it.
+chat_profiles_server.py: the "Chat types" page (services/chat_types_web.py) on the main PC in split mode, where the
+search gateway, which serves it in single mode, runs on the helper PC (README, "Two-PC setup"). Started in the
+foreground by `./localllm.sh chat-types`; Ctrl+C ends it.
 
 The page is the same: it edits ~/.config/localllm/chat-types/<id>.json here and runs install/chat-types.sh, which in
 split mode sends the files to the helper and builds the presets there. The presets', Knowledge bases' and accounts'
