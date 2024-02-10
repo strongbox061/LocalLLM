@@ -4,11 +4,11 @@
 # and the file's allowed sites, prompt, starter prompts, users and Knowledge base. Run it after
 # install/open-webui-config.sh, and again after editing a chat type. A preset edited by hand in Open WebUI is
 # overwritten: the files are the source of truth.
-#   install/chat-profiles.sh                    create or update the presets
-#   install/chat-profiles.sh --refresh-sources  also download the files' official sources into their Knowledge bases
-#   install/chat-profiles.sh --dry-run [dir]    check the files (or those in dir) and print the presets; change nothing
-#   install/chat-profiles.sh [--refresh-sources] --only <id>   only that chat type
-#   install/chat-profiles.sh --remove <id>      delete its preset and Knowledge base from Open WebUI (not the file)
+#   install/chat-types.sh                       create or update the presets
+#   install/chat-types.sh --refresh-sources     also download the files' official sources into their Knowledge bases
+#   install/chat-types.sh --dry-run [dir]       check the files (or those in dir) and print the presets; change nothing
+#   install/chat-types.sh [--refresh-sources] --only <id>   only that chat type
+#   install/chat-types.sh --remove <id>         delete its preset and Knowledge base from Open WebUI (not the file)
 # The page http://127.0.0.1:8090/chat-types does all of this from the browser (README, "Protected chats").
 
 # In split mode (Open WebUI on the helper PC; README, "Two-PC setup") the files stay here: this sends them to the helper
@@ -59,7 +59,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # --- Helpers ---
-log() { echo "[chat-profiles] $*"; }
+log() { echo "[chat-types] $*"; }
 die() { echo "Error: $*" >&2; exit 1; }
 
 api_get() {
