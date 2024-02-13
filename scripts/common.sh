@@ -42,6 +42,7 @@ SEARCH_GATEWAY_URL="http://127.0.0.1:8090"
 ENDPOINTS_ERROR=""
 # refresh_endpoints [force]: regenerates endpoints.json/.env when they are older than their sources (or always with --force).
 refresh_endpoints() {
+    ENDPOINTS_ERROR=""
     local force="$1"
     [ -f "$SERVICES_FILE" ] || return 0
     if [ "$force" != "--force" ] && [ -f "$ENDPOINTS_FILE" ]; then
@@ -55,11 +56,11 @@ refresh_endpoints() {
     # Write endpoints.env from the JSON for sourcing in bash scripts.
     python3 -c "
 import json, sys
-with open('$ENDPOINTS_FILE') as f:
+with open(sys.argv[1]) as f:
     data = json.load(f)
 for k, v in data.items():
     print(f'{k}={v}')
-" > "$ENDPOINTS_ENV" 2>/dev/null
+" "$ENDPOINTS_FILE" > "$ENDPOINTS_ENV" 2>/dev/null
     # Reset ENDPOINTS_ERROR if endpoints are valid.
     [ -s "$ENDPOINTS_FILE" ] && ENDPOINTS_ERROR=""
 }
