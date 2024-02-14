@@ -16,6 +16,8 @@
 
 set -euo pipefail
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
+
 USAGE="Usage: $0 [--refresh-sources] [--only <id>] | --dry-run [dir] | --remove <id>"
 
 # --- Configuration ---
@@ -111,6 +113,8 @@ build_preset() {
         --argjson filters "$filters" \
         --argjson kb_ids "$kb_ids" \
         --arg model "$DEFAULT_MODEL" \
+        --argjson users "$(jq -r '.users // []' "$file")" \
+        --argjson starter_prompts "[$(echo "$CT_STARTER_PROMPTS" | sed '/^$/d' | sed 's/.*$/"&"/' | paste -sd,)]" \
         '{
             id: $id,
             name: $name,
@@ -119,6 +123,8 @@ build_preset() {
             filters: $filters,
             knowledge_base_ids: $kb_ids,
             model: $model,
+            users: $users,
+            starter_prompts: $starter_prompts,
             is_preset: true
         }')
 
