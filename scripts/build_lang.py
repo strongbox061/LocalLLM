@@ -113,7 +113,7 @@ def phrase_re(raw: str, f: Flavor, default_anchor: str, engine: str = "") -> tup
     tight = bool(NOSPACE.search(p))
     if tight and anchor == "start" and not raw.lstrip().startswith("^"):
         anchor = "any"  # no spaces, and the verb or question word often comes late: anywhere
-    if tight and len(re.sub(r"[\s*…]\|\{engine\}", "", p)) < 2:
+    if tight and len(re.sub(r"[\s*…]|\{engine\}", "", p)) < 2:
         raise ValueError(f"phrase in a script without spaces needs at least 2 characters: {raw!r}")
     parts = [s.strip() for s in p.split(GAP_MARK)]
     gap = f.gap_tight if tight else f.gap_spaced

@@ -65,6 +65,23 @@
       "current_info": ["dernière version", "dernières nouvelles", "plus récent*", "récemment", "actuellement", "en ce moment", "aujourd'hui", "cette semaine", "ce mois-ci", "cette année", "à jour", "prix actuel", "prix de", "combien coûte", "combien coûtent", "taux de change", "bons plans"],
       "months": ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"],
       "bot_check": ["vérification que vous n'êtes pas un robot", "vérification que vous êtes un humain", "vérifiez que vous êtes un humain", "vérification de votre navigateur", "accès refusé", "trafic inhabituel", "un instant...", "oh non!"]
+    },
+    "de": {
+      "name": "German",
+      "please": ["bitte"],
+      "latest": ["neueste", "neuesten", "neuester", "neuestes", "aktuell*", "jüngst*", "kürzlich", "was ist neu", "was gibt es neues", "neuerungen", "änderungsprotokoll", "versionshinweise", "neue funktionen", "auf dem neuesten stand"],
+      "error": ["fehler*", "ausnahme", "schlägt fehl", "fehlgeschlagen", "absturz", "stürzt ab", "abgestürzt", "funktioniert nicht", "geht nicht", "kaputt", "behebe", "beheben", "reparier*"],
+      "action_start": ["suche", "suchen", "finde", "öffne", "lies", "geh auf", "gehe zu", "geh zu", "besuche", "lade", "bearbeite", "recherchiere", "schau nach", "schlag nach"],
+      "question_start": ["was", "warum", "wieso", "weshalb", "wie", "wo", "wann", "wer", "welche", "welcher", "welches", "wozu", "ist", "sind", "gibt es", "kannst du erklären", "können sie erklären"],
+      "local_current": ["aktuell* verzeichnis", "aktuell* ordner", "aktuell* datei", "aktuell* branch", "aktuell* zweig", "arbeitsverzeichnis"],
+      "named_engine": ["suche auf {engine}", "suche mit {engine}", "such mit {engine}", "suche bei {engine}", "such bei {engine}", "suche in {engine}", "mit {engine} suchen", "auf {engine} suchen", "bei {engine} suchen"],
+      "named_source": {"verbs": ["lies", "lesen", "öffne", "öffnen", "finde", "finden", "schau", "schaue"], "nouns": ["seite", "artikel", "dokumentation", "doku", "docs", "readme", "homepage", "startseite"], "phrases": ["laut der", "laut dem", "laut den", "gemäß der", "gemäß dem", "zufolge", "modellkarte"]},
+      "lookup": ["schau nach", "schlag nach", "schau es nach", "schlag es nach", "nicht aus dem gedächtnis", "nicht aus dem kopf", "online suchen", "im internet suchen", "suche online"],
+      "offer": ["möchtest du", "möchten sie", "soll ich", "willst du", "wollen sie", "lass mich wissen", "sag bescheid", "wenn du möchtest", "falls du möchtest"],
+      "from_memory": ["allgemeinwissen", "aus dem gedächtnis", "ich weiß bereits", "weiß ich bereits", "ohne websuche", "ohne internetrecherche"],
+      "current_info": ["neueste", "neuesten", "aktuell*", "derzeit", "zurzeit", "momentan", "gerade jetzt", "heute", "diese woche", "diesen monat", "dieses jahr", "auf dem neuesten stand", "preis von", "preise von", "preis für", "preise für", "was kostet", "wie viel kostet", "wechselkurs", "angebote für", "kürzlich"],
+      "months": ["januar", "jänner", "februar", "märz", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "dezember"],
+      "bot_check": ["wir überprüfen, ob sie ein mensch sind", "bestätigen sie, dass sie ein mensch sind", "überprüfung ihres browsers", "ihr browser wird überprüft", "zugriff verweigert", "ungewöhnlicher datenverkehr", "einen moment...", "sicherheitsüberprüfung wird durchgeführt"]
     }
   }
 }
