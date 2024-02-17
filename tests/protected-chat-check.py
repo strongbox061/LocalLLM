@@ -172,3 +172,17 @@ for query, gone in cases:
     clean, removed, refusal = lookup_mod.check_query(query, CFG, chat_text)
     left = [g for g in gone if g in clean]
     check(f"removed from {query!r}", not left and not refusal, f"left {left} in {clean!r}; refusal {refusal!r}")
+kept = [
+    "Reglamento Técnico norma 1973 terminación anticipada mantenimiento",
+    "sección 123 de 2003 mantenimiento equipos industriales",
+    "código R-123 de 2001 requisitos de seguridad",
+    "Reglamento Técnico norma 384 instalación equipo",
+    "Boletín Oficial mantenimiento",
+]
+for query in kept:
+    clean, removed, refusal = lookup_mod.check_query(query, CFG, chat_text)
+    check(f"kept as it is: {query!r}", clean == query and not removed and not refusal, f"{clean!r} {removed} {refusal!r}")
+clean, removed, refusal = lookup_mod.check_query("Ficticia Inventado 1.111.111.111", CFG, chat_text)
+check("refused when nothing general is left", bool(refusal), clean)
+clean, removed, refusal = lookup_mod.check_query("mantenimiento site:other.example normas", CFG, "")
+check("a site: filter written by the model is dropped (the tool sets it)", "other.example" not in clean, clean)
