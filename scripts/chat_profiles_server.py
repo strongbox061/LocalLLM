@@ -1,7 +1,7 @@
 """
-chat_profiles_server.py: the "Chat types" page (services/chat_types_web.py) on the main PC in split mode, where the
-search gateway, which serves it in single mode, runs on the helper PC (README, "Two-PC setup"). Started in the
-foreground by `./localllm.sh chat-types`; Ctrl+C ends it.
+chat_types_server.py: the "Chat types" page (services/chat_types_web.py) on the main PC in split mode, where the search
+gateway, which serves it in single mode, runs on the helper PC (README, "Two-PC setup"). Started in the foreground by
+`./localllm.sh chat-types`; Ctrl+C ends it.
 
 The page is the same: it edits ~/.config/localllm/chat-types/<id>.json here and runs install/chat-types.sh, which in
 split mode sends the files to the helper and builds the presets there. The presets', Knowledge bases' and accounts'
@@ -9,6 +9,8 @@ status comes from the helper's Open WebUI database (windows/tasks.ps1 chat-types
 
 Listens on 127.0.0.1 only, on the search gateway's port (8090), so the page's address is the same in both modes;
 chat_types_web.py's own checks (this computer only, same-origin changes) apply as in the gateway.
+
+Usage: python3 chat_types_server.py [port]
 """
 
 import json
@@ -21,32 +23,30 @@ from urllib.parse import urlparse
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
-
+sys.path.insert(0, str(HERE))
 import chat_types_web  # noqa: E402
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8090
 
-STATUS_CMD = [
-    "bash", "-c",
-    'source "$1/lib/common.sh" && source "$1/lib/helper.sh" && helper_task chat-types-status',
-    "_", str(REPO),
-]
+STATUS_CMD = ["bash", "-c",
+              'source "$1/lib/common.sh" && source "$1/lib/helper.sh" && helper_task chat-types-status',
+              "status", str(REPO)]
+_cache = {"at": 0.0, "value": None}
 
 
 def helper_status() -> dict:
-    """Return the current chat-types status from the helper machine."""
-    try:
-        result = subprocess.run(
-            STATUS_CMD,
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            return json.loads(result.stdout)
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError):
-        pass
-    return {"status": "unknown", "models": [], "profiles": []}
+    """db_status() as the helper's Open WebUI has it (a few seconds' cache)."""
+    if _cache["value"] is not None and time.time() - _cache["at"] < 5:
+        return _cache["value"]
+    p = subprocess.run(STATUS_CMD, capture_output=True, text=True, timeout=60)
+    lines = [ln for ln in p.stdout.splitlines() if ln.strip().startswith("{")]
+    if p.returncode != 0 or not lines:
+        raise RuntimeError((p.stderr or p.stdout).strip().splitlines()[-1]
+                           if (p.stderr or p.stdout).strip()
+                           else f"the helper's status failed (exit {p.returncode})")
+    value = json.loads(lines[-1])
+    _cache.update(at=time.time(), value=value)
+    return value
 
 
 OTHER_PAGE = """<!doctype html>
