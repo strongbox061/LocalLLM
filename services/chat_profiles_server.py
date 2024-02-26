@@ -63,21 +63,28 @@ OTHERS = {
 
 
 class Handler(BaseHTTPRequestHandler):
+    server_version = "chat-types/1.0"
+
     """HTTP handler for the chat-types server."""
 
     def _send_json(self, data: dict, status: int = 200):
-        body = json.dumps(data).encode()
+        body = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
 
     def _send_html(self, title: str, message: str = ""):
-        html = OTHER_PAGE.format(title=title, message=message).encode()
+        html = OTHER_PAGE.format(title=title, message=message).encode("utf-8")
         self.send_response(200)
-        self.send_header("Content-Type", "text/html")
+        self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(html)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Security-Policy",
+                         "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'")
+        self.send_header("X-Frame-Options", "DENY")
         self.end_headers()
         self.wfile.write(html)
 
