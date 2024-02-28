@@ -51,10 +51,10 @@ def helper_status() -> dict:
 chat_modes_web.STATUS_SOURCE = helper_status
 
 OTHER_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8"><title>{title}</title>
-<style>body{font:15px/1.5 system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;color:#222;
-background:#fff}code{background:#f1f1f1;padding:1px 5px;border-radius:4px}@media(prefers-color-scheme:dark){
-body{color:#ddd;background:#1b1b1b}}code{background:#333}}</style></head><body>
-<h1>{title}</h1><p>{text}</p><p><a href="/chat-modes">Chat modes</a></p></body></html>"""
+<style>body{{font:15px/1.5 system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;color:#222;
+background:#fff}}code{{background:#f1f1f1;padding:1px 5px;border-radius:4px}}@media(prefers-color-scheme:dark){{
+body{{color:#ddd;background:#1b1b1b}}code{{background:#333}}}}</style></head><body>
+<h1>{title}</h1><p>{text}</p><p><a href="/chat-types">Chat types</a></p></body></html>"""
 OTHERS = {
     "/dashboard": ("Search usage dashboard", "The search gateway runs on the helper PC: <code>./localllm.sh status</code> "
                    "prints its dashboard's address."),
@@ -64,7 +64,7 @@ OTHERS = {
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "chat-modes/1.0"
+    server_version = "chat-types/1.0"
 
     def _send(self, status: int, data: dict):
         self._send_bytes(status, json.dumps(data, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
@@ -86,7 +86,7 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path.rstrip("/")
         if path == "":
             self.send_response(302)
-            self.send_header("Location", "/chat-modes")
+            self.send_header("Location", "/chat-types")
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
@@ -95,7 +95,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_bytes(200, OTHER_PAGE.format(title=title, text=text).encode("utf-8"),
                                     "text/html; charset=utf-8")
         if not chat_modes_web.handle(self, path, self.command, body, "", PORT):
-            self._send(404, {"error": "served: /chat-modes"})
+            self._send(404, {"error": "served: /chat-types"})
 
     def do_GET(self):
         self._handle()
