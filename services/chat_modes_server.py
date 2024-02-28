@@ -1,16 +1,16 @@
 """
-chat_types_server.py: the "Chat types" page (services/chat_types_web.py) on the main PC in split mode, where the search
+chat_modes_server.py: the "Chat modes" page (services/chat_modes_web.py) on the main PC in split mode, where the search
 gateway, which serves it in single mode, runs on the helper PC (README, "Two-PC setup"). Started in the foreground by
-`./localllm.sh chat-types`; Ctrl+C ends it.
+`./localllm.sh chat-modes`; Ctrl+C ends it.
 
-The page is the same: it edits ~/.config/localllm/chat-types/<id>.json here and runs install/chat-types.sh, which in
+The page is the same: it edits ~/.config/localllm/chat-modes/<id>.json here and runs install/chat-modes.sh, which in
 split mode sends the files to the helper and builds the presets there. The presets', Knowledge bases' and accounts'
-status comes from the helper's Open WebUI database (windows/tasks.ps1 chat-types-status, over SSH).
+status comes from the helper's Open WebUI database (windows/tasks.ps1 chat-modes-status, over SSH).
 
 Listens on 127.0.0.1 only, on the search gateway's port (8090), so the page's address is the same in both modes;
-chat_types_web.py's own checks (this computer only, same-origin changes) apply as in the gateway.
+chat_modes_web.py's own checks (this computer only, same-origin changes) apply as in the gateway.
 
-Usage: python3 chat_types_server.py [port]
+Usage: python3 chat_modes_server.py [port]
 """
 
 import json
@@ -24,11 +24,11 @@ from urllib.parse import urlparse
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
 sys.path.insert(0, str(HERE))
-import chat_types_web  # noqa: E402
+import chat_modes_web  # noqa: E402
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8090
 
-STATUS_CMD = ["bash", "-c", 'source "$1/lib/common.sh" && source "$1/lib/helper.sh" && helper_task chat-types-status',
+STATUS_CMD = ["bash", "-c", 'source "$1/lib/common.sh" && source "$1/lib/helper.sh" && helper_task chat-modes-status',
               "status", str(REPO)]
 _cache = {"at": 0.0, "value": None}
 
@@ -48,13 +48,13 @@ def helper_status() -> dict:
     return value
 
 
-chat_types_web.STATUS_SOURCE = helper_status
+chat_modes_web.STATUS_SOURCE = helper_status
 
 OTHER_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8"><title>{title}</title>
 <style>body{font:15px/1.5 system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;color:#222;
 background:#fff}code{background:#f1f1f1;padding:1px 5px;border-radius:4px}@media(prefers-color-scheme:dark){
 body{color:#ddd;background:#1b1b1b}}code{background:#333}}</style></head><body>
-<h1>{title}</h1><p>{text}</p><p><a href="/chat-types">Chat types</a></p></body></html>"""
+<h1>{title}</h1><p>{text}</p><p><a href="/chat-modes">Chat modes</a></p></body></html>"""
 OTHERS = {
     "/dashboard": ("Search usage dashboard", "The search gateway runs on the helper PC: <code>./localllm.sh status</code> "
                    "prints its dashboard's address."),
@@ -64,7 +64,7 @@ OTHERS = {
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "chat-types/1.0"
+    server_version = "chat-modes/1.0"
 
     def _send(self, status: int, data: dict):
         self._send_bytes(status, json.dumps(data, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
@@ -86,7 +86,7 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path.rstrip("/")
         if path == "":
             self.send_response(302)
-            self.send_header("Location", "/chat-types")
+            self.send_header("Location", "/chat-modes")
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
@@ -94,8 +94,8 @@ class Handler(BaseHTTPRequestHandler):
             title, text = OTHERS[path]
             return self._send_bytes(200, OTHER_PAGE.format(title=title, text=text).encode("utf-8"),
                                     "text/html; charset=utf-8")
-        if not chat_types_web.handle(self, path, self.command, body, "", PORT):
-            self._send(404, {"error": "served: /chat-types"})
+        if not chat_modes_web.handle(self, path, self.command, body, "", PORT):
+            self._send(404, {"error": "served: /chat-modes"})
 
     def do_GET(self):
         self._handle()
@@ -112,7 +112,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
-    print(f"Chat types: http://127.0.0.1:{PORT}/chat-types (Ctrl+C ends it)", flush=True)
+    print(f"Chat modes: http://127.0.0.1:{PORT}/chat-modes (Ctrl+C ends it)", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
