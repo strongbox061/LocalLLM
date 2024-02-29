@@ -1,14 +1,14 @@
 """
-chat_types_server.py: the "Chat types" page (services/chat_modes_web.py) on the main PC in split mode, where the search
+chat_types_server.py: the "Chat types" page (services/chat_types_web.py) on the main PC in split mode, where the search
 gateway, which serves it in single mode, runs on the helper PC (README, "Two-PC setup"). Started in the foreground by
 `./localllm.sh chat-types`; Ctrl+C ends it.
 
-The page is the same: it edits ~/.config/localllm/chat-modes/<id>.json here and runs install/chat-types.sh, which in
+The page is the same: it edits ~/.config/localllm/chat-types/<id>.json here and runs install/chat-types.sh, which in
 split mode sends the files to the helper and builds the presets there. The presets', Knowledge bases' and accounts'
-status comes from the helper's Open WebUI database (windows/tasks.ps1 chat-modes-status, over SSH).
+status comes from the helper's Open WebUI database (windows/tasks.ps1 chat-types-status, over SSH).
 
 Listens on 127.0.0.1 only, on the search gateway's port (8090), so the page's address is the same in both modes;
-chat_modes_web.py's own checks (this computer only, same-origin changes) apply as in the gateway.
+chat_types_web.py's own checks (this computer only, same-origin changes) apply as in the gateway.
 
 Usage: python3 chat_types_server.py [port]
 """
@@ -24,11 +24,10 @@ from urllib.parse import urlparse
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
 sys.path.insert(0, str(HERE))
-import chat_modes_web  # noqa: E402
+import chat_types_web  # noqa: E402
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8090
-
-STATUS_CMD = ["bash", "-c", 'source "$1/lib/common.sh" && source "$1/lib/helper.sh" && helper_task chat-modes-status',
+STATUS_CMD = ["bash", "-c", 'source "$1/lib/common.sh" && source "$1/lib/helper.sh" && helper_task chat-types-status',
               "status", str(REPO)]
 _cache = {"at": 0.0, "value": None}
 
@@ -40,15 +39,14 @@ def helper_status() -> dict:
     p = subprocess.run(STATUS_CMD, capture_output=True, text=True, timeout=60)
     lines = [ln for ln in p.stdout.splitlines() if ln.strip().startswith("{")]
     if p.returncode != 0 or not lines:
-        raise RuntimeError((p.stderr or p.stdout).strip().splitlines()[-1]
-                           if (p.stderr or p.stdout).strip()
+        raise RuntimeError((p.stderr or p.stdout).strip().splitlines()[-1] if (p.stderr or p.stdout).strip()
                            else f"the helper's status failed (exit {p.returncode})")
     value = json.loads(lines[-1])
     _cache.update(at=time.time(), value=value)
     return value
 
 
-chat_modes_web.STATUS_SOURCE = helper_status
+chat_types_web.STATUS_SOURCE = helper_status
 
 OTHER_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8"><title>{title}</title>
 <style>body{{font:15px/1.5 system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;color:#222;
@@ -94,7 +92,7 @@ class Handler(BaseHTTPRequestHandler):
             title, text = OTHERS[path]
             return self._send_bytes(200, OTHER_PAGE.format(title=title, text=text).encode("utf-8"),
                                     "text/html; charset=utf-8")
-        if not chat_modes_web.handle(self, path, self.command, body, "", PORT):
+        if not chat_types_web.handle(self, path, self.command, body, "", PORT):
             self._send(404, {"error": "served: /chat-types"})
 
     def do_GET(self):
