@@ -264,7 +264,7 @@ button:disabled {
 
 .users label {
   font-weight: 400;
-  margin: 3px 0;
+  margin: 6px 0 2px;
 }
 
 details {
@@ -276,7 +276,54 @@ summary {
   font-weight: 600;
 }
 
+.msg {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+.msg.bad {
+  background: var(--bad);
+  color: #fff;
+}
+
+.msg.ok {
+  background: var(--ok);
+  color: #fff;
+}
+
+.msg ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.status {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+pre {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+  overflow: auto;
+  max-height: 320px;
+  white-space: pre-wrap;
+  font-size: 12.5px;
+  margin: 8px 0 0;
+}
+
+.job {
+  margin-top: 16px;
+}
+
 .empty {
   color: var(--muted);
-  font-style: italic;
+  padding: 30px 0;
+  text-align: center;
 }
