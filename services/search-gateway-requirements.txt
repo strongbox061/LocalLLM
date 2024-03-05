@@ -1,0 +1,4 @@
+# Search gateway Python dependencies.
+aiohttp==3.9.5
+pydantic==2.6.4
+playwright==1.42.0
