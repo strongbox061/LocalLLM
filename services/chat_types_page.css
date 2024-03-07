@@ -187,6 +187,12 @@ textarea {
   font: inherit;
 }
 
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
 textarea {
   resize: vertical;
 }
@@ -223,6 +229,11 @@ button {
   background: var(--card);
   color: var(--text);
   cursor: pointer;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 button.primary {
