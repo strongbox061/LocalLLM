@@ -1,0 +1,15 @@
+# The search gateway (services/search_gateway.py) on 127.0.0.1:8090 handles web search for Pi and Open WebUI.
+# Runs in its own Python environment.
+# install/search-gateway.sh fills in @PYTHON@ and @REPO_DIR@ and installs it as
+# ~/.config/systemd/user/search-gateway.service.
+
+[Unit]
+Description=Search gateway service
+
+[Service]
+ExecStart=@PYTHON@ @REPO_DIR@/services/search_gateway.py
+Environment=SEARCH_GATEWAY_PORT=8090
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
