@@ -48,12 +48,14 @@ ON_MAIN = os.environ.get("CHAT_TYPES_ON_MAIN") == "1"
 # ---------------------------------------------------------------- reading
 
 def _db_rows(db_path: str, sql: str, args=()) -> list:
-    """Return rows from Open WebUI's SQLite database."""
-    conn = sqlite3.connect(db_path)
     try:
-        return conn.execute(sql, args).fetchall()
-    finally:
-        conn.close()
+        con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=10)
+        try:
+            return con.execute(sql, args).fetchall()
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return []
 
 
 def _template() -> dict:
