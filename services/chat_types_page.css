@@ -123,11 +123,6 @@ a {
   color: inherit;
   font: inherit;
   width: 100%;
-  transition: background 150ms ease, border-color 150ms ease;
-}
-
-.item:hover {
-  background: var(--sel);
 }
 
 .item.on {
