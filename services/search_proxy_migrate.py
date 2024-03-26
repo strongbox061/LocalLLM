@@ -1,5 +1,5 @@
 """
-search_gateway_migrate.py: moves a setup from before the search gateway had its own settings and database
+services/search_proxy_migrate.py: moves a setup from before the search gateway had its own settings and database
 (run by install/search-gateway.sh with the gateway's Python; safe to run again: what's done already is skipped).
 
   1. Settings: when ~/.config/localllm/search-gateway.json doesn't exist yet, the old Open WebUI tool's Valves (API keys,
