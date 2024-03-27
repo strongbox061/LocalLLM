@@ -146,20 +146,23 @@ def job() -> dict:
 # ---------------------------------------------------------------- changing
 
 def _clean(data: dict) -> dict:
-    """Strip empty values and normalize lists."""
-    cleaned = {}
+    """Only the form's keys, with list items trimmed and empty ones dropped."""
+    out = {}
     for key in FORM_KEYS:
-        val = data.get(key)
-        if isinstance(val, str):
-            val = val.strip()
-            if not val:
-                val = ""
-            cleaned[key] = val
-        elif isinstance(val, list):
-            cleaned[key] = [s.strip() for s in val if s and s.strip()]
+        value = data.get(key)
+        if key in ("name", "description", "system_prompt"):
+            out[key] = str(value or "").strip()
+        elif key == "sources":
+            out[key] = [{"name": str(s.get("name", "")).strip(),
+                         "urls": [str(u).strip() for u in s.get("urls") or [] if str(u).strip()]}
+                        for s in value or [] if isinstance(s, dict) and (s.get("name") or s.get("urls"))]
+        elif key in ("patterns", "allowed_patterns"):
+            out[key] = [{"name": str(p.get("name", "")).strip(), "regex": str(p.get("regex", ""))}
+                        for p in value or [] if isinstance(p, dict) and (p.get("name") or p.get("regex"))]
         else:
-            cleaned[key] = val
-    return cleaned
+            out[key] = [str(v).strip() for v in value or [] if str(v).strip()]
+    out["allowed_sites"] = [re.sub(r"^https?://", "", s).split("/")[0].lower() for s in out["allowed_sites"]]
+    return out
 
 
 def _start(kind: str, ct_id: str, args: list, after=None) -> tuple:
