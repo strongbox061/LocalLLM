@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """search-gateway-check.py: the search gateway on its own, with stand-in search services and temporary files.
 
-    ~/.local/share/localllm/search-gateway-venv/bin/python -I test_search.py
+    ~/.local/share/localllm/search-gateway-venv/bin/python -I tests/search-proxy-check.py
 
 Run by tests/guard-tests.mjs with the gateway's own Python (install/search-gateway.sh makes it: the settings page
 needs the real pydantic). No network, no model; nothing live is touched (temporary settings file, state database
