@@ -26,23 +26,32 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+passed = failed = 0
 
 
 def check(name, ok, detail=""):
-    status = "PASS" if ok else "FAIL"
-    msg = f"[{status}] {name}"
-    if detail:
-        msg += f" -- {detail}"
-    print(msg)
-    return ok
+    global passed, failed
+    if ok:
+        passed += 1
+        print(f"  ok    {name}")
+    else:
+        failed += 1
+        print(f"  FAIL  {name}" + (f"\n        {detail}" if detail else ""))
 
 
 def load(name, path):
-    """Load a module from an absolute path."""
     spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+try:
+    import aiohttp  # noqa: F401
+    import pydantic  # noqa: F401
+except ImportError:
+    print("search-gateway-check.py: needs the gateway's Python (run install/search-gateway.sh); 0 passed, 1 failed")
+    sys.exit(1)
 
 
 # ---------------------------------------------------------------- the state database
