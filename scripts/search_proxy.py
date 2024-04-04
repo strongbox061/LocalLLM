@@ -1,5 +1,5 @@
 """
-search_gateway.py: version 3.0.0
+search_proxy.py: version 3.0.0
 Runs from this repo as the user service search-gateway (services/search-gateway.service, installed by
 install/search-gateway.sh with its own Python environment, started by start/search-gateway.sh).
 
