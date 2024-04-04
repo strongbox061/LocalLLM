@@ -53,51 +53,32 @@ except ImportError:
     print("search-gateway-check.py: needs the gateway's Python (run install/search-gateway.sh); 0 passed, 1 failed")
     sys.exit(1)
 
+tmp = Path(tempfile.mkdtemp(prefix="search-gateway-check-"))
+os.environ["SEARCH_GATEWAY_DB"] = str(tmp / "state.db")
+os.environ["SEARCH_GATEWAY_SETTINGS"] = str(tmp / "search-gateway.json")
+os.environ["WEBUI_DB"] = str(tmp / "no-webui.db")
+eng = load("search_gateway_engine", ROOT / "services" / "search_gateway_engine.py")
+srv = load("search_gateway", ROOT / "services" / "search_gateway.py")
+threading.Thread(target=srv.LOOP.run_forever, daemon=True).start()
 
 # ---------------------------------------------------------------- the state database
+print("The state database")
+
+
 def bump(data):
-    """Test that concurrent updates to the state database all count."""
-    db_path = data["db_path"]
-    gateway = load("search_gateway", data["gateway_path"])
+    data["n"] = data.get("n", 0) + 1
+    return data
 
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute("SELECT usage_count FROM state WHERE key='searches'")
-    row = cursor.fetchone()
-    initial = row[0] if row else 0
-    conn.close()
 
-    threads = []
-    results = []
-    errors = []
-
-    def increment():
-        try:
-            result = gateway.bump_state(db_path, "searches", 1)
-            results.append(result)
-        except Exception as e:
-            errors.append(e)
-
-    for _ in range(20):
-        t = threading.Thread(target=increment)
-        threads.append(t)
-
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute("SELECT usage_count FROM state WHERE key='searches'")
-    row = cursor.fetchone()
-    final = row[0] if row else 0
-    conn.close()
-
-    ok = len(errors) == 0 and final == initial + 20 and len(results) == 20
-    detail = f"expected {initial + 20}, got {final}" if not ok else ""
-    return check("state_db: concurrent bumps all count", ok, detail)
-
+threads = [threading.Thread(target=lambda: [eng._doc_update("test", bump) for _ in range(50)]) for _ in range(8)]
+[t.start() for t in threads]
+[t.join() for t in threads]
+con = eng._db()
+n = json.loads(con.execute("SELECT data FROM doc WHERE name = 'test'").fetchone()[0])["n"]
+mode = con.execute("PRAGMA journal_mode").fetchone()[0]
+con.close()
+ok = n == 400
+check(f"state_db: 8×50 concurrent bumps, journal={mode}", ok, f"expected 400, got {n}")
 
 # ---------------------------------------------------------------- searches side by side, through the real server
 # Settings: no services but a stand-in SearXNG, which takes 1 second per search.
