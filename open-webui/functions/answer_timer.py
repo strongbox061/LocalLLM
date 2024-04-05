@@ -26,8 +26,13 @@ def _fmt(seconds: float) -> str:
 
 
 def _strip(content):
-    """Remove the timer line from content before sending to the model."""
-    return TIMER_LINE_RE.sub("", content)
+    if isinstance(content, str):
+        return TIMER_LINE_RE.sub("", content)
+    if isinstance(content, list):
+        for part in content:
+            if isinstance(part, dict) and isinstance(part.get("text"), str):
+                part["text"] = TIMER_LINE_RE.sub("", part["text"])
+    return content
 
 
 class Filter(BaseModel):
