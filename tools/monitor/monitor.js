@@ -298,13 +298,16 @@ function renderMachineCard(machineKey, title, machine, isHelper, setup) {
 
   const cards = [];
 
-  // CPU gauge
-  if (machine.cpu_percent != null) {
-    cards.push(h("div", { class: "machine-section" },
-      h("h4", null, "CPU"),
-      pieCard({ percent: machine.cpu_percent, label: "CPU Usage", sublabel: fmtPct(machine.cpu_percent) }),
-    ));
-  }
+  // CPU
+  const cpu = machine.cpu || {};
+  const cpuName = cpu.name || "CPU";
+  const cpuSpec = formatCpuSpec(cpu);
+  const cpuDetail = cpu.threads ? `${cpu.threads} threads · occupied` : "occupied";
+  cards.push(pieCard({
+    machineKey, machineTitle: title, component: "cpu", kind: "CPU",
+    deviceName: cpuName, specLine: cpuSpec, percent: cpu.percent,
+    occupiedText: fmtPct(cpu.percent), detailText: cpuDetail,
+  }));
 
   // RAM gauge
   if (machine.ram) {

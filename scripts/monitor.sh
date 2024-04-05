@@ -18,9 +18,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# shellcheck source=lib/common.sh
-source "$(dirname -- "${BASH_SOURCE[0]}")/lib/common.sh"
+# shellcheck source=../../lib/common.sh
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../lib/common.sh"
 
 command -v python3 >/dev/null || die "python3 is required to run the system monitor."
 
-exec python3 "$REPO_DIR/tools/monitor/monitor.py" --port "$PORT" --interval "$INTERVAL" $([ "$ONCE" = true ] && echo --once)
+exec python3 "$REPO_DIR/tools/monitor/monitor.py" "$@"
