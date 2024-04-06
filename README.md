@@ -10,6 +10,7 @@ The server has 2 slots (64K context each with the default model), so its two cli
 | Slot | Client     |
 |------|------------|
 | 0    | Pi         |
+| 1    | Open WebUI |
 
 ## Model
 

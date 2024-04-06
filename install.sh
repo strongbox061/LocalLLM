@@ -29,7 +29,7 @@ echo "NVIDIA driver and Docker are ready."
 # This setup is only installed from a backup (README, "Reinstalling from scratch"): on a machine that doesn't have its
 # settings yet, backup/ must hold them (the newest archive unpacked into the repo, README "Opening a backup").
 if [[ ! -f "$LOCAL_ENV_FILE" ]]; then
-    for f in local.env scripts/*.sh install/*.sh restore.sh; do
+    for f in localllm/local.env open-webui/webui.db; do
         [[ -f "$BACKUP_DIR/$f" ]] \
             || die "No backup to install from (backup/$f is missing): unpack the newest backup archive into $REPO_DIR first (README, \"Opening a backup\")."
     done
