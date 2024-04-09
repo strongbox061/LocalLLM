@@ -8,53 +8,52 @@ set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/lib/common.sh"
 
 BACKUP_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)/backup"
+PI_AGENT_DIR=~/.config/localllm
 PI_FILES=(
-  ~/.config/localllm/README.md
-  ~/.config/localllm/local.env
-  ~/.config/localllm/versions.env
-  ~/.config/localllm/api.env
-  ~/.config/localllm/chat-types.sh
+    settings.json
+    models.json
+    sandbox.json
+    auth.json
 )
 
+# copy_file <source> <destination>
 copy_file() {
-  local src="$1" dst="$2"
-  if [[ -f "$src" ]]; then
-    local dir; dir="$(dirname -- "$dst")"
-    mkdir -p "$dir"
-    cp -n "$src" "$dst"
-    log_info "Copied $src -> $dst"
-  else
-    log_warn "Skipping missing file: $src"
-  fi
+    if [[ -f "$1" ]]; then
+        mkdir -p "$(dirname -- "$2")"
+        cp "$1" "$2"
+        echo "  saved   ${2#"$BACKUP_DIR"/}"
+    else
+        echo "  missing $1"
+    fi
 }
 
-copy_dir() {
-  local src="$1" dst="$2"
-  if [[ -d "$src" ]]; then
-    mkdir -p "$dst"
-    rsync -a --delete "$src/" "$dst"
-    log_info "Copied directory $src -> $dst"
-  else
-    log_warn "Skipping missing directory: $src"
-  fi
+copy_dir() {    # copy_dir <source> <destination>, replacing the destination
+    if [[ -d "$1" ]]; then
+        rm -rf "$2"
+        mkdir -p "$(dirname -- "$2")"
+        cp -r "$1" "$2"
+        echo "  saved   ${2#"$BACKUP_DIR"/}/"
+    else
+        echo "  missing $1"
+    fi
 }
 
 # snapshot_db <source .db> <destination>: a consistent copy of a SQLite database, safe while the app is running.
 # .backup includes what is still in the WAL file; the copy is switched to a single file (no -wal/-shm next to it).
 snapshot_db() {
-  local src="$1" dst="$2" tmp="$2.tmp"
-  if [[ ! -f "$src" ]]; then
-    log_warn "Skipping missing database: $src"
-    return 0
-  fi
-  mkdir -p "$(dirname -- "$dst")"
-  rm -f "$tmp"
-  sqlite3 "$src" ".backup '$tmp'"
-  [[ "$(sqlite3 "$tmp" 'pragma integrity_check;')" == "ok" ]] || die "The snapshot of $src is corrupt: $tmp"
-  sqlite3 "$tmp" 'pragma journal_mode=delete;' >/dev/null
-  rm -f "$dst" "$dst-wal" "$dst-shm"
-  mv "$tmp" "$dst"
-  log_info "Snapshot DB $src -> $dst"
+    local src="$1" dst="$2" tmp="$2.tmp"
+    if [[ ! -f "$src" ]]; then
+        echo "  missing $src"
+        return 0
+    fi
+    mkdir -p "$(dirname -- "$dst")"
+    rm -f "$tmp"
+    sqlite3 "$src" ".backup '$tmp'"
+    [[ "$(sqlite3 "$tmp" 'pragma integrity_check;')" == "ok" ]] || die "The snapshot of $src is corrupt: $tmp"
+    sqlite3 "$tmp" 'pragma journal_mode=delete;' >/dev/null
+    rm -f "$dst" "$dst-wal" "$dst-shm"
+    mv "$tmp" "$dst"
+    echo "  saved   ${dst#"$BACKUP_DIR"/}"
 }
 
 # write_versions <file>: the versions running now, so a fresh install from this backup gets the same ones
@@ -83,15 +82,9 @@ EOF
   log_info "Wrote versions to $file"
 }
 
-# --- Main ---
-
-log_info "Starting LocalLLM backup to $BACKUP_DIR"
-
-mkdir -p "$BACKUP_DIR"
-
-# Copy PI files (user config)
+log "Pi ($PI_AGENT_DIR)"
 for f in "${PI_FILES[@]}"; do
-  copy_file "$f" "$BACKUP_DIR/$f"
+    copy_file "$PI_AGENT_DIR/$f" "$BACKUP_DIR/pi/$f"
 done
 
 # Snapshot SQLite databases if present
