@@ -38,22 +38,22 @@ def engine():
 
 
 def old_valves(webui_db: Path) -> dict:
-    """Read the tool's Valves dict from Open WebUI's SQLite database (read-only)."""
-    conn = __import__("sqlite3").connect(str(webui_db))
-    conn.row_factory = __import__("sqlite3").Row
-    cur = conn.execute(
-        "SELECT val FROM json_each(json_extract(custom_tools, '$[*]')) "
-        "WHERE json_extract(value, '$.id') IN (?, ?)",
-        OLD_TOOL_IDS,
-    )
-    row = cur.fetchone()
-    conn.close()
-    if row is None:
+    """The old tool's Valves from Open WebUI's database, or {} (no database, no tool, or a thin client already)."""
+    if not webui_db.exists():
         return {}
-    tools = json.loads(row[0])
-    for tool in tools:
-        if tool.get("id") in OLD_TOOL_IDS and "valves" in tool:
-            return tool["valves"]
+    import sqlite3
+    con = sqlite3.connect(f"file:{webui_db}?mode=ro", uri=True, timeout=10)
+    try:
+        for tool_id in OLD_TOOL_IDS:
+            row = con.execute("SELECT valves FROM tool WHERE id = ?", (tool_id,)).fetchone()
+            try:
+                valves = json.loads(row[0]) if row and row[0] else {}
+            except ValueError:
+                valves = {}
+            if isinstance(valves, dict) and ("service_order" in valves or any(k.endswith("_api_key") for k in valves)):
+                return valves
+    finally:
+        con.close()
     return {}
 
 
