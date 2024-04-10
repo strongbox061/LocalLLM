@@ -65,26 +65,28 @@ def split_table_row(line: str) -> list[str]:
 
 
 def is_table_sep(line: str) -> bool:
-    """Return True if the line is a Markdown table separator (e.g. |---|)."""
-    stripped = line.strip()
-    return all(c in '-|:' for c in stripped) and '-' in stripped
+    s = line.strip()
+    if "|" not in s:
+        return False
+    cells = split_table_row(s)
+    if not cells:
+        return False
+    return all(bool(re.match(r"^:?-{2,}:?$", c)) for c in cells if c != "") and any(
+        bool(re.match(r"^:?-{2,}:?$", c)) for c in cells
+    )
 
 
 def table_alignments(sep_line: str) -> list[str]:
-    """Determine column alignments from a Markdown table separator row."""
-    parts = split_table_row(sep_line)
-    alignments = []
-    for part in parts:
-        part = part.strip()
-        if part.startswith(':') and part.endswith(':'):
-            alignments.append('center')
-        elif part.startswith(':'):
-            alignments.append('left')
-        elif part.endswith(':'):
-            alignments.append('right')
+    aligns = []
+    for c in split_table_row(sep_line):
+        c = c.strip()
+        if c.startswith(":") and c.endswith(":"):
+            aligns.append("center")
+        elif c.endswith(":"):
+            aligns.append("right")
         else:
-            alignments.append('left')
-    return alignments
+            aligns.append("left")
+    return aligns
 
 
 def highlight_code(code: str, lang: str) -> str:
