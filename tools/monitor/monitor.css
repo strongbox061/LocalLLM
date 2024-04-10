@@ -389,7 +389,13 @@ select:hover {
   flex-direction: column;
   justify-content: center;
   gap: 2px;
+  cursor: pointer;
+  border-radius: 6px;
   padding: 2px 6px;
+}
+
+.pie-device:hover {
+  background: var(--muted-bg);
 }
 
 .pie-spec {
