@@ -33,11 +33,13 @@ PAGE = Path(__file__).resolve().parent / "chat_types_page.html"
 CSS_FILE = Path(__file__).resolve().parent / "chat_types_page.css"
 JS_FILE = Path(__file__).resolve().parent / "chat_types_page.js"
 BUILDER = [str(REPO / "install" / "chat-types.sh")]
-FORM_KEYS = (
-    "name", "description", "system_prompt", "allowed_sites",
-    "sources", "patterns", "allowed_patterns",
-)
+FORM_KEYS = ("name", "description", "system_prompt", "allowed_sites", "sources", "patterns", "allowed_patterns",
+             "allowed_terms", "reference_words", "starter_prompts", "users")
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
+
+_spec = importlib.util.spec_from_file_location("chat_types_builder", REPO / "open-webui" / "chat_types.py")
+builder = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(builder)
 
 # Where overview() reads Open WebUI's status: None = the database at db_path on this computer; or a function
 # returning db_status()'s answer from elsewhere (chat_types_server.py: the helper PC's, over SSH).

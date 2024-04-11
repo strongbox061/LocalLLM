@@ -21,16 +21,11 @@ const lines = (text) => text.split("\n").map((s) => s.trim()).filter(Boolean);
 const when = (sec) => sec ? new Date(sec * 1000).toLocaleString() : "";
 
 async function api(path, body) {
-  const opts = {
-    headers: { "Content-Type": "application/json" },
-  };
-  if (body !== undefined) opts.method = "POST";
+  const opts = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
   const r = await fetch(path, opts);
-  if (!r.ok) {
-    const err = await r.text();
-    throw new Error(`API ${path}: ${r.status} ${err}`);
-  }
-  return r.json();
+  let data = {};
+  try { data = await r.json(); } catch { data = { error: `HTTP ${r.status}` }; }
+  return { ok: r.ok, status: r.status, data };
 }
 
 async function load(selectId) {
