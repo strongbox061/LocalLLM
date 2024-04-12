@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """search-gateway-check.py: the search gateway on its own, with stand-in search services and temporary files.
 
-    ~/.local/share/localllm/search-gateway-venv/bin/python -I tests/search-proxy-check.py
+    ~/.local/share/localllm/search-gateway-venv/bin/python -I tests/search-gateway-check.py
 
 Run by tests/guard-tests.mjs with the gateway's own Python (install/search-gateway.sh makes it: the settings page
 needs the real pydantic). No network, no model; nothing live is touched (temporary settings file, state database
@@ -10,6 +10,10 @@ and Open WebUI database). Checks:
   - searches at the same time run side by side (four 1-second searches take about 1 second, not 4);
   - searches still running count against an allowance, so they don't all pass its last bit;
   - the settings page: only this computer and its own page may change settings; keys are never sent back; a key left
+    empty is kept; wrong values are refused; the file is only yours and holds only what differs from the defaults;
+  - Open WebUI's thin client: passes calls on, shows the gateway's status lines and citations, says so when it's down;
+  - the migration from Open WebUI: settings out of its database, usage, cache and log into the gateway's;
+  - nothing in the gateway reads Open WebUI or its database (only the chat types page, for the protected chats).
 
 """
 import asyncio
