@@ -1,0 +1,32 @@
+<!doctype html>
+<!-- Search usage dashboard, served by services/search_gateway.py at /dashboard. Reads /usage.json every 30 s.
+     Self-contained: no external scripts, styles or fonts, so it works offline. -->
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Search Gateway Dashboard</title>
+  <link rel="stylesheet" href="search_gateway_dashboard.css" />
+</head>
+
+<body>
+  <main>
+    <h1>Search Gateway</h1>
+    <div class="sub" id="sub">Loading…</div>
+    <div id="error" class="error"></div>
+
+    <div class="tiles" id="tiles"></div>
+
+    <h2>Services</h2>
+    <div class="services" id="services"></div>
+
+    <h2>Requests over time</h2>
+    <div class="card chart" id="perService"></div>
+    <div class="card chart" id="perApp"></div>
+  </main>
+
+  <script src="search_gateway_dashboard.js"></script>
+</body>
+
+</html>
