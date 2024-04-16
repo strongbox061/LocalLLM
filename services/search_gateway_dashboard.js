@@ -17,18 +17,13 @@ function h(tag, attrs, ...kids) {
 }
 
 function amount(x, unit) {
-  if (x >= 1e6) return (x / 1e6).toFixed(1) + "M" + (unit || "");
-  if (x >= 1e3) return (x / 1e3).toFixed(1) + "K" + (unit || "");
-  return x + (unit || "");
+  if (x === null || x === undefined) return "–";
+  if (unit === "$") return "$" + Number(x).toFixed(x < 1 ? 3 : 2);
+  return Number(x).toLocaleString(undefined, { maximumFractionDigits: 1 }) + " " + unit;
 }
 
-function when(t) {
-  return t ? new Date(t * 1000).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" }) : "";
-}
-
-function short(d) {
-  return d ? new Date(d + "T00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
-}
+const when = t => t ? new Date(t * 1000).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" }) : "";
+const short = d => d ? new Date(d + "T00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
 
 function fact(label, value) {
   return h("div", null, h("span", null, label + " "), h("b", null, value));
@@ -36,19 +31,23 @@ function fact(label, value) {
 
 const R = 46, C = 2 * Math.PI * R;
 function donut(parts, label) {
-  const circles = parts.map(([frac, color]) => {
-    const dash = (Math.max(frac, 0.001) * C).toFixed(2);
-    return h("svg:circle", { cx: 58, cy: 58, r: R, fill: "none", stroke: color,
-      "stroke-width": 16, "stroke-dasharray": dash + " " + (C - dash),
-      "stroke-dashoffset": -C / 4, transform: "rotate(-90 58 58)" });
-  });
-  const svg = h("svg:svg", { viewBox: "0 0 116 116", class: "donut" }, ...circles);
-  const hole = h("div", { class: "hole" }, h("b", null, label));
-  return h("div", { class: "donut-wrap" }, svg, hole);
+  const svg = h("svg:svg", { viewBox: "0 0 112 112", role: "img", "aria-label": label },
+    h("svg:title", null, label),
+    h("svg:circle", { cx: 56, cy: 56, r: R, fill: "none", stroke: "var(--track)", "stroke-width": 12 }));
+  let at = 0;
+  for (const [f, color, extra] of parts) {
+    if (!(f > 0)) continue;
+    svg.append(h("svg:circle", { cx: 56, cy: 56, r: R, fill: "none", stroke: color, "stroke-width": 12,
+      "stroke-dasharray": `${f * C} ${C}`, "stroke-dashoffset": -at * C, ...(extra || {}) }));
+    at += f;
+  }
+  return svg;
 }
 
 function compact(x, unit) {
-  return amount(x, unit);
+  if (x === null || x === undefined) return "–";
+  if (unit === "$") return "$" + Number(x).toFixed(x < 10 ? 2 : x < 1000 ? 1 : 0);
+  return Number(x).toLocaleString(undefined, { notation: x >= 100000 ? "compact" : "standard", maximumFractionDigits: x >= 100 ? 0 : 1 });
 }
 
 const CHEVRON = () => h("svg:svg", { viewBox: "0 0 16 16", "aria-hidden": "true", width: 12, height: 12 },
