@@ -10,13 +10,9 @@ const SVG = "http://www.w3.org/2000/svg";
 
 function h(tag, attrs, ...kids) {
   const el = tag.startsWith("svg:") ? document.createElementNS(SVG, tag.slice(4)) : document.createElement(tag);
-  if (attrs) for (const [k, v] of Object.entries(attrs)) {
-    if (k === "className") el.className = v;
-    else if (k === "textContent") el.textContent = v;
-    else if (k.startsWith("on")) el.addEventListener(k.slice(2).toLowerCase(), v);
-    else el.setAttribute(k, v);
-  }
-  for (const k of kids) if (k != null) el.append(typeof k === "string" ? document.createTextNode(k) : k);
+  for (const [k, v] of Object.entries(attrs || {})) if (v !== undefined && v !== null) el.setAttribute(k, v);
+  for (const kid of kids.flat()) if (kid !== null && kid !== undefined && kid !== false)
+    el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
   return el;
 }
 
