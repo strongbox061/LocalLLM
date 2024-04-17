@@ -72,35 +72,29 @@ function serviceCard(s, reserve) {
 
 function stackedBars(days, keyOf, title) {
   if (!days || !days.length) return h("div", { class: "card chart empty" }, "No data");
-  const max = Math.max(...days.map(d => Object.values(d).reduce((a, v) => a + (v || 0), 0)));
-  if (!max) return h("div", { class: "card chart empty" }, "All zeros");
-  const labels = days.map((d, i) => short(d.date));
-  const keys = [...new Set(days.flatMap(d => Object.keys(d).filter(k => k !== "date")))].slice(0, 12);
-  const barW = Math.max(4, Math.min(20, 300 / days.length));
-  const svgH = 180;
-  const bars = days.map((d, i) => {
-    let yOff = 0;
-    const segs = keys.filter(k => d[k]).map(k => {
-      const segH = (d[k] / max) * svgH;
-      const row = h("svg:rect", { x: i * barW + 2, y: svgH - yOff - segH,
-        width: barW - 3, height: segH, fill: colorOf(k) });
-      yOff += segH;
-      return row;
-    });
-    return h("g", null, ...segs);
+  const keys = [...new Set(days.flatMap(d => Object.keys(keyOf(d))))]
+    .sort((a, b) => days.reduce((n, d) => n + (keyOf(d)[b] || 0), 0) - days.reduce((n, d) => n + (keyOf(d)[a] || 0), 0));
+  const W = 900, H = 170, L = 30, B = 22, max = Math.max(1, ...days.map(d => d.total));
+  const step = (W - L) / days.length, bw = Math.max(2, step - 4);
+  const svg = h("svg:svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": title });
+  const y = v => (H - B) - (H - B - 8) * v / max;
+  for (const v of [0, Math.ceil(max / 2), max]) {
+    svg.append(h("svg:line", { x1: L, x2: W, y1: y(v), y2: y(v), stroke: "currentColor", "stroke-opacity": 0.12 }));
+    svg.append(h("svg:text", { x: L - 6, y: y(v) + 3, "text-anchor": "end" }, v));
+  }
+  days.forEach((d, i) => {
+    const x = L + i * step + 2; let base = 0;
+    for (const k of keys) {
+      const n = keyOf(d)[k] || 0; if (!n) continue;
+      svg.append(h("svg:rect", { x, width: bw, y: y(base + n), height: y(base) - y(base + n), fill: colorOf(k), rx: 1 },
+        h("svg:title", null, `${d.day}: ${k} ${n}`)));
+      base += n;
+    }
+    if (i % 5 === 0 || i === days.length - 1)
+      svg.append(h("svg:text", { x: x + bw / 2, y: H - 6, "text-anchor": "middle" }, short(d.day)));
   });
-  const legend = keys.map(k => h("span", { style: "border-left:3px solid " + colorOf(k) },
-    " ", k));
-  return h("div", { class: "card chart" },
-    h("h3", null, title),
-    h("svg:svg", { viewBox: "0 0 " + (days.length * barW + 10) + " " + (svgH + 30), width: "100%" },
-      ...bars,
-      ...labels.filter((_, i) => i % Math.max(1, Math.floor(days.length / 8)) === 0).map((l, j, arr) =>
-        h("svg:text", { x: arr.indexOf(l) * barW + 2 + barW / 2, y: svgH + 18, "text-anchor": "middle",
-          "font-size": 9, fill: "#5f6b77" }, l)))
-    ),
-    h("div", { class: "legend" }, ...legend)
-  );
+  return [h("div", { class: "sub", style: "font-size:12px;margin-bottom:4px" }, title), svg,
+          h("div", { class: "legend" }, keys.map(k => h("span", null, h("i", { style: `background:${colorOf(k)}` }), k)))];
 }
 
 function render(r) {
