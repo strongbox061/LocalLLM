@@ -10,6 +10,24 @@
   --bad: #b83325;
   --off: #5f6b77;
   --accent: #2a62c9;
+  --on-status: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171b;
+    --card: #1c2026;
+    --text: #e4e8ec;
+    --muted: #98a3ae;
+    --line: #2c323a;
+    --track: #2a3038;
+    --ok: #3fbf74;
+    --warn: #e0a030;
+    --bad: #ef6b5b;
+    --off: #98a3ae;
+    --accent: #6b9cf0;
+    --on-status: #111418;
+  }
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

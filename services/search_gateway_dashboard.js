@@ -50,15 +50,11 @@ function compact(x, unit) {
   return Number(x).toLocaleString(undefined, { notation: x >= 100000 ? "compact" : "standard", maximumFractionDigits: x >= 100 ? 0 : 1 });
 }
 
-const CHEVRON = () => h("svg:svg", { viewBox: "0 0 16 16", "aria-hidden": "true", width: 12, height: 12 },
-  h("path", { d: "M4.5 3l5 5-5 5" }));
+const CHEVRON = () => h("svg:svg", { viewBox: "0 0 16 16", "aria-hidden": "true" },
+  h("svg:path", { d: "M4 6l4 4 4-4", fill: "none", stroke: "currentColor", "stroke-width": 1.8, "stroke-linecap": "round", "stroke-linejoin": "round" }));
 
-function info(name, ...kids) {
-  return h("div", { class: "info" },
-    h("span", null, name),
-    ...kids,
-    h("button", { "aria-label": "Details", title: "Details" }, CHEVRON()));
-}
+const info = (name, ...kids) => h("div", { class: "info" },
+  h("button", { type: "button", "aria-label": `Details for ${name}` }, CHEVRON()), h("div", { class: "pop", role: "tooltip" }, kids));
 
 function serviceCard(s, reserve) {
   const [cls, statusText] = STATUS[s.status] || ["", s.status];
