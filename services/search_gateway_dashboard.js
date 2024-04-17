@@ -25,12 +25,10 @@ function amount(x, unit) {
 const when = t => t ? new Date(t * 1000).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" }) : "";
 const short = d => d ? new Date(d + "T00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
 
-function fact(label, value) {
-  return h("div", null, h("span", null, label + " "), h("b", null, value));
-}
+const fact = (label, value) => h("div", null, h("span", null, label + " "), h("b", null, value));
 
 const R = 46, C = 2 * Math.PI * R;
-function donut(parts, label) {
+function donut(parts, label) {  // parts: [[fraction, stroke color, extra attributes]], drawn clockwise from the top
   const svg = h("svg:svg", { viewBox: "0 0 112 112", role: "img", "aria-label": label },
     h("svg:title", null, label),
     h("svg:circle", { cx: 56, cy: 56, r: R, fill: "none", stroke: "var(--track)", "stroke-width": 12 }));
@@ -126,13 +124,15 @@ function render(r) {
 }
 
 async function load() {
+  const err = document.getElementById("error");
   try {
-    const res = await fetch("/usage.json");
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    render(await res.json());
-    document.getElementById("error").textContent = "";
+    const res = await fetch("/usage.json", { cache: "no-store" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.status);
+    render(data);
+    err.replaceChildren();
   } catch (e) {
-    document.getElementById("error").textContent = "Failed to load data: " + e.message;
+    err.replaceChildren(h("div", { class: "error" }, `Could not load the usage data: ${e.message}. Retrying in 30 s.`));
   }
 }
 
