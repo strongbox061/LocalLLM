@@ -112,23 +112,23 @@ function stackedBars(days, keyOf, title) {
 }
 
 function render(r) {
-  const subEl = document.getElementById("sub");
-  if (r.date) subEl.textContent = "Updated " + when(r.date);
-  else subEl.textContent = "";
-
-  const tilesEl = document.getElementById("tiles");
-  tilesEl.innerHTML = "";
-  tilesEl.append(
-    h("div", { class: "tile" }, h("b", null, r.total || 0), h("span", null, "Total")),
-    h("div", { class: "tile" }, h("b", null, r.today || 0), h("span", null, "Today"))
-  );
-
-  const svcEl = document.getElementById("services");
-  svcEl.innerHTML = "";
-  (r.services || []).forEach(s => svcEl.append(serviceCard(s, r.reserve)));
-
-  document.getElementById("perService").innerHTML = "";
-  document.getElementById("perService").append(stackedBars(r.days || [], null, "Requests by service"));
+  const o = r.order;
+  document.getElementById("sub").replaceChildren(
+    (o.temporary ? `Temporary order until ${o.until}` : "Normal order") + ` · reserve ${r.usage_reserve} searches · tool ${r.tool_version || "?"} · updated ${when(r.generated)}`);
+  const c = r.cache;
+  document.getElementById("tiles").replaceChildren(
+    h("div", { class: "tile" }, h("b", null, r.log.searches_today), h("span", null, "searches today")),
+    h("div", { class: "tile" }, h("b", null, r.log.searches_30_days), h("span", null, "searches, last 30 days")),
+    h("div", { class: "tile" }, h("b", null, c.hits_30_days), h("span", null, `answered from the cache (${c.hits_today} today)`)),
+    h("div", { class: "tile" }, h("b", null, c.fresh), h("span", null, `cached searches (kept ${c.hours} h)`)),
+    h("div", { class: "tile" }, h("b", null, r.services.filter(s => s.status === "available" || s.status === "near reserve").length),
+      h("span", null, `of ${r.services.filter(s => s.key).length} services with a key usable now`)));
+  [...r.services].map(x => x.id).sort().forEach(colorOf);
+  const cards = r.services.map(s => serviceCard(s, r.usage_reserve));
+  document.getElementById("services").replaceChildren(...cards);
+  const days = r.history.days;
+  document.getElementById("perService").replaceChildren(...stackedBars(days, d => d.services, "Per service (cache: answered from the cache)"));
+  document.getElementById("perApp").replaceChildren(...stackedBars(days, d => d.apps, "Per app"));
 }
 
 async function load() {
@@ -141,6 +141,9 @@ async function load() {
     err.replaceChildren();
   } catch (e) {
     err.replaceChildren(h("div", { class: "error" }, `Could not load the usage data: ${e.message}. Retrying in 30 s.`));
+  }
+}
+try { load(); setInterval(load, 30000); } catch (e) { console.error(e); }
   }
 }
 
