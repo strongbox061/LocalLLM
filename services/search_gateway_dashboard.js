@@ -55,19 +55,33 @@ const info = (name, ...kids) => h("div", { class: "info" },
   h("button", { type: "button", "aria-label": `Details for ${name}` }, CHEVRON()), h("div", { class: "pop", role: "tooltip" }, kids));
 
 function serviceCard(s, reserve) {
-  const [cls, statusText] = STATUS[s.status] || ["", s.status];
-  const pct = reserve ? Math.round((s.used / reserve) * 100) : null;
-  return h("div", { class: "svc " + cls },
-    info(s.name),
-    h("span", { class: "pill " + cls }, statusText),
-    pct != null && h("span", { class: "limit" }, compact(pct, "%")),
-    h("div", { class: "meta" },
-      fact("Used", compact(s.used)),
-      reserve && fact("Limit", compact(reserve)),
-      fact("Today", s.today || 0),
-      s.last && fact("Last", when(s.last))
-    )
-  );
+  const [cls, label] = STATUS[s.status] || ["nokey", s.status];
+  const color = colorOf(s.id);
+  const leftF = s.allowance > 0 ? Math.min(1, s.left / s.allowance) : 0;
+  const resF = s.allowance > 0 ? Math.min(1 - leftF, s.reserve / s.allowance) : 0;
+  const facts = [
+    fact("Used", `${amount(s.used, s.unit)} of ${amount(s.allowance, s.unit)}`),
+    fact("Left", `${amount(s.left, s.unit)}` + (s.unit !== "searches" && s.searches_left !== null ? ` (≈ ${s.searches_left.toLocaleString()} searches)` : "")),
+    fact("Searches", s.searches),
+    s.resets ? fact(s.id === "you" ? "Resets" : "Cycle resets", `${short(s.resets)} (since ${short(s.cycle_start)})`) : fact("Cycle", "one-time credit"),
+    fact("Numbers", s.source === "service" ? `confirmed by the service, ${when(s.checked)}` : "counted by the tool"),
+    fact("Retry group", s.retry_group.length > 1 ? s.retry_group.join(" / ") : "own"),
+    s.group && s.group.includes("/") ? fact("Ranked with", s.group) : null,
+    s.rank ? null : fact("Order", "not listed: tried after the listed ones"),
+  ];
+  const unitWord = s.unit === "$" ? "left" : `${s.unit} left`;
+  return h("div", { class: "card svc" + (s.key ? "" : " off"), style: `--svc:${color}` },
+    s.key ? info(s.name, h("div", { class: "facts" }, facts),
+      s.extras.length ? h("ul", { class: "extras" }, s.extras.map(e => h("li", null, e))) : null) : null,
+    h("span", { class: "rank" }, s.rank ? "#" + s.rank : "–"),
+    h("span", { class: "name" }, s.name),
+    h("span", { class: "pill " + cls }, label),
+    h("div", { class: "donut" },
+      donut(s.key ? [[leftF, color], [resF, "var(--muted)", { "stroke-opacity": 0.35 }]] : [],
+        s.key ? `${s.name}: ${amount(s.left, s.unit)} left of ${amount(s.allowance, s.unit)}; grey: the reserve the tool keeps (${reserve} searches)`
+              : `${s.name}: no key`),
+      h("div", { class: "hole" }, s.key ? [h("b", null, compact(s.left, s.unit)), h("span", null, unitWord)] : h("span", null, "no key"))),
+    h("div", { class: "limit" }, s.key ? `of ${amount(s.allowance, s.unit)}` : "\u00a0"));
 }
 
 function stackedBars(days, keyOf, title) {
@@ -130,5 +144,12 @@ async function load() {
   }
 }
 
+// keep a details popup inside the window: shift it left when it would run past the right edge
+const fitPop = e => { const info = e.target.closest && e.target.closest(".info"); if (!info) return;
+  const pop = info.querySelector(".pop"); pop.style.left = "0px";
+  requestAnimationFrame(() => { const over = pop.getBoundingClientRect().right - (innerWidth - 16);
+    if (over > 0) pop.style.left = -over + "px"; }); };
+document.addEventListener("pointerover", fitPop);
+document.addEventListener("focusin", fitPop);
 load();
 setInterval(load, 30000);
