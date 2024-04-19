@@ -78,8 +78,38 @@ def load_chat_type(path: Path) -> tuple[dict, list]:
     if not ID_RE.match(path.stem):
         problems.append("the file name must be lower case letters, digits and dashes")
     for key in ("name", "system_prompt"):
-        if key not in ct:
-            problems.append(f"missing required key: {key}")
+        if not isinstance(ct.get(key), str) or not ct[key].strip():
+            problems.append(f'"{key}" is missing')
+    sites = ct.get("allowed_sites")
+    if not isinstance(sites, list) or not sites:
+        problems.append('"allowed_sites" must list at least one domain')
+    else:
+        bad = [s for s in sites if not isinstance(s, str) or not DOMAIN_RE.match(s.strip().lower())]
+        if bad:
+            problems.append(f"not a domain (write example.org, no https:// or path): {bad}")
+        ct["allowed_sites"] = [s.strip().lower() for s in sites if isinstance(s, str)]
+    for key in ("patterns", "allowed_patterns"):
+        items = ct.get(key) or []
+        if not isinstance(items, list):
+            problems.append(f'"{key}" must be a list')
+            continue
+        for p in items:
+            regex = p.get("regex") if isinstance(p, dict) else None
+            try:
+                re.compile(regex or "")
+                if not regex:
+                    raise re.error("empty")
+            except (re.error, TypeError) as e:
+                problems.append(f'{key}: {p!r} has no valid "regex" ({e})')
+    for key in ("allowed_terms", "reference_words", "starter_prompts", "users"):
+        if not isinstance(ct.get(key) or [], list) or not all(isinstance(x, str) for x in ct.get(key) or []):
+            problems.append(f'"{key}" must be a list of strings')
+    for s in ct.get("sources") or []:
+        urls = s.get("urls") if isinstance(s, dict) else None
+        if not isinstance(s, dict) or not s.get("name") or not isinstance(urls, list) or not urls:
+            problems.append(f'sources: each needs "name" and "urls" (a list): {s!r}')
+        elif not all(isinstance(u, str) and re.match(r"^https?://", u) for u in urls):
+            problems.append(f"sources: {s['name']}: every url must start with http:// or https://")
     return ct, problems
 
 
