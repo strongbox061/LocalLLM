@@ -15,16 +15,13 @@ function h(tag, attrs, ...kids) {
     el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
   return el;
 }
-
 function amount(x, unit) {
   if (x === null || x === undefined) return "–";
   if (unit === "$") return "$" + Number(x).toFixed(x < 1 ? 3 : 2);
   return Number(x).toLocaleString(undefined, { maximumFractionDigits: 1 }) + " " + unit;
 }
-
 const when = t => t ? new Date(t * 1000).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" }) : "";
 const short = d => d ? new Date(d + "T00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
-
 const fact = (label, value) => h("div", null, h("span", null, label + " "), h("b", null, value));
 
 const R = 46, C = 2 * Math.PI * R;
@@ -41,16 +38,13 @@ function donut(parts, label) {  // parts: [[fraction, stroke color, extra attrib
   }
   return svg;
 }
-
 function compact(x, unit) {
   if (x === null || x === undefined) return "–";
   if (unit === "$") return "$" + Number(x).toFixed(x < 10 ? 2 : x < 1000 ? 1 : 0);
   return Number(x).toLocaleString(undefined, { notation: x >= 100000 ? "compact" : "standard", maximumFractionDigits: x >= 100 ? 0 : 1 });
 }
-
 const CHEVRON = () => h("svg:svg", { viewBox: "0 0 16 16", "aria-hidden": "true" },
   h("svg:path", { d: "M4 6l4 4 4-4", fill: "none", stroke: "currentColor", "stroke-width": 1.8, "stroke-linecap": "round", "stroke-linejoin": "round" }));
-
 const info = (name, ...kids) => h("div", { class: "info" },
   h("button", { type: "button", "aria-label": `Details for ${name}` }, CHEVRON()), h("div", { class: "pop", role: "tooltip" }, kids));
 
@@ -85,7 +79,6 @@ function serviceCard(s, reserve) {
 }
 
 function stackedBars(days, keyOf, title) {
-  if (!days || !days.length) return h("div", { class: "card chart empty" }, "No data");
   const keys = [...new Set(days.flatMap(d => Object.keys(keyOf(d))))]
     .sort((a, b) => days.reduce((n, d) => n + (keyOf(d)[b] || 0), 0) - days.reduce((n, d) => n + (keyOf(d)[a] || 0), 0));
   const W = 900, H = 170, L = 30, B = 22, max = Math.max(1, ...days.map(d => d.total));
