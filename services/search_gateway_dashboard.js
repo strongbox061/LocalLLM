@@ -125,6 +125,13 @@ function render(r) {
       h("span", null, `of ${r.services.filter(s => s.key).length} services with a key usable now`)));
   [...r.services].map(x => x.id).sort().forEach(colorOf);
   const cards = r.services.map(s => serviceCard(s, r.usage_reserve));
+  cards.push(h("div", { class: "card svc" + (r.searxng.on ? "" : " off"), style: `--svc:${colorOf("searxng")}` },
+    info("SearXNG", "No limit; used when every service above is unavailable or finds nothing."),
+    h("span", { class: "rank" }, "last"), h("span", { class: "name" }, "SearXNG (local)"),
+    h("span", { class: "pill " + (r.searxng.on ? "fallback" : "nokey") }, r.searxng.on ? "last fallback" : "off"),
+    h("div", { class: "donut" }, donut(r.searxng.on ? [[1, colorOf("searxng")]] : [], "SearXNG: no limit"),
+      h("div", { class: "hole" }, h("b", null, "∞"), h("span", null, "no limit"))),
+    h("div", { class: "limit" }, "local fallback")));
   document.getElementById("services").replaceChildren(...cards);
   const days = r.history.days;
   document.getElementById("perService").replaceChildren(...stackedBars(days, d => d.services, "Per service (cache: answered from the cache)"));
@@ -143,10 +150,6 @@ async function load() {
     err.replaceChildren(h("div", { class: "error" }, `Could not load the usage data: ${e.message}. Retrying in 30 s.`));
   }
 }
-try { load(); setInterval(load, 30000); } catch (e) { console.error(e); }
-  }
-}
-
 // keep a details popup inside the window: shift it left when it would run past the right edge
 const fitPop = e => { const info = e.target.closest && e.target.closest(".info"); if (!info) return;
   const pop = info.querySelector(".pop"); pop.style.left = "0px";
