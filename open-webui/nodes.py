@@ -24,19 +24,19 @@ FAILED = 0
 
 
 def call(base, args, method, path, body=None):
-    """Send a request to the Open WebUI API and return parsed JSON."""
-    url = f"{base}{path}"
-    headers = {"Authorization": f"Bearer {token()}"}
-    if body is not None:
-        headers["Content-Type"] = "application/json"
-    data = json.dumps(body).encode() if body else None
-    req = Request(url, data=data, headers=headers, method=method)
+    data = json.dumps(body).encode() if body is not None else None
+    req = Request(f"{base}{path}", data=data, method=method,
+                  headers={"Authorization": f"Bearer {token(*args)}", "Content-Type": "application/json"})
     try:
-        with urlopen(req) as resp:
-            return json.loads(resp.read())
-    except HTTPError as exc:
-        print(f"  API error {exc.code}: {exc.reason}", file=sys.stderr)
-        return None
+        with urlopen(req, timeout=600) as r:
+            raw = r.read()
+            return r.status, json.loads(raw) if raw else None
+    except HTTPError as e:
+        try:
+            detail = json.loads(e.read()).get("detail")
+        except Exception:
+            detail = e.reason
+        return e.code, {"detail": detail}
 
 
 def update(base, args, label, get_path, post_path, change, partial=False):

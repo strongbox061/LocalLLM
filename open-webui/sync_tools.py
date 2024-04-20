@@ -68,19 +68,19 @@ def token(db_path: str, key_path: str) -> str:
 
 
 def call(base: str, auth: str, method: str, path: str, body: dict | None = None, timeout: int = 120):
-    """Make an HTTP call to the Open WebUI API."""
-    url = f"{base}/{path.lstrip('/')}"
-    headers = {"Authorization": f"Bearer {auth}", "Content-Type": "application/json"}
-    data = json.dumps(body).encode() if body else None
-    req = Request(url, data=data, headers=headers, method=method)
-
+    data = json.dumps(body).encode() if body is not None else None
+    req = Request(f"{base}/api/v1{path}", data=data, method=method,
+                  headers={"Authorization": f"Bearer {auth}", "Content-Type": "application/json"})
     try:
-        with urlopen(req, timeout=timeout) as resp:
-            raw = resp.read()
-            return json.loads(raw) if raw else None
+        with urlopen(req, timeout=timeout) as r:
+            raw = r.read()
+            return r.status, json.loads(raw) if raw else None
     except HTTPError as e:
-        print(f"HTTP error {e.code}: {e.reason}")
-        raise
+        try:
+            detail = json.loads(e.read()).get("detail")
+        except Exception:
+            detail = e.reason
+        return e.code, {"detail": detail}
 
 
 # The embedding model: multilingual-e5-small (small, fine on a CPU) where Open WebUI shares the PC with the main
