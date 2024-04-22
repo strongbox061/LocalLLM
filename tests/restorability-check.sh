@@ -15,86 +15,38 @@ set -uo pipefail
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
 
-RESTORABILITY_IGNORE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/localllm/restorability-ignore"
+IGNORE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/localllm/restorability-ignore"
+LOCAL_IGNORED=()
+[[ -f "$IGNORE_FILE" ]] && mapfile -t LOCAL_IGNORED < <(grep -v -E '^\s*(#|$)' "$IGNORE_FILE")
+
 FAIL=0
 ok()   { printf '  ok    %s\n' "$*"; }
 bad()  { printf '  FAIL  %s\n' "$*"; FAIL=1; }
 note()   { printf '  note  %s\n' "$*"; }
 
-# check_list <label> <listing command output> <covered names...> -- <ignored names...>
+# check_dir <label> <listing command output> <covered names...> -- <ignored names...>
 # Every name in the listing must be covered (brought back) or ignored (caches, other projects).
-check_list() {
-    local label="$1"
-    local listing="$2"
-    shift 2
-
-    local covered=()
-    local ignored=()
-    local separator=0
-
-    for arg in "$@"; do
-        if [ "$arg" = "--" ]; then
-            separator=1
-            continue
-        fi
-        if [ $separator -eq 0 ]; then
-            covered+=("$arg")
-        else
-            ignored+=("$arg")
-        fi
+check_dir() {
+    local label="$1" listing="$2"; shift 2
+    local -A known=()
+    local name kind=covered
+    for name in "$@"; do
+        if [[ "$name" == "--" ]]; then kind=ignored; continue; fi
+        known[$name]=$kind
     done
-
-    # Build ignore set from file + arguments
-    local ignore_set="${ignored[*]:-}"
-    if [ -f "$RESTORABILITY_IGNORE_FILE" ]; then
-        while IFS= read -r line; do
-            line="${line%%#*}"  # strip comments
-            line="$(echo "$line" | xargs)"  # trim whitespace
-            [ -n "$line" ] && ignore_set="$ignore_set $line"
-        done < "$RESTORABILITY_IGNORE_FILE"
-    fi
-
-    local all_ok=true
+    local uncovered=()
     while IFS= read -r name; do
-        [ -z "$name" ] && continue
-        # Check if covered
-        local is_covered=false
-        for c in "${covered[@]:-}"; do
-            if [[ "$name" == "$c" ]]; then
-                is_covered=true
-                break
-            fi
-        done
-
-        # Check if ignored
-        local is_ignored=false
-        for i in $ignore_set; do
-            if [[ "$name" == "$i" ]]; then
-                is_ignored=true
-                break
-            fi
-        done
-
-        if [ "$is_covered" = true ]; then
-            ok "$label: $name"
-        elif [ "$is_ignored" = true ]; then
-            note "$label: $name (ignored)"
-        else
-            bad "$label: $name (not covered, not ignored)"
-            all_ok=false
-        fi
+        [[ -n "$name" ]] || continue
+        [[ -n "${known[$name]:-}" ]] || uncovered+=("$name")
     done <<< "$listing"
-
-    if [ "$all_ok" = false ]; then
-        return 1
-    fi
+    if [[ ${#uncovered[@]} -eq 0 ]]; then ok "$label"; else bad "$label: not covered: ${uncovered[*]}"; fi
 }
 
 # --- ~/.config/localllm ---
 echo "Checking ~/.config/localllm..."
 
 CONFIG_LISTING="$(ls -A "$HOME/.config/localllm" 2>/dev/null || true)"
-check_list "~/.config/localllm" "$CONFIG_LISTING" \
+check_dir "~/.config/localllm" "$CONFIG_LISTING" \
     "local.env" "restorability-ignore" "chat-types" \
     -- "model.json" "hardware.json"
 
@@ -102,7 +54,7 @@ check_list "~/.config/localllm" "$CONFIG_LISTING" \
 echo "Checking ~/.local/bin..."
 
 BIN_LISTING="$(ls -A "$HOME/.local/bin" 2>/dev/null || true)"
-check_list "~/.local/bin" "$BIN_LISTING" \
+check_dir "~/.local/bin" "$BIN_LISTING" \
     "localllm.sh" "llama.sh" "model.sh" "server.sh" \
     -- "pip" "python3" "python3.*"
 
@@ -110,7 +62,7 @@ check_list "~/.local/bin" "$BIN_LISTING" \
 echo "Checking user systemd services..."
 
 SERVICE_LISTING="$(systemctl --user list-units --type=service --no-legend 2>/dev/null | awk '{print $1}' | sed 's/\.service$//' || true)"
-check_list "systemd user services" "$SERVICE_LISTING" \
+check_dir "systemd user services" "$SERVICE_LISTING" \
     "localllm-llm" "searxng" \
     --
 
@@ -118,7 +70,7 @@ check_list "systemd user services" "$SERVICE_LISTING" \
 echo "Checking ~/LocalLLM repo..."
 
 REPO_LISTING="$(ls -A ~/LocalLLM 2>/dev/null || true)"
-check_list "~/LocalLLM" "$REPO_LISTING" \
+check_dir "~/LocalLLM" "$REPO_LISTING" \
     "README.md" "local.env" "services.json" "model.sh" "server.sh" \
     "gpu-limits.sh" "common.sh" "setup-llama.sh" "start.sh" "stop.sh" \
     "scripts" "install" "services" "tests" "models" \
@@ -128,7 +80,7 @@ check_list "~/LocalLLM" "$REPO_LISTING" \
 echo "Checking Docker containers..."
 
 CONTAINER_LISTING="$(docker ps -a --format '{{.Names}}' 2>/dev/null || true)"
-check_list "Docker containers" "$CONTAINER_LISTING" \
+check_dir "Docker containers" "$CONTAINER_LISTING" \
     "localllm-llm" "searxng" \
     --
 

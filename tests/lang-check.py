@@ -84,26 +84,6 @@ for code, t in TESTS.items():
 
 
 # ---------------------------------------------------------------- collisions between languages
-def phrase_regex(rule, raw, anchor):
-    pattern = re.escape(raw)
-    if anchor:
-        pattern = f"(?<!\\w){pattern}(?!\\w)"
-    return pattern
-
-
-def culprits(code, rule, text):
-    phrases = PHRASES.get(code, {})
-    hits = []
-    for name, info in phrases.items():
-        if info.get("rule") == rule:
-            raw = info.get("phrase", "")
-            pat = phrase_regex(rule, raw, True)
-            if re.search(pat, text, re.IGNORECASE):
-                hits.append(name)
-    return hits
-
-
-# ---------------------------------------------------------------- collisions between languages
 # Each language's rule on its own (Python flavor of the same regexes); on a hit, the phrase that caused it is named.
 build = load_module("lang_build", ROOT / "lang" / "build.py")
 py = build.Flavor(False)
