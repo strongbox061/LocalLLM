@@ -12,6 +12,12 @@ OWUI_PORT="${OWUI_PORT:-3000}"
 OWUI_DATA_DIR="${OWUI_DATA_DIR:-${LOCAL_LLM_DATA_DIR:-$HOME/.local/share}/local-llm/open-webui}"
 
 start_open_webui() {
+  # If the container is already running, skip starting it.
+  if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx open-webui; then
+    log_info "Open WebUI is already running."
+    return 0
+  fi
+
   log_info "Starting Open WebUI on port ${OWUI_PORT}..."
   mkdir -p "${OWUI_DATA_DIR}"
 
@@ -24,7 +30,10 @@ start_open_webui() {
     --gpus all \
     ghcr.io/open-webui/open-webui:main
 
-  wait_for_service "Open WebUI" "http://localhost:${OWUI_PORT}"
+  wait_for_service "Open WebUI" "http://localhost:${OWUI_PORT}" || {
+    log_error "Open WebUI failed to start. Check logs with: docker logs open-webui"
+    return 1
+  }
 }
 
 stop_open_webui() {
