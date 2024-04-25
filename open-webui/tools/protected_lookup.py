@@ -133,8 +133,6 @@ def _inside(span, spans) -> bool:
 def check_query(query: str, cfg: dict, chat_text: str = ""):
     """(clean query, removed items as (text, reason), refusal or "")."""
     query = " ".join(str(query or "").split())
-    if not query:
-        return "", [], "The query is empty; reword it using general terms only."
     removed, cut = [], []
 
     def drop(a, b, why):

@@ -101,6 +101,8 @@ class Filter:
                     again = f" (part={part})" if part > 1 else ""
                     calls[call.get("id")] = (fn["name"], str(args.get("url") or "the page"), again)
 
+        if not calls:
+            return body
         removed = saved = 0
         for m in messages[:prompt]:
             if not isinstance(m, dict) or m.get("role") != "tool" or m.get("tool_call_id") not in calls:
