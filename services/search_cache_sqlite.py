@@ -52,3 +52,23 @@ def put(query: str, engine: str, result: dict) -> None:
     )
     conn.commit()
     conn.close()
+
+
+def delete(query: str, engine: str) -> bool:
+    init_db()
+    conn = _connect()
+    cursor = conn.execute(
+        "DELETE FROM search_cache WHERE query=? AND engine=?",
+        (query, engine),
+    )
+    conn.commit()
+    conn.close()
+    return cursor.rowcount > 0
+
+
+def clear() -> None:
+    init_db()
+    conn = _connect()
+    conn.execute("DELETE FROM search_cache")
+    conn.commit()
+    conn.close()
