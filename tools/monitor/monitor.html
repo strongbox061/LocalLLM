@@ -10,36 +10,57 @@
 </head>
 <body>
 
-<header>
-  <h1>LocalLLM Monitor</h1>
-  <div class="sub" id="updated">Loading metrics…</div>
-  <div class="controls">
-    <label class="sub" for="intervalSel">Auto-refresh:</label>
-    <select id="intervalSel" aria-label="Auto-refresh interval">
-      <option value="2000">2 s</option>
-      <option value="5000" selected>5 s</option>
-      <option value="10000">10 s</option>
-      <option value="30000">30 s</option>
-      <option value="0">Paused</option>
-    </select>
-    <button type="button" id="refreshBtn">Refresh now</button>
-  </div>
-  <div class="badges" id="badges">
-    <span class="badge muted" id="modeBadge">…</span>
-    <span class="badge muted" id="appsBadge">…</span>
-  </div>
-</header>
-
 <main>
+  <header>
+    <div>
+      <h1>LocalLLM System Monitor</h1>
+      <div class="sub" id="updated">Loading metrics…</div>
+    </div>
+    <div class="controls">
+      <label class="sub" for="intervalSel">Auto-refresh:</label>
+      <select id="intervalSel" aria-label="Auto-refresh interval">
+        <option value="2000">2 s</option>
+        <option value="5000" selected>5 s</option>
+        <option value="10000">10 s</option>
+        <option value="30000">30 s</option>
+        <option value="0">Paused</option>
+      </select>
+      <button type="button" id="refreshBtn">Refresh now</button>
+    </div>
+  </header>
+
+  <section class="banner" aria-label="Setup status and legend">
+    <div class="mode-group">
+      <div class="mode-item">
+        <span class="mode-label">Setup mode</span>
+        <span class="badge muted" id="modeBadge">…</span>
+      </div>
+      <div class="mode-item">
+        <span class="mode-label">Apps mode</span>
+        <span class="badge muted" id="appsBadge">…</span>
+      </div>
+    </div>
+    <div class="legend" aria-label="Pie chart color legend">
+      <span class="legend-item"><i class="swatch used"></i> Occupied capacity / memory</span>
+      <span class="legend-item"><i class="swatch free"></i> Max capacity / memory (free)</span>
+      <span class="legend-item">Click any component name for processes</span>
+    </div>
+  </section>
+
   <div id="errorBox"></div>
+
   <section class="machines" id="machines" aria-label="PC resource usage"></section>
 </main>
 
 <div class="modal-backdrop" id="procBackdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
   <div class="modal">
-    <h3 id="modalTitle">Processes</h3>
-    <div class="sub" id="modalSub"></div>
-    <button type="button" class="modal-close" id="modalCloseBtn" aria-label="Close popup">×</button>
+    <div class="modal-head">
+      <div>
+        <h3 id="modalTitle">Processes</h3>
+        <div class="sub" id="modalSub"></div>
+      </div>
+      <button type="button" class="modal-close" id="modalCloseBtn" aria-label="Close popup">×</button>
+    </div>
     <div class="modal-body" id="modalBody"></div>
   </div>
 </div>
