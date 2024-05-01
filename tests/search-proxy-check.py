@@ -81,8 +81,9 @@ con = eng._db()
 n = json.loads(con.execute("SELECT data FROM doc WHERE name = 'test'").fetchone()[0])["n"]
 mode = con.execute("PRAGMA journal_mode").fetchone()[0]
 con.close()
-ok = n == 400
-check(f"state_db: 8×50 concurrent bumps, journal={mode}", ok, f"expected 400, got {n}")
+check("8 threads x 50 updates at once: all 400 counted", n == 400, n)
+check("WAL mode: reading never waits for a search's write", mode == "wal", mode)
+check("only you can read it (0600)", oct(os.stat(tmp / "state.db").st_mode & 0o777) == "0o600")
 
 # ---------------------------------------------------------------- searches side by side, through the real server
 # Settings: no services but a stand-in SearXNG, which takes 1 second per search.
