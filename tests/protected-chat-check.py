@@ -186,3 +186,14 @@ clean, removed, refusal = lookup_mod.check_query("Ficticia Inventado 1.111.111.1
 check("refused when nothing general is left", bool(refusal), clean)
 clean, removed, refusal = lookup_mod.check_query("mantenimiento site:other.example normas", CFG, "")
 check("a site: filter written by the model is dropped (the tool sets it)", "other.example" not in clean, clean)
+
+print("The confirmation comes first, and the user decides")
+tool = lookup_mod.Tools()
+server = FakeServer([{"url": "https://www.rules.example/norma.html", "title": "Norma", "content": "texto"}])
+server.install(tool)
+out, user = lookup(tool, "terminación acuerdo mantenimiento Ficticia", user=FakeUser(False))
+check("declined: nothing sent, the model is told", not server.requests and "did not approve" in out and len(user.asked) == 1, out)
+asked = user.asked[0]["data"]["message"] if user.asked else ""
+check("the box shows the exact query with the site filter, and what was removed",
+      "Query: terminación acuerdo mantenimiento site:rules.example" in asked and "Ficticia" in asked.split("Removed")[-1], asked)
+check("the query in the box carries no personal data", "Ficticia" not in asked.split("Removed")[0], asked)
