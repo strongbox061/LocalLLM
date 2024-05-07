@@ -17,13 +17,11 @@ esac
 STAMP="$(date +%Y%m%d-%H%M%S)"
 
 # Runs a command with sudo when the target directory is not writable (SearXNG's container owns its config).
-as_owner() {
-    local dir="$1"; shift
-    if [ ! -w "$dir" ]; then
-        sudo "$@"
-    else
-        "$@"
-    fi
+as_owner() {    # as_owner <directory> <command...>
+    local dir="$1"
+    shift
+    while [[ ! -e "$dir" ]]; do dir="$(dirname -- "$dir")"; done
+    if [[ -w "$dir" ]]; then "$@"; else sudo "$@"; fi
 }
 
 restore_file() {   # restore_file <backup file> <target> [mode]
@@ -48,26 +46,25 @@ restore_file() {   # restore_file <backup file> <target> [mode]
     echo "  restored $dst"
 }
 
-restore_dir() {
-    # restore_dir <backup directory> <target>
+restore_dir() {    # restore_dir <backup directory> <target>
     local src="$1" dst="$2"
-
-    if [ "$MISSING_ONLY" = true ] && [ -d "$dst" ]; then
-        echo "SKIP (exists): $dst"
+    [[ -d "$src" ]] || return 0
+    if [[ -d "$dst" ]] && diff -rq "$src" "$dst" >/dev/null 2>&1; then
+        echo "  same    $dst/"
         return 0
     fi
-
-    if [ ! -d "$src" ]; then
-        echo "MISSING: $src -> $dst"
-        return 0
+    if [[ -d "$dst" ]] && [[ -n "$(ls -A "$dst")" ]]; then
+        if $MISSING_ONLY; then
+            echo "  kept    $dst/ (differs from the backup)"
+            return 0
+        fi
+        mv "$dst" "$dst.bak.$STAMP"
+        echo "  old one $dst.bak.$STAMP/"
     fi
-
-    local dst_dir
-    dst_dir="$(dirname "$dst")"
-    mkdir -p "$dst_dir"
-    as_owner "$dst_dir" cp -a "$src"/. "$dst"/
-
-    echo "RESTORED DIR: $src -> $dst"
+    rm -rf "$dst"
+    mkdir -p "$(dirname -- "$dst")"
+    cp -r "$src" "$dst"
+    echo "  restored $dst/"
 }
 
 # so this PC starts in single mode; ./localllm.sh switch split moves it to the helper again (README, "Rebuilding both
