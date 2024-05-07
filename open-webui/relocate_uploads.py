@@ -15,51 +15,30 @@ import sys
 
 
 def main(argv):
-    if len(argv) < 2:
-        print("Usage: relocate_uploads.py <uploads-root>")
-        sys.exit(1)
-
-    uploads_root = argv[1]
-    db_path = os.path.join(os.path.expanduser("~"), ".open-webui", "ollama.db")
-
-    if not os.path.exists(db_path):
-        print(f"Error: database not found at {db_path}")
-        sys.exit(1)
-
-    conn = sqlite3.connect(db_path)
-    cur = conn.cursor()
-
-    cur.execute("SELECT id, file_name, file_path FROM files WHERE file_type = 'upload'")
-    rows = cur.fetchall()
-
-    if not rows:
-        print("No uploads found in database.")
-        conn.close()
-        return
-
-    missing = []
-    updates = []
-
-    for file_id, file_name, old_path in rows:
-        new_path = os.path.join(uploads_root, file_name)
-        if not os.path.exists(new_path):
-            missing.append((file_id, file_name, new_path))
-        else:
-            updates.append((new_path, file_id))
-
-    if missing:
-        print("Refusing to update — missing files:")
-        for file_id, file_name, expected in missing:
-            print(f"  {file_name} (id={file_id}): expected {expected}")
-        conn.close()
-        sys.exit(1)
-
-    for new_path, file_id in updates:
-        cur.execute("UPDATE files SET file_path = ? WHERE id = ?", (new_path, file_id))
-
-    conn.commit()
-    print(f"Updated {len(updates)} upload path(s) to point to {uploads_root}")
-    conn.close()
+    if len(argv) != 3:
+        print(__doc__.strip(), file=sys.stderr)
+        return 2
+    db, uploads = argv[1], os.path.abspath(argv[2])
+    con = sqlite3.connect(db)
+    try:
+        rows = con.execute("SELECT id, path FROM file WHERE path IS NOT NULL AND path != ''").fetchall()
+        changes, missing = [], []
+        for file_id, path in rows:
+            name = path.replace("\\", "/").rsplit("/", 1)[-1]
+            new = os.path.join(uploads, name)
+            if not os.path.isfile(new):
+                missing.append(name)
+            elif new != path:
+                changes.append((new, file_id))
+        if missing:
+            print(f"ERROR: {len(missing)} upload(s) missing in {uploads}: {', '.join(missing[:5])}", file=sys.stderr)
+            return 1
+        with con:
+            con.executemany("UPDATE file SET path = ? WHERE id = ?", changes)
+        print(f"  uploads: {len(changes)} path(s) now in {uploads}, {len(rows) - len(changes)} already there")
+        return 0
+    finally:
+        con.close()
 
 
 if __name__ == "__main__":

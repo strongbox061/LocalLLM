@@ -21,17 +21,52 @@
   const AUTO_GAIN = false;
 
   const nativePlay = HTMLMediaElement.prototype.play;
+  const nativePause = HTMLMediaElement.prototype.pause;
   const log = (msg) => console.info(`[voice-fix] ${msg}`);
 
-  // Fix 1: autoplay / unsound-start. Some browsers block audio that plays without a user gesture.
-  // Wrap play() so it always resolves, even if the browser returns a promise that would reject.
-  HTMLMediaElement.prototype.play = function () {
-    const result = nativePlay.apply(this, arguments);
-    if (result && result.catch) {
-      return result.catch(() => undefined);
-    }
-    return result;
+  // 1a. Unlock the audio players during a tap.
+  //
+  // Open WebUI's voice mode copies every sentence into one shared <audio> player and calls play() on it seconds
+  // after your last tap (Open WebUI issue #28681). Strict browsers allow that only for a player that has already
+  // played something during a tap. So during every tap or key press, and when a player appears right after one (voice
+  // mode's player is created by the tap that opens it), each player that hasn't played yet plays an empty clip.
+  const SILENCE = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+  const unlocked = new WeakSet();
+  // (#audioElement, the player for "Read aloud" and automatic playback, already does this itself.)
+  const unlock = (el) => {
+    if (el.id === "audioElement" || unlocked.has(el) || !el.paused || el.getAttribute("src")) return;
+    unlocked.add(el);
+    el.src = SILENCE;
+    nativePlay.call(el).then(
+      () => {
+        if (el.getAttribute("src") !== SILENCE) return; // Open WebUI gave it a sentence meanwhile: leave it
+        nativePause.call(el);
+        el.removeAttribute("src");
+        el.load();
+      },
+      () => {
+        unlocked.delete(el);
+        if (el.getAttribute("src") === SILENCE) {
+          el.removeAttribute("src");
+          el.load();
+        }
+      }
+    );
   };
+  const unlockAll = () => document.querySelectorAll("audio").forEach(unlock);
+  for (const type of ["pointerdown", "touchend", "click", "keydown"]) {
+    window.addEventListener(type, unlockAll, { capture: true, passive: true });
+  }
+  const tapIsFresh = () => navigator.userActivation?.isActive === true;
+  new MutationObserver((records) => {
+    if (!tapIsFresh()) return;
+    for (const r of records) {
+      for (const n of r.addedNodes) {
+        if (n instanceof HTMLAudioElement) unlock(n);
+        else if (n instanceof Element) n.querySelectorAll("audio").forEach(unlock);
+      }
+    }
+  }).observe(document.documentElement, { childList: true, subtree: true });
 
   // Fix 3: turn off automatic gain control for voice mode's microphone. While you are silent,
   // the browser normally boosts distant voices; we disable that.
