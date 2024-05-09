@@ -10,6 +10,11 @@ from ~/.config/localllm/local.env:
     LOCALLLM_MODE    single (everything on the main PC, the default) or split (some services on the helper PC)
     LOCALLLM_APPS    pi,owui (default) or pi (which apps run)
     HELPER_HOST      the helper PC's Tailscale name (split mode)
+    MAIN_HOST        the main PC's Tailscale name, which the helper uses to reach llama-server and SearXNG; when
+                     unset, read from `tailscale status` (split mode)
+    PLACE_<NAME>     main or helper: moves a movable service (e.g. PLACE_SEARCH=main) in split mode, with the one it
+                     shares a browser with; remove it to restore the default placement.
+Exit status 1 with the reason on stderr when the settings don't fit together.
 """
 
 import json
@@ -31,19 +36,11 @@ def env_name(name):
 
 
 def tailscale_self_name():
-    """Get this machine's Tailscale hostname, if available."""
     try:
-        result = subprocess.run(
-            ["tailscale", "status", "--json"],
-            capture_output=True, text=True, timeout=5
-        )
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            me = data.get("Self", {})
-            return me.get("DNSName", "").removesuffix(".tailscale")
-    except (FileNotFoundError, subprocess.TimeoutExpired, json.JSONDecodeError):
-        pass
-    return None
+        out = subprocess.run(["tailscale", "status", "--json"], capture_output=True, text=True, timeout=5)
+        return (json.loads(out.stdout).get("Self", {}).get("DNSName") or "").rstrip(".")
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return ""
 
 
 def parse_apps(raw):
@@ -59,39 +56,72 @@ def parse_apps(raw):
 
 
 def build(environ, services_file=SERVICES_FILE, self_name=tailscale_self_name):
-    """Build the endpoints dict from services.json and the current environment."""
-    with open(services_file, "r") as f:
-        services = json.load(f)
+    with open(services_file) as f:
+        services = json.load(f)["services"]
+    mode = environ.get("LOCALLLM_MODE", "").strip() or "single"
+    if mode not in ("single", "split"):
+        raise SettingsError(f"LOCALLLM_MODE is '{mode}' in local.env: it must be single or split.")
+    apps = parse_apps(environ.get("LOCALLLM_APPS", ""))
+    helper = environ.get("HELPER_HOST", "").strip()
+    main = environ.get("MAIN_HOST", "").strip()
+    if mode == "split":
+        if not helper:
+            raise SettingsError("LOCALLLM_MODE=split needs HELPER_HOST in local.env (./localllm.sh setup-helper sets it).")
+        main = main or self_name()
+        if not main:
+            raise SettingsError("Split mode: the main PC's Tailscale name is unknown (Tailscale not running?). "
+                                "Start it (sudo systemctl start tailscaled), or set MAIN_HOST in local.env.")
 
-    mode = environ.get("LOCALLLM_MODE", "single")
-    apps_raw = environ.get("LOCALLLM_APPS", "pi,owui")
-    apps = parse_apps(apps_raw)
-    helper_host = environ.get("HELPER_HOST", "")
-    self = self_name()
-
-    endpoints = {}
-
-    for svc_name, svc_conf in services.items():
-        port = svc_conf.get("port", 0)
-        if not port:
+    apps_set = set(apps.split(","))
+    places = {}
+    for s in services:
+        name = s["name"]
+        if "owui" not in apps_set and s.get("owui_only"):
+            places[name] = None
             continue
+        override = environ.get(f"PLACE_{env_name(name)}", "").strip()
+        if mode == "single":
+            places[name] = "main" if s["single"] else None
+            continue
+        place = s["split"]
+        if override:
+            if override not in ("main", "helper"):
+                raise SettingsError(f"PLACE_{env_name(name)} is '{override}': it must be main or helper.")
+            place = override
+        places[name] = place
+    # "together" works both ways: a service moved on its own takes its partner along, unless the partner is placed too.
+    # When one partner is disabled (LOCALLLM_APPS=pi), the other keeps its place on its own.
+    titles = {s["name"]: s["title"] for s in services}
+    partners = {}
+    for s in services:
+        if s.get("together"):
+            partners[s["name"]] = s["together"]
+            partners[s["together"]] = s["name"]
+    placed = {name for name in places if environ.get(f"PLACE_{env_name(name)}", "").strip()}
+    for name, other in partners.items():
+        if mode == "split" and places.get(name) and places.get(other) and name in placed and other not in placed:
+            places[other] = places[name]
+    for name, other in partners.items():
+        if places.get(name) and places.get(other) and places.get(other) != places[name]:
+            raise SettingsError(f"{titles[name]} and {titles[other]} must run on the same PC: check PLACE_* in local.env.")
 
-        # Determine which host to use
-        host = "127.0.0.1"
-        if mode == "split":
-            assigned_host = svc_conf.get("host", "main")
-            if assigned_host == "helper" and helper_host:
-                host = f"{helper_host}.tailscale"
-            elif assigned_host == "main" and self:
-                host = f"{self}.tailscale"
-
-        endpoints[svc_name] = {
-            "host": host,
-            "port": port,
-            "url": f"http://{host}:{port}",
-        }
-
-    return endpoints
+    hosts = {"main": "127.0.0.1", "helper": helper}
+    # How the helper reaches a service: its own on 127.0.0.1, the main PC's by its Tailscale name.
+    from_helper_hosts = {"main": main, "helper": "127.0.0.1"}
+    out_services = {}
+    for s in services:
+        name, place, port = s["name"], places[s["name"]], s["port"]
+        entry = {"title": s["title"], "where": place, "port": port, "health": s["health"], "url": "", "from_helper": "",
+                 "owui_only": bool(s.get("owui_only"))}
+        if place and port:
+            entry["url"] = f"http://{hosts[place]}:{port}"
+            if mode == "split" and place == "helper" and s.get("split_url"):
+                entry["url"] = s["split_url"].format(helper=helper)
+            if mode == "split":
+                entry["from_helper"] = f"http://{from_helper_hosts[place]}:{port}"
+        out_services[name] = entry
+    return {"mode": mode, "apps": apps, "helper_host": helper if mode == "split" else "",
+            "main_host": main if mode == "split" else "", "services": out_services}
 
 
 def as_env(data, services_file=SERVICES_FILE):
