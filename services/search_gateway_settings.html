@@ -1,0 +1,22 @@
+<!doctype html>
+<!-- Search gateway settings, served by services/search_gateway.py at /settings (only to this computer).
+     Reads /settings/data and saves with a JSON POST to /settings/save. API keys are never sent to this page: it
+     only shows whether each one is set; a key field left empty keeps the key. Self-contained, works offline. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Search Gateway Settings</title>
+<link rel="stylesheet" href="search_gateway_settings.css">
+</head>
+<body>
+<main>
+<h1>Search Gateway <small class="sub">settings stored in your config file</small></h1>
+<p>Saved to <code id="file">…</code> (only you can read it); the next search uses them.</p>
+  <input class="filter" id="filter" placeholder="Filter settings (e.g. tavily, order, limit)">
+  <form id="form"></form>
+<div class="bar"><button id="save" type="button" disabled>Save</button><span id="msg"></span></div>
+</main>
+<script src="search_gateway_settings.js"></script>
+</body>
+</html>
