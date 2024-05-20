@@ -6,17 +6,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Search Gateway Settings</title>
-<link rel="stylesheet" href="search_gateway_settings.css">
+<title>Search gateway settings</title>
+<link rel="stylesheet" href="/settings/search_gateway_settings.css">
 </head>
 <body>
 <main>
-<h1>Search Gateway <small class="sub">settings stored in your config file</small></h1>
-<p>Saved to <code id="file">…</code> (only you can read it); the next search uses them.</p>
+<h1>Search gateway settings <a href="/dashboard">Usage</a></h1>
+  <div class="sub">The search services, their API keys and order, and the limits, for Pi and Open WebUI alike.
+    Saved to <code id="file">…</code> (only you can read it); the next search uses them.</div>
   <input class="filter" id="filter" placeholder="Filter settings (e.g. tavily, order, limit)">
   <form id="form"></form>
-<div class="bar"><button id="save" type="button" disabled>Save</button><span id="msg"></span></div>
 </main>
-<script src="search_gateway_settings.js"></script>
+<div class="bar"><button id="save" type="button" disabled>Save</button><span id="msg"></span></div>
+<script src="/settings/search_gateway_settings.js"></script>
 </body>
 </html>
