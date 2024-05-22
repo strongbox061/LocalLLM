@@ -5,7 +5,6 @@ import json
 import sys
 import tempfile
 import threading
-import http.server
 import urllib.request
 from pathlib import Path
 
@@ -22,42 +21,106 @@ def check(name: str, cond: bool, detail: str = "") -> None:
     global PASS, FAIL
     if cond:
         PASS += 1
-        print(f"  PASS {name}")
+        print(f"  ok    {name}")
     else:
         FAIL += 1
-        msg = f"  FAIL {name}"
-        if detail:
-            msg += f" -- {detail}"
-        print(msg)
+        print(f"  FAIL  {name}" + (f" ({detail})" if detail else ""))
 
 
 def test_setup_mode() -> None:
-    """Verify setup_mode returns expected dict keys and defaults."""
-    mode = monitor.setup_mode()
-    check("setup_mode returns dict", isinstance(mode, dict))
-    check("has 'model' key", "model" in mode)
-    check("has 'threads' key", "threads" in mode)
-    check("threads is int", isinstance(mode.get("threads"), int))
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp)
+        cfg = home / ".config" / "localllm"
+        cfg.mkdir(parents=True)
+
+        s = monitor.read_setup_mode(home)
+        check("default mode is single", s["mode"] == "single", str(s))
+        check("default apps is pi,owui", s["apps"] == "pi,owui", str(s))
+        check("default helper_configured is False", s["helper_configured"] is False, str(s))
+
+        (cfg / "local.env").write_text(
+            'LOCALLLM_MODE="split"\nLOCALLLM_APPS=pi\nHELPER_HOST="helper.example.ts.net"\n',
+            encoding="utf-8",
+        )
+        s = monitor.read_setup_mode(home)
+        check("reads split mode", s["mode"] == "split", str(s))
+        check("reads pi-only apps mode", s["apps"] == "pi", str(s))
+        check("reads helper_host and marks configured", s["helper_host"] == "helper.example.ts.net" and s["helper_configured"], str(s))
+
+        (cfg / "local.env").write_text("LOCALLLM_MODE=single\nLOCALLLM_APPS='owui,pi'\n", encoding="utf-8")
+        s = monitor.read_setup_mode(home)
+        check("normalizes owui,pi -> pi,owui", s["mode"] == "single" and s["apps"] == "pi,owui", str(s))
 
 
 def test_parsers() -> None:
-    """Test JSON and text parsing helpers."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-        json.dump({"prompt": "hello", "input": "world"}, f)
-        f.flush()
-        path = f.name
+    check(
+        "helper SSH launcher stays tiny (script piped over stdin)",
+        len(monitor.HELPER_PS_LAUNCHER) < 300,
+        f"len={len(monitor.HELPER_PS_LAUNCHER)}",
+    )
+    check(
+        "friendly_process_name extracts GGUF model from llama-server",
+        monitor.friendly_process_name("llama-server", "/usr/bin/llama-server -m /models/demo-model-q4.gguf --port 8081")
+        == "llama-server (demo-model-q4)",
+    )
+    check(
+        "friendly_process_name maps LocalLLM services",
+        monitor.friendly_process_name("python.exe", "python.exe C:\\repo\\services\\whisper_server.py") == "Whisper STT"
+        and monitor.friendly_process_name("python3", "/venv/bin/open-webui serve") == "Open WebUI",
+    )
 
-    try:
-        data = monitor.read_json(path)
-        check("read_json parses file", isinstance(data, dict))
-        check("read_json has 'prompt'", data.get("prompt") == "hello")
-    finally:
-        Path(path).unlink()
+    gpus = monitor._parse_nvidia_smi_csv("NVIDIA GeForce RTX 4060, 42, 6144, 8192, 65\n")
+    check("nvidia-smi parser extracts 1 GPU", len(gpus) == 1, str(gpus))
+    check("nvidia-smi parser calculates mem_percent", gpus[0]["mem_percent"] == 75.0 and gpus[0]["util_percent"] == 42.0, str(gpus))
 
-    raw = "key1: val1\nkey2: val2\n"
-    parsed = monitor.parse_kv_lines(raw)
-    check("parse_kv_lines splits lines", len(parsed) == 2)
-    check("parse_kv_lines key1", parsed.get("key1") == "val1")
+    dmi_sample = """
+Handle 0x0010, DMI type 17, 92 bytes
+Memory Device
+\tSize: 16 GB
+\tSpeed: 5600 MT/s
+\tManufacturer: Crucial Technology
+\tPart Number: CT16G56C46S5.M8G1
+\tConfigured Memory Speed: 5600 MT/s
+
+Handle 0x0011, DMI type 17, 92 bytes
+Memory Device
+\tSize: 16 GB
+\tSpeed: 5600 MT/s
+\tManufacturer: Crucial Technology
+\tPart Number: CT16G56C46S5.M8G1
+\tConfigured Memory Speed: 5600 MT/s
+"""
+    dmi = monitor.parse_dmidecode_memory(dmi_sample)
+    check("dmidecode parses commercial RAM name", dmi["ram_name"] == "Crucial Technology CT16G56C46S5.M8G1", str(dmi))
+    check("dmidecode sums installed MiB and speed", dmi["ram_installed_mib"] == 32768.0 and dmi["ram_speed_mhz"] == 5600, str(dmi))
+
+    helper = monitor.normalize_helper_payload(
+        {
+            "hostname": "HELPER-PC",
+            "brand": "ExampleVendor Inc.",
+            "os": "Windows 11 Pro",
+            "os_id": "windows",
+            "cpu": {"name": "Example CPU", "threads": 12, "percent": 33.4, "normal_ghz": 3.6, "performant_ghz": 4.4},
+            "ram": {"name": "Crucial CT16G48C40S5", "speed_mhz": 4800, "installed_mib": 16384.0, "used_mib": 8192.0, "total_mib": 16384.0},
+            "gpus": {"name": "GTX 1080", "util_percent": 15, "mem_used_mib": 4096, "mem_total_mib": 8192, "temp_c": 58},
+            "processes": {
+                "cpu": {"pid": 123, "raw_name": "python.exe", "cmd": "python.exe services\\whisper_server.py", "percent": 12.5},
+                "ram": [{"pid": 456, "raw_name": "open-webui.exe", "cmd": "open-webui serve", "mem_mib": 2048.0}],
+                "gpu": {"pid": 123, "raw_name": "python.exe", "cmd": "python.exe services\\whisper_server.py", "mem_mib": 1500.0},
+            },
+            "gaming": True,
+        },
+        "helper.example.ts.net",
+    )
+    check("helper payload normalizes single GPU dict to list", len(helper["gpus"]) == 1 and helper["gpus"][0]["mem_percent"] == 50.0, str(helper))
+    check("helper payload preserves brand, OS, and CPU GHz", helper["brand"] == "ExampleVendor Inc." and helper["os_id"] == "windows" and helper["cpu"]["percent"] == 33.4, str(helper))
+    check(
+        "helper payload normalizes process lists with friendly names",
+        helper["processes"]["cpu"][0]["name"] == "Whisper STT"
+        and helper["processes"]["ram"][0]["name"] == "Open WebUI"
+        and helper["processes"]["gpu"][0]["name"] == "Whisper STT",
+        str(helper["processes"]),
+    )
 
 
 def test_helpers() -> None:
@@ -75,27 +138,69 @@ def test_helpers() -> None:
 
 
 def test_http_server() -> None:
-    """Start a minimal HTTP server and verify response."""
-    handler = monitor.create_json_handler({"status": "ok"})
-    server_class = http.server.HTTPServer
-    server = threading.Thread(
-        target=lambda: server_class(
-            ("127.0.0.1", 0),
-            lambda *a, **k: handler(*a, **k),
-        ).serve_forever(),
-        daemon=True,
-    )
-    server.start()
-    # Port assignment happens inside serve_forever; use a probe approach
-    check("http.server module available", hasattr(http.server, "HTTPServer"))
+    mc = monitor.MainCollector()
+
+    class StubPoller(monitor.HelperPoller):
+        def get(self, setup):
+            return {
+                "status": "not_configured",
+                "hostname": "",
+                "host": "",
+                "brand": "",
+                "os": "Windows",
+                "os_id": "windows",
+                "gaming": False,
+                "cpu": None,
+                "ram": None,
+                "gpus": [],
+                "processes": {"cpu": [], "ram": [], "gpu": []},
+                "error": "No helper PC configured.",
+                "collected_at": 0,
+            }
+
+    poller = StubPoller()
+    server = monitor.ThreadingHTTPServer(("127.0.0.1", 0), monitor.make_handler(mc, poller))
+    port = server.server_address[1]
+    t = threading.Thread(target=server.serve_forever, daemon=True)
+    t.start()
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=5) as resp:
+            html = resp.read().decode("utf-8")
+            check("GET / serves HTML page", resp.status == 200 and "LocalLLM System Monitor" in html and "procBackdrop" in html)
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/monitor.css", timeout=5) as resp:
+            css = resp.read().decode("utf-8")
+            check("GET /monitor.css serves stylesheet with pie colors",
+                  resp.status == 200 and resp.headers["Content-Type"].startswith("text/css")
+                  and "--pie-free:" in css and "--pie-used:" in css)
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/monitor.js", timeout=5) as resp:
+            js = resp.read().decode("utf-8")
+            check("GET /monitor.js serves script",
+                  resp.status == 200 and resp.headers["Content-Type"].startswith("application/javascript")
+                  and "/api/metrics" in js)
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/metrics", timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            check("GET /api/metrics returns setup, main, helper", {"setup", "main", "helper"}.issubset(data.keys()))
+            check(
+                "main PC metrics include brand, os_id, cpu GHz, ram, processes",
+                data["main"]["status"] == "online"
+                and bool(data["main"]["os_id"])
+                and data["main"]["ram"]["total_mib"] > 0
+                and data["main"]["cpu"]["performant_ghz"] is not None
+                and isinstance(data["main"]["processes"]["ram"], list),
+                str(data["main"]),
+            )
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=5) as resp:
+            check("GET /health returns ok", json.loads(resp.read().decode("utf-8")) == {"ok": True})
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 def main() -> int:
-    print("Running monitor tests...")
     test_setup_mode()
     test_parsers()
     test_http_server()
-    print(f"\nResults: {PASS} passed, {FAIL} failed")
+    print(f"monitor-check: {PASS} passed, {FAIL} failed")
     return 1 if FAIL else 0
 
 
