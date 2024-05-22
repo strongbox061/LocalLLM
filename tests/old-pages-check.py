@@ -53,14 +53,8 @@ def call(name, **args):
     global _n
     _n += 1
     cid = f"call_{_n}"
-    return cid, {
-        "role": "assistant",
-        "content": "",
-        "reasoning_content": "thinking",
-        "tool_calls": [
-            {"id": cid, "type": "function", "function": {"name": name, "arguments": json.dumps(args)}}
-        ],
-    }
+    return cid, {"role": "assistant", "content": "", "reasoning_content": "thinking",
+                 "tool_calls": [{"id": cid, "type": "function", "function": {"name": name, "arguments": json.dumps(args)}}]}
 
 
 def answer(question, pages, searches=1, page_chars=20000):
