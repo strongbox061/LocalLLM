@@ -14,8 +14,8 @@ and Open WebUI database). Checks:
   - Open WebUI's thin client: passes calls on, shows the gateway's status lines and citations, says so when it's down;
   - the migration from Open WebUI: settings out of its database, usage, cache and log into the gateway's;
   - nothing in the gateway reads Open WebUI or its database (only the chat types page, for the protected chats).
-
 """
+
 import asyncio
 import importlib.util
 import json
