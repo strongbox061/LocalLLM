@@ -86,12 +86,24 @@ def pick_language(audio):
 
 
 def transcribe(path: str, language: str | None) -> dict:
-    """Transcribe an audio file (path on disk)."""
-    audio = decode_audio(path)
-    audio = speech_only(audio)
-    if language is None:
-        language = pick_language(audio)
-    return _model.transcribe(audio, beam_size=BEAM_SIZE, language=language)
+    t0 = time.monotonic()
+    audio = decode_audio(path, sampling_rate=16000)
+    secs = len(audio) / 16000
+    speech = speech_only(audio)
+    if len(speech) < 1600:  # under 0.1 s of speech: nothing said
+        log(f"{secs:.1f} s of audio with no speech")
+        return {"text": "", "language": language or "", "duration": round(secs, 2)}
+    with _lock:
+        _reuse.reused = False
+        try:
+            lang = language or pick_language(speech)
+            segments, info = _model.transcribe(speech, language=lang, beam_size=BEAM_SIZE, vad_filter=False)
+            text = "".join(s.text for s in segments).strip()
+        finally:
+            _reuse.kept = None
+    how = "given" if language else "detected, encoder reused" if _reuse.reused else "detected"
+    log(f"{secs:.1f} s of audio in {time.monotonic() - t0:.2f} s, {info.language} ({how}), {len(text)} characters")
+    return {"text": text, "language": info.language, "duration": round(secs, 2)}
 
 
 def parse_form(content_type: str, body: bytes) -> dict:
