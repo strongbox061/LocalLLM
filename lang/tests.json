@@ -99,12 +99,20 @@
       "none": "我需要报告的实际数据。"
     },
     "pt": {
-      "latest": ["O que há de novo na última versão do Vite"],
-      "error": ["Minha compilação falha com uma mensagem estranha"],
+      "latest": ["Quais são as novidades da última versão do Vite"],
+      "error": ["O programa travou ao iniciar"],
+      "action_start": ["Pesquise análises deste teclado"],
       "question_start": ["Como configuro um proxy no Vite"],
-      "local_current": ["Listar arquivos no diretório atual"],
-      "lookup": "Por favor, pesquise, não de memória",
-      "none": ["Preciso dos números reais para o relatório."]
+      "local_current": ["Liste os arquivos do diretório atual"],
+      "named_engine": ["Pesquise no Mojeek pi coding agent"],
+      "named_source": ["Leia a documentação do Vite sobre o proxy"],
+      "lookup": ["Pesquise na internet, não de memória"],
+      "offer": ["Você gostaria que eu comparasse outras versões?"],
+      "from_memory": ["Respondi de memória, sem pesquisa na web."],
+      "current_info": ["Quanto custa uma RTX 5090 agora mesmo"],
+      "months": ["novembro de 2025"],
+      "bot_check": ["Acesso negado"],
+      "none": ["Minha irmã comprou uma bicicleta vermelha ontem.", "O jardim é muito bonito na primavera."]
     },
     "ru": {
       "latest": ["Что нового в последней версии Vite"],
