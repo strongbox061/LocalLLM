@@ -309,14 +309,25 @@ function renderMachineCard(machineKey, title, machine, isHelper, setup) {
     occupiedText: fmtPct(cpu.percent), detailText: cpuDetail,
   }));
 
-  // RAM gauge
-  if (machine.ram) {
-    const pct = machine.ram.percent;
-    cards.push(h("div", { class: "machine-section" },
-      h("h4", null, "RAM"),
-      pieCard({ percent: pct, label: "RAM Usage", sublabel: fmtMem(machine.ram.used_gb * 1024) + " / " + fmtMem(machine.ram.total_gb * 1024) }),
-    ));
-  }
+  // RAM
+  const ram = machine.ram || {};
+  const ramCapMib = ram.installed_mib || ram.total_mib;
+  const ramCapLabel = fmtCapacityGB(ramCapMib);
+  const ramNameBase = ram.name || "System RAM";
+  const ramHeader = ramCapLabel ? `${ramNameBase} · ${ramCapLabel}` : ramNameBase;
+  const ramSpec = [
+    ram.speed_mhz ? `${ram.speed_mhz} MT/s` : null,
+    ram.total_mib ? `${fmtMem(ram.total_mib)} usable` : null,
+  ].filter(Boolean).join(" · ");
+  const ramOccupied = fmtMem(ram.used_mib);
+  const ramDetail = ram.total_mib
+    ? `${Math.round(ram.used_mib || 0).toLocaleString()} MB of ${Math.round(ram.total_mib).toLocaleString()} MB (${fmtPct(ram.percent)})`
+    : "Unavailable";
+  cards.push(pieCard({
+    machineKey, machineTitle: title, component: "ram", kind: "RAM",
+    deviceName: ramHeader, specLine: ramSpec, percent: ram.percent,
+    occupiedText: ramOccupied, detailText: ramDetail,
+  }));
 
   // GPU info
   if (machine.gpu && machine.gpu.length > 0) {
