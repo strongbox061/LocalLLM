@@ -18,7 +18,8 @@ The model is described by a **profile** in `models/`: where to download it (Hugg
 vision projector (or none), the context per slot, the number of slots, the longest answer, the prompt cache, the
 default CPU/GPU split for models with experts, sampling, and how its reasoning is switched off (`REASONING`).
 `lib/model.sh` reads it for `install/llama.sh` (the download), `services/llm-server.sh` (llama-server's flags),
-and writes `~/.config/localllm/model.json` for Pi's `thinking-switch` extension.
+`install/pi.sh` (Pi's context window and answer length) and `services/open-webui.sh` (when chats are compacted), and
+writes `~/.config/localllm/model.json` for Pi's `thinking-switch` extension.
 
 The default profile (`models/default`) is for general chat and writing. It handles basic conversation, translation,
 and code assistance. The model files are kept in `~/LocalLLM/models/`; `install/llama.sh` downloads them from Hugging Face
