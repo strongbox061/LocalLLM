@@ -10,6 +10,35 @@ neither Open WebUI nor its database:
 
   - Settings (API keys, service order, limits): ~/.config/localllm/search-gateway.json (only you can read it), edited
     on /settings. A change is used by the next search.
+  - Usage counts, result cache and search log: ~/.local/share/localllm/search-gateway.db (SQLite), so the free-tier
+    limits (usage_reserve below each one) cover every app together.
+  - Searches run side by side: one event loop runs every request, so one app's search never waits for another's.
+  - SearXNG is only the engine's own last fallback. A SearXNG !bang left in a query is removed (Pi turns the ones it
+    knows into site: filters).
+
+  GET  /search?q=...[&time_range=][&retry_after=][&app=]   results in SearXNG's JSON format, plus "service" and
+                                                           "problems"; retry_after: a repeat that skips the cache,
+                                                           those services and their retry group
+  GET  /read?url=...                                       a page's text (Protected Lookup)
+  POST /tool/<web_search|plan_research|read_page>          Open WebUI's tool: {"args", "metadata", "user_text"}
+                                                           -> {"result", "events"} (its status lines, citations)
+  GET  /dashboard, /usage.json                             the usage dashboard (services/search_gateway_dashboard.html)
+  GET  /settings, /settings/data; POST /settings/save      the settings page (services/search_gateway_settings.html)
+  GET  /chat-types...                                      Open WebUI's protected chats' chat types (chat_types_web.py)
+  GET  /healthz
+
+Listens on 127.0.0.1 only (SEARCH_GATEWAY_BIND changes that). /settings and /chat-types answer only this computer,
+and accept changes only as a JSON POST from their own page (not from another website open in your browser).
+
+Environment (all optional):
+  SEARCH_GATEWAY_PORT       port                          (default 8090)
+  SEARCH_GATEWAY_BIND       address                       (default 127.0.0.1; only ever a private address)
+  SEARCH_GATEWAY_SETTINGS   settings file                 (default ~/.config/localllm/search-gateway.json)
+  SEARCH_GATEWAY_DB         state database                (default ~/.local/share/localllm/search-gateway.db)
+  WEBUI_DB                  Open WebUI's database, only for /chat-types (default ~/.open-webui/webui.db)
+  SEARCH_GATEWAY_DEBUG      1 to log each search          (default 0)
+  SEARCH_GATEWAY_SEARXNG    SearXNG's search address, instead of the searxng_url setting (the helper PC of the two-PC
+                            setup reaches the main PC's SearXNG by its Tailscale name); ignored when SearXNG is off
 """
 
 import asyncio

@@ -9,6 +9,7 @@ Description=Search gateway: web search for Pi and Open WebUI, its usage dashboar
 [Service]
 ExecStart=@PYTHON@ @REPO_DIR@/services/search_gateway.py
 Environment=SEARCH_GATEWAY_PORT=8090
+Environment=SEARCH_GATEWAY_DEBUG=0
 Restart=on-failure
 RestartSec=5
 
