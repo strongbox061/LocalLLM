@@ -26,16 +26,16 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+passed = failed = 0
 
 
 def check(name, ok, detail=""):
-    """Print a pass/fail line for a single assertion."""
-    status = "OK" if ok else "FAIL"
-    msg = f"[{status}] {name}"
-    if detail:
-        msg += f" — {detail}"
-    print(msg)
-    return ok
+    global passed, failed
+    if ok:
+        passed += 1
+    else:
+        failed += 1
+        print(f"  FAIL  {name}" + (f"\n        {detail}" if detail else ""))
 
 
 def load_module(name, path):
