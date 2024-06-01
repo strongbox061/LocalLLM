@@ -28,13 +28,10 @@ DROPPED = {"usage_file", "cache_file"}  # settings the engine no longer has
 
 
 def engine():
-    """Import and return the search gateway engine module."""
-    spec = importlib.util.find_spec("search_gateway.engine")
-    if spec is None:
-        print("error: search_gateway.engine not installed, is the gateway set up?", file=sys.stderr)
-        sys.exit(1)
-    mod = importlib.util.import_module("search_gateway.engine")
-    return mod
+    spec = importlib.util.spec_from_file_location("search_gateway_engine", HERE / "search_gateway_engine.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def old_valves(webui_db: Path) -> dict:
