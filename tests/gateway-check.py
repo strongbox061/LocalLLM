@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""search-gateway-check.py: the search gateway on its own, with stand-in search services and temporary files.
+"""gateway-check.py: the search gateway on its own, with stand-in search services and temporary files.
 
     ~/.local/share/localllm/search-gateway-venv/bin/python -I tests/search-gateway-check.py
 
@@ -54,7 +54,7 @@ try:
     import aiohttp  # noqa: F401
     import pydantic  # noqa: F401
 except ImportError:
-    print("search-gateway-check.py: needs the gateway's Python (run install/search-gateway.sh); 0 passed, 1 failed")
+    print("gateway-check.py: needs the gateway's Python (run install/search-gateway.sh); 0 passed, 1 failed")
     sys.exit(1)
 
 tmp = Path(tempfile.mkdtemp(prefix="search-gateway-check-"))
