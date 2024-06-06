@@ -46,6 +46,7 @@ fi
 searxng_sync_override || true
 # The images of the last backup (versions.env), when they aren't here yet.
 pin_image "${SEARXNG_IMAGE:-}" docker-compose.yml
+docker_cmd compose up -d
 
 echo "Waiting for SearXNG..."
 
