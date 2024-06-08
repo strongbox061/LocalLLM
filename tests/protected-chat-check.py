@@ -118,28 +118,6 @@ def lookup(tool, query, cfg=CFG, user=None, messages=None, files=None):
         __event_emitter__=user.emit, __event_call__=user.call))
     return out, user
 
-
-async def call(event):
-    """Handle a chat event through the filter pipeline."""
-    chat_type = event.get("chat_type", "default")
-    message = event.get("message", "")
-
-    if chat_type == "protected":
-        # In protected mode, only allow lookup tool
-        tools_allowed = ["lookup"]
-        return {
-            "chat_type": chat_type,
-            "tools_allowed": tools_allowed,
-            "web_search": False,
-            "images": False,
-            "code": False,
-            "memory": False,
-            "terminals": False,
-        }
-
-    return event
-
-
 print("The Protected Chat filter")
 f = filter_mod.Filter()
 body = {"features": {"web_search": True, "image_generation": True, "code_interpreter": True, "memory": True, "voice": True},
