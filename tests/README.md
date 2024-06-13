@@ -11,9 +11,25 @@ change), **system checks** (the live setup as it runs, no model; after a section
   node --experimental-strip-types tests/guard-tests.mjs
   ```
 
-- **System checks**: verify the live setup is running correctly. No model needed. Run from the project root.
-
-- **Model tests**: ask real questions to Qwen-14B-Chat and verify responses. Only run when you want model feedback.
+- **System checks** (`tests/system-checks.sh`): the running setup against the repo and the model profile — llama-server serves the profile's model file as the alias, with its slots and context (and refuses requests without the API key in split mode); Pi's `models.json`, compaction in `settings.json` and `model.json`; SearXNG, the search gateway and its usage dashboard; every service running (`./localllm.sh status`) and the last backup named. Read-only; needs the services running. About a minute.
+  ```bash
+  tests/system-checks.sh
+  ```
+- **Restorability check** (`tests/restorability-check.sh`): whether everything installed on this machine is brought back by the repo's scripts, the settings backup or a README step, whether `restore.sh` puts the backup back (into a temporary HOME), and whether the repo itself clones from `backup/repo.bundle`. No model, read-only; run it after adding anything to the setup.
+  ```bash
+  tests/restorability-check.sh
+  ```
+- **Script lint** (ShellCheck, settings in `.shellcheckrc`): common mistakes in the shell scripts. Seconds.
+  ```bash
+  shellcheck -x $(git ls-files '*.sh')
+  ```
+- **Model tests** (`tests/run-pi-tests.sh`, prompts in `tests/pi-tests.json`): real questions to the model, one `pi -p` run each. About 1–3 minutes per test, and web tests use real search credits.
+  ```bash
+  tests/run-pi-tests.sh                      # everything except F1 and J1
+  tests/run-pi-tests.sh E I1 H3              # some tests, or whole groups by letter
+  tests/run-pi-tests.sh --with-f1 --with-j1  # also F1 (stops the search gateway for a moment) and J1 (needs the Inbox)
+  ```
+  Each run writes `~/LocalLLM/test-runs/<date-time>/<ID>.md` (prompt, expectation, reasoning on/off, every tool call with its arguments and result, blocks, the answer) and `summary.tsv`.
 
 ## A. Search filters
 
