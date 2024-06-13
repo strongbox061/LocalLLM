@@ -16,21 +16,13 @@ function render(data) {
   if (data.file) fileEl.textContent = data.file;
 
   for (const f of fields) {
-    const div = el("div", { class: "field" });
-    const label = el("label", null, f.label || f.key);
-    const p = el("p", { class: f.value !== undefined && f.value !== "" ? "set" : "unset" },
-      f.value !== undefined && f.value !== "" ? "● set" : "○ unset");
-    if (f.type === "number") {
-      const input = el("input", { type: "number", name: f.key, value: f.value ?? "", placeholder: f.placeholder || "" });
-      div.append(label, p, input);
-    } else if (f.type === "search" || f.searchable) {
-      const input = el("input", { type: "text", name: f.key, value: f.value ?? "", placeholder: f.placeholder || "" });
-      div.append(label, p, input);
-    } else {
-      const input = el("input", { type: "text", name: f.key, value: f.value ?? "", placeholder: f.placeholder || "" });
-      div.append(label, p, input);
-    }
-    div.dataset.key = f.key;
+    const div = el("div", { class: "field changed", "data-name": (f.label || f.key).toLowerCase() + " " + (f.placeholder || "").toLowerCase() });
+    const input = el("input", { type: f.type === "number" ? "number" : "text", name: f.key, value: f.value ?? "", placeholder: f.placeholder || "" });
+    input.addEventListener("input", () => {
+      div.classList.toggle("changed", input.value !== "");
+      saveBtn.disabled = form.querySelectorAll(".field.changed").length === 0;
+    });
+    div.append(el("label", null, f.label || f.key), input);
     form.append(div);
   }
 
@@ -38,11 +30,8 @@ function render(data) {
 }
 
 function applyFilter() {
-  const q = document.getElementById("filter").value.toLowerCase();
-  for (const f of form.querySelectorAll(".field")) {
-    const key = f.dataset.key.toLowerCase();
-    f.style.display = key.includes(q) ? "" : "none";
-  }
+  const q = document.getElementById("filter").value.trim().toLowerCase();
+  for (const box of form.children) box.style.display = !q || box.dataset.name.includes(q) ? "" : "none";
 }
 
 async function load() {
@@ -79,14 +68,9 @@ async function save() {
 
 form.addEventListener("input", () => {
   let changed = false;
-  for (const f of form.querySelectorAll(".field")) {
-    const input = f.querySelector("input");
-    if (input && input.value !== "") {
-      f.classList.add("changed");
-      changed = true;
-    } else {
-      f.classList.remove("changed");
-    }
+  for (const box of form.children) {
+    const input = box.querySelector("input");
+    if (input && input.value !== "") changed = true;
   }
   saveBtn.disabled = !changed;
 });

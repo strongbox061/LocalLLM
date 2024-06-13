@@ -169,3 +169,16 @@ button:disabled {
   color: var(--bad);
   white-space: pre-line;
 }
+
+@media (max-width: 600px) {
+  main { padding: 12px 8px 80px; }
+  h1 { font-size: 18px; }
+  .bar { flex-direction: column; gap: 8px; padding: 8px; }
+}
+
+.field label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
