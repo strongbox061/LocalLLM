@@ -2,7 +2,7 @@
 # Tailscale, your browser (if BROWSER_INSTALLER is set in local.env), and restores backup/.
 # Safe to run again: steps that are already done are skipped.
 #   ./install.sh            install what is missing
-#   ./install.sh --update   also update packages
+#   ./install.sh --update   also update your browser (if configured), llama.cpp, Pi, its extensions and Open WebUI
 #
 # Docker is not installed here: install it yourself first (pacman -S docker docker-compose,
 # systemctl enable --now docker.service).
