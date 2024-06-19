@@ -5,15 +5,27 @@
 # successful upload. On failure: a desktop notification.
 set -euo pipefail
 
-REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-source "$REPO_DIR/.env" 2>/dev/null || true
+source "$(dirname -- "${BASH_SOURCE[0]}")/lib/common.sh"
 
 DEST="$BACKUP_REMOTE"
+step="start"
 
 fail() {
-    notify-send "LocalLLM Backup Failed" "$1" 2>/dev/null || true
-    exit 1
+    local msg="$step failed. Log: journalctl --user -u localllm-backup"
+    command -v notify-send >/dev/null && notify-send -u critical -a LocalLLM "LocalLLM backup failed" "$msg" || true
+    printf 'ERROR: %s\n' "$msg" >&2
 }
+trap fail ERR
+
+step="checks"
+command -v rclone >/dev/null || { echo "rclone is not installed: run install/backup-timer.sh" >&2; false; }
+[[ "$DEST" == ?*:* ]] \
+    || { echo "No upload destination: set BACKUP_REMOTE=\"remote:folder\" in $LOCAL_ENV_FILE (see README)." >&2; false; }
+[[ "$BACKUP_KEEP_COUNT" =~ ^[1-9][0-9]*$ ]] \
+    || { echo "How many archives to keep isn't set: BACKUP_KEEP_COUNT in $LOCAL_ENV_FILE (see README)." >&2; false; }
+[[ -n "$BACKUP_PASSPHRASE_FILE" && -f "$BACKUP_PASSPHRASE_FILE" ]] \
+    || { echo "No passphrase file set in $LOCAL_ENV_FILE (BACKUP_PASSPHRASE_FILE), or it doesn't exist: an unattended" \
+              "backup cannot ask for the passphrase (see README, \"Backing up and restoring settings\")." >&2; false; }
 
 # Create the encrypted archive via archive-backup.sh; it prints the filename on stdout.
 ARCHIVE="$("$REPO_DIR/archive-backup.sh" | tail -1)"
