@@ -19,6 +19,10 @@ export OPENAI_API_KEY="none"
 
 # Voice, also only for a brand-new install: Whisper "small" on the CPU for dictation,
 # (services/voice_router.py), which picks the voice from the language when the voice is "auto".
+export AUDIO_TTS_ENGINE=openai
+export AUDIO_TTS_OPENAI_API_BASE_URL="http://127.0.0.1:8881/v1"
+export AUDIO_TTS_OPENAI_API_KEY="not-needed"
+export AUDIO_TTS_VOICE=auto
 export WHISPER_MODEL=small
 # Always applied (not saved in Open WebUI's settings): skip silence and noise before transcribing, so a clip with
 # no speech comes back empty instead of as made-up text ("Thank you", repeated characters, a wrong language).
@@ -38,28 +42,4 @@ export ENABLE_TAGS_GENERATION=false
 export ENABLE_FOLLOW_UP_GENERATION=false
 export ENABLE_AUTOCOMPLETE_GENERATION=false
 
-# --- Voice loader for browser compatibility ---
-# Voice fixes for every browser, served as Open WebUI's /static/loader.js
-# Voice mode still works without them, so a failure here doesn't stop Open WebUI.
-cat > "$KEY_DIR/loader.js" 2>/dev/null <<'LOADER_EOF' || true
-// Open WebUI voice loader — browser polyfills for MediaRecorder and AudioContext
-(function() {
-  if (!window.MediaRecorder) {
-    window.MediaRecorder = function(stream) {
-      var chunks = [];
-      return {
-        start: function() { stream.ondataavailable = function(e) { chunks.push(e.data); }; },
-        stop: function(cb) {
-          stream.ondataavailable = null;
-          setTimeout(function() { cb(new Blob(chunks, { type: 'audio/webm' })); }, 100);
-        }
-      };
-    };
-  }
-  if (!window.AudioContext) {
-    window.AudioContext = window.webkitAudioContext || function() {};
-  }
-})();
-LOADER_EOF
-
-echo "Open WebUI configured. Key stored in $KEY_DIR"
+export WEB_LOADER_ENGINE=playwright
