@@ -90,27 +90,85 @@ def table_alignments(sep_line: str) -> list[str]:
 
 
 def highlight_code(code: str, lang: str) -> str:
-    """Basic syntax highlighting for code blocks (pre-GFM prism.js era style)."""
-    if not lang:
-        lang = 'text'
-    keywords_py = {'def', 'class', 'import', 'from', 'return', 'if', 'else',
-                   'elif', 'for', 'while', 'try', 'except', 'with', 'as',
-                   'in', 'not', 'and', 'or', 'True', 'False', 'None',
-                   'raise', 'yield', 'lambda', 'pass', 'break', 'continue'}
-    keywords_js = {'function', 'const', 'let', 'var', 'return', 'if', 'else',
-                   'for', 'while', 'try', 'catch', 'new', 'this', 'class',
-                   'import', 'from', 'export', 'default', 'async', 'await'}
-    keywords = keywords_py if lang in ('python', 'py') else keywords_js
+    """Lightweight, zero-dependency syntax highlighting for bash, yaml, and jsonc."""
+    escaped = html.escape(code)
+    lang = (lang or "").lower()
+    if lang not in ("bash", "sh", "shell", "yaml", "yml", "jsonc", "json"):
+        return escaped
 
-    lines = code.split('\n')
-    result = []
-    for line in lines:
-        escaped = html.escape(line)
-        for kw in sorted(keywords, key=len, reverse=True):
-            pattern = r'\b(' + re.escape(kw) + r')\b'
-            escaped = re.sub(pattern, r'<span class="kw">\1</span>', escaped)
-        result.append(escaped)
-    return '\n'.join(result)
+    out_lines: list[str] = []
+    for line in escaped.splitlines():
+        if lang in ("bash", "sh", "shell"):
+            # Split trailing/full comments outside quotes
+            m_full = re.match(r"^(\s*)(#.*)$", line)
+            if m_full:
+                out_lines.append(f'{m_full.group(1)}<span class="tok-com">{m_full.group(2)}</span>')
+                continue
+            # Find comment starting with whitespace + #
+            parts = re.split(r"(\s+#.*)$", line, maxsplit=1)
+            body = parts[0]
+            comment = parts[1] if len(parts) > 1 else ""
+            # Highlight strings
+            body = re.sub(
+                r"(&quot;[^&]*?&quot;|&#x27;[^&]*?&#x27;)",
+                r'<span class="tok-str">\1</span>',
+                body,
+            )
+            # Highlight flags like --update, -f
+            body = re.sub(
+                r"(?<=\s)(--?[a-zA-Z0-9][a-zA-Z0-9_-]*)",
+                r'<span class="tok-flag">\1</span>',
+                body,
+            )
+            # Highlight leading command/script
+            body = re.sub(
+                r"^(\s*)(\./\S+|[a-zA-Z0-9_./-]+)",
+                r'\1<span class="tok-cmd">\2</span>',
+                body,
+                count=1,
+            )
+            if comment:
+                comment = f'<span class="tok-com">{comment}</span>'
+            out_lines.append(body + comment)
+        elif lang in ("yaml", "yml"):
+            m_full = re.match(r"^(\s*)(#.*)$", line)
+            if m_full:
+                out_lines.append(f'{m_full.group(1)}<span class="tok-com">{m_full.group(2)}</span>')
+                continue
+            m_kv = re.match(r"^(\s*)([a-zA-Z0-9_.-]+)(:)(\s*)(.*)$", line)
+            if m_kv:
+                indent, key, colon, sp, val = m_kv.groups()
+                if val:
+                    val = f'<span class="tok-str">{val}</span>'
+                out_lines.append(f'{indent}<span class="tok-key">{key}</span>{colon}{sp}{val}')
+            else:
+                out_lines.append(line)
+        elif lang in ("jsonc", "json"):
+            parts = re.split(r"(//.*)$", line, maxsplit=1)
+            body = parts[0]
+            comment = parts[1] if len(parts) > 1 else ""
+            # Highlight keys
+            body = re.sub(
+                r'(&quot;[^&]*?&quot;)\s*:',
+                r'<span class="tok-key">\1</span>:',
+                body,
+            )
+            # Highlight string values
+            body = re.sub(
+                r'(&quot;[^&]*?&quot;)',
+                r'<span class="tok-str">\1</span>',
+                body,
+            )
+            # Highlight numbers
+            body = re.sub(
+                r'\b(\d+\.?\d*)\b',
+                r'<span class="tok-num">\1</span>',
+                body,
+            )
+            if comment:
+                comment = f'<span class="tok-com">{comment}</span>'
+            out_lines.append(body + comment)
+    return '\n'.join(out_lines)
 
 
 class ReadmeConverter:
