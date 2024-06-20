@@ -82,6 +82,23 @@
       "current_info": ["neueste", "neuesten", "aktuell*", "derzeit", "zurzeit", "momentan", "gerade jetzt", "heute", "diese woche", "diesen monat", "dieses jahr", "auf dem neuesten stand", "preis von", "preise von", "preis für", "preise für", "was kostet", "wie viel kostet", "wechselkurs", "angebote für", "kürzlich"],
       "months": ["januar", "jänner", "februar", "märz", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "dezember"],
       "bot_check": ["wir überprüfen, ob sie ein mensch sind", "bestätigen sie, dass sie ein mensch sind", "überprüfung ihres browsers", "ihr browser wird überprüft", "zugriff verweigert", "ungewöhnlicher datenverkehr", "einen moment...", "sicherheitsüberprüfung wird durchgeführt"]
+    },
+    "it": {
+      "name": "Italian",
+      "please": ["per favore", "per piacere", "perfavore"],
+      "latest": ["ultima versione", "ultime versioni", "l'ultima", "l'ultimo", "più recent*", "recentemente", "recente", "recenti", "novità", "cosa c'è di nuovo", "aggiornato", "aggiornata", "attuale", "attualmente", "registro delle modifiche", "note di rilascio", "nuove funzionalità"],
+      "error": ["errore", "errori", "eccezione", "eccezioni", "fallisce", "fallito", "fallita", "non riesce", "si blocca", "crasha", "non funziona", "correggi", "correggere", "risolvi"],
+      "action_start": ["cerca", "cercare", "trova", "apri", "leggi", "vai su", "vai a", "visita", "scarica", "modifica", "consulta"],
+      "question_start": ["cosa", "che cosa", "perché", "quando", "dove", "chi è", "chi sono", "chi ha", "quale", "quali", "quanto", "quanti", "quanta", "quante", "puoi spiegare"],
+      "local_current": ["directory corrente", "directory attuale", "cartella corrente", "cartella attuale", "file corrente", "file attuale", "branch corrente", "ramo corrente", "directory di lavoro"],
+      "named_engine": ["cerca su {engine}", "cercare su {engine}", "cerca con {engine}", "cerca in {engine}", "ricerca su {engine}"],
+      "named_source": {"verbs": ["leggi", "leggere", "apri", "aprire", "trova", "trovare", "consulta"], "nouns": ["pagina", "articolo", "documentazione", "docs", "readme", "homepage", "sito ufficiale"], "phrases": ["secondo la", "secondo il", "secondo i", "secondo le", "stando a", "scheda del modello"]},
+      "lookup": ["cercalo", "cerca online", "cerca su internet", "non dalla memoria", "non a memoria", "non usare la memoria"],
+      "offer": ["vuoi che", "desideri che", "se desideri", "ti piacerebbe", "vorresti", "fammi sapere", "se vuoi", "posso aiutarti"],
+      "from_memory": ["conoscenza generale", "conoscenze generali", "a memoria", "so già", "senza ricerca web", "senza ricerche online"],
+      "current_info": ["ultima versione", "più recent*", "recentemente", "attualmente", "in questo momento", "oggi", "questa settimana", "questo mese", "quest'anno", "aggiornato", "prezzo attuale", "prezzi attuali", "prezzo di", "prezzi di", "quanto costa", "tasso di cambio", "offerte"],
+      "months": ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"],
+      "bot_check": ["verifica di essere un essere umano", "verifica che tu sia umano", "controllo del browser", "accesso negato", "traffico insolito", "un momento...", "verifica in corso"]
     }
   }
 }
