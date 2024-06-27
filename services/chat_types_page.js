@@ -10,10 +10,7 @@ function el(tag, attrs = {}, ...children) {
     else if (v === true) e.setAttribute(k, "");
     else if (v !== false && v != null) e.setAttribute(k, v);
   }
-  for (const c of children) {
-    if (typeof c === "string") e.appendChild(document.createTextNode(c));
-    else if (c) e.appendChild(c);
-  }
+  for (const c of children.flat()) if (c != null) e.append(c.nodeType ? c : document.createTextNode(String(c)));
   return e;
 }
 
@@ -29,10 +26,17 @@ async function api(path, body) {
 }
 
 async function load(selectId) {
-  state = await api("/chat-types");
+  const r = await api("/chat-types/data");
+  if (!r.ok) { $("error").replaceChildren(el("div", { class: "msg bad" }, r.data.error || "Can't load the chat types.")); return; }
+  $("error").replaceChildren(r.data.status_error
+    ? el("div", { class: "msg bad" }, `Open WebUI's side can't be read (${r.data.status_error}): the files show, without their presets' status. Saving still needs it.`)
+    : "");
+  state = r.data;
   drawList();
-  if (selectId) open(selectId);
-  else if (state && state.length) open(state[0].id);
+  const pick = selectId ?? (current && !isNew ? current : null);
+  if (pick && state.types.some((t) => t.id === pick)) open(pick);
+  if (state.job && (state.job.running || state.job.output)) showJob(state.job);
+  if (state.job && state.job.running) poll();
 }
 
 function drawList() {
