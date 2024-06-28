@@ -61,19 +61,11 @@ def _db_rows(db_path: str, sql: str, args=()) -> list:
 
 
 def _template() -> dict:
-    """Return a fresh chat-type template from example.json or defaults."""
-    if EXAMPLE.exists():
-        with open(EXAMPLE) as f:
-            return json.load(f)
-    return {
-        "name": "",
-        "description": "",
-        "system_prompt": "",
-        "allowed_sites": [],
-        "sources": [],
-        "patterns": [],
-        "allowed_patterns": [],
-    }
+    try:
+        data = json.loads(EXAMPLE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        data = {}
+    return {k: v for k, v in data.items() if not k.startswith("_")}
 
 
 MARKER_RE = re.compile(r"\[chat type: ([a-z0-9-]+)\]")
