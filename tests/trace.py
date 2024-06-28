@@ -70,104 +70,31 @@ def load(path: str) -> dict:
 
 
 def report(path: str, args) -> str:
-    """Build a Markdown report from a session file."""
-    data = load(path)
-    messages = data.get('messages', [])
-
-    # Gather tool calls and results
-    tool_calls = []
-    tool_counts = Counter()
-    reasoning_lines = 0
-    has_reasoning = False
-
-    for msg in messages:
-        role = msg.get('role', '')
-        content = text_of(msg.get('content', ''))
-
-        if role == 'assistant':
-            # Check for reasoning (hidden thinking blocks)
-            if 'thinking' in content.lower() or '<think>' in content:
-                has_reasoning = True
-                reasoning_lines += content.count('\n') + 1
-
-            # Extract tool calls from assistant message
-            tool_use = msg.get('tool_use', [])
-            for tc in tool_use:
-                name = tc.get('name', 'unknown')
-                arguments = tc.get('arguments', {})
-                if isinstance(arguments, dict):
-                    arg_str = json.dumps(arguments)
-                else:
-                    arg_str = str(arguments)
-                tool_calls.append({
-                    'name': name,
-                    'args': one_line(arg_str, ARG_CHARS),
-                    'content': content,
-                })
-                tool_counts[name] += 1
-
-        elif role == 'tool_result':
-            result_content = text_of(msg.get('content', ''))
-            # Match to previous tool call
-            for tc in reversed(tool_calls):
-                if tc.get('_pending'):
-                    tc['result'] = one_line(result_content, RESULT_CHARS)
-                    tc['_pending'] = False
-                    break
-
-    lines = []
-    lines.append('# Trace Report')
-    lines.append('')
-    lines.append(f'**Session:** `{os.path.basename(path)}`')
-    lines.append(f'**Reasoning:** {"ON" if has_reasoning else "OFF"}')
-    lines.append(f'**Tool calls:** {len(tool_calls)}')
-    lines.append('')
-
-    # Tool call details
-    if tool_calls:
-        lines.append('## Tool Calls')
-        lines.append('')
-        for i, tc in enumerate(tool_calls, 1):
-            lines.append(f'### {i}. `{tc["name"]}`')
-            lines.append('')
-            lines.append(f'**Arguments:** `{tc["args"]}`')
-            if 'result' in tc:
-                lines.append(f'**Result:** {one_line(tc["result"], 500)}')
-            lines.append('')
-
-    # Counts
-    if tool_counts:
-        lines.append('## Counts')
-        lines.append('')
-        for name, count in sorted(tool_counts.items()):
-            lines.append(f'- `{name}`: {count}')
-        lines.append('')
-
-    # Final answer
-    final_answer = ''
-    for msg in reversed(messages):
-        if msg.get('role') == 'assistant':
-            content = text_of(msg.get('content', ''))
-            # Skip if it's mostly tool calls or reasoning
-            if not msg.get('tool_use') and 'thinking' not in content.lower():
-                final_answer = content
-                break
-
-    if final_answer:
-        lines.append('## Final Answer')
-        lines.append('')
-        lines.append(one_line(final_answer, 2000))
-        lines.append('')
-
-    # Verdict
-    verdict = 'PASS'
-    if hasattr(args, 'expect') and args.expect:
-        if args.expect.lower() not in final_answer.lower():
-            verdict = 'FAIL'
-    lines.append(f'**Verdict:** {verdict}')
-    lines.append('')
-
-    return '\n'.join(lines)
+    run = load(path)
+    lines = [f"# {args.id or 'Test run'}", ""]
+    if args.prompt:
+        lines += [f"**Prompt:** {args.prompt}", ""]
+    if args.expect:
+        lines += [f"**Expected:** {args.expect}", ""]
+    lines += [
+        f"**Session:** `{path}`",
+        f"**Time:** {args.seconds or '?'} s · **Reasoning:** {'on' if run['thinking'] else 'off'} "
+        f"· **Tool calls:** {sum(run['tools'].values())} "
+        f"({', '.join(f'{n} ×{c}' for n, c in run['tools'].most_common()) or 'none'}) "
+        f"· **Errors/blocks:** {run['errors']}",
+        "",
+        "## Trace",
+        "",
+    ]
+    for kind, name, text in run["steps"]:
+        if kind == "call":
+            lines.append(f"- **{name}** `{one_line(text, ARG_CHARS)}`")
+        else:
+            lines.append(f"  - → {one_line(text, RESULT_CHARS)}")
+    if not run["steps"]:
+        lines.append("(no tool calls)")
+    lines += ["", "## Answer", "", run["answer"] or "(no answer)", "", "## Verdict", "", "- [ ] pass  - [ ] fail  — notes:", ""]
+    return "\n".join(lines)
 
 
 def summary(path: str, args) -> str:
