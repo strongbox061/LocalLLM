@@ -40,3 +40,15 @@ echo "--- Summary ---"
 echo "VRAM delta : ${vram_delta} MB"
 echo "Context    : ${CTX_LEN} tokens (${N_PROMPT} prompt / ${N_PREDICT} predict)"
 echo "GPU layers : $N_GLAYERS / 32"
+
+# Sanity checks
+if [ "$vram_delta" -lt 0 ] 2>/dev/null; then
+  echo "WARNING: negative VRAM delta — nvidia-smi may not be available"
+fi
+
+if [ "$N_GLAYERS" -gt 32 ]; then
+  echo "WARNING: $N_GLAYERS layers exceeds model size (32); some may fall back to CPU"
+fi
+
+echo ""
+echo "Benchmark complete."
