@@ -40,7 +40,6 @@ COMMON_CAPITALISED = set(
     "martes miércoles miercoles jueves viernes sábado sabado domingo january february march april may june july "
     "august september october november december monday tuesday wednesday thursday friday saturday sunday".split()
 )
-
 HONORIFIC_RE = re.compile(
     r"(?i)\b(?:señor|señora|sr|sra|srta|doctor|doctora|dr|dra|don|doña|mr|mrs|ms|miss|mister)\.?\s+"
     r"((?:[A-ZÁÉÍÓÚÑÜ][\wáéíóúñü'-]+\s*){1,4})"
@@ -157,7 +156,6 @@ def check_query(query: str, cfg: dict, chat_text: str = ""):
             pass
 
     # Always removed, even inside a reference: the chat type's own patterns, emails, addresses, phone numbers.
-
     for p in cfg.get("patterns") or []:
         regex = p.get("regex", "") if isinstance(p, dict) else str(p)
         name = p.get("name", "personal data") if isinstance(p, dict) else "personal data"
