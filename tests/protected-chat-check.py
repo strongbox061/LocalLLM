@@ -175,3 +175,44 @@ asked = user.asked[0]["data"]["message"] if user.asked else ""
 check("the box shows the exact query with the site filter, and what was removed",
       "Query: terminación acuerdo mantenimiento site:rules.example" in asked and "Ficticia" in asked.split("Removed")[-1], asked)
 check("the query in the box carries no personal data", "Ficticia" not in asked.split("Removed")[0], asked)
+
+tool = lookup_mod.Tools()
+order = []
+server = FakeServer([
+    {"url": "https://evil.example/rules.example/x", "title": "Elsewhere", "content": "x"},
+    {"url": "https://notrules.example/a", "title": "Lookalike", "content": "x"},
+    {"url": "https://www.rules.example/norma.html", "title": "Norma oficial", "content": "texto"},
+    {"url": "https://rules.example.evil.example/b", "title": "Lookalike 2", "content": "x"},
+])
+server.install(tool)
+orig_get = tool._get
+tool._get = lambda path, params: (order.append(path), orig_get(path, params))[1]
+user = FakeUser(True)
+user.call_orig = user.call
+
+
+async def call(event):
+    order.append("confirm")
+    return await user.call_orig(event)
+
+
+user.call = call
+out, _ = lookup(tool, "terminación acuerdo mantenimiento", user=user)
+check("approved: confirmation, then search, then reading", order == ["confirm", "/search", "/read"], order)
+check("the search carries the site filter", server.requests and server.requests[0][1]["q"].endswith("site:rules.example"),
+      server.requests[:1])
+check("results outside the allowed sites are dropped", "evil.example" not in out and "notrules" not in out
+      and "Lookalike" not in out and "Norma oficial" in out, out[:400])
+check("the best allowed page is the one read", server.requests[-1] == ("/read", {"url": "https://www.rules.example/norma.html"}),
+      server.requests[-1:])
+check("the page's text reaches the model, with its link", "Texto oficial" in out and "https://www.rules.example/norma.html" in out)
+tool = lookup_mod.Tools()
+server = FakeServer([{"url": "https://other.example/a", "title": "x", "content": "x"}])
+server.install(tool)
+out, _ = lookup(tool, "terminación acuerdo mantenimiento")
+check("only results elsewhere: nothing read, said so", [p for p, _ in server.requests] == ["/search"]
+      and "Nothing found" in out and "dropped" in out, out)
+check("subdomains count as the site, lookalikes don't",
+      lookup_mod.on_allowed_site("https://a.b.rules.example/x", ["rules.example"])
+      and not lookup_mod.on_allowed_site("https://rules.example.evil.example/", ["rules.example"])
+      and not lookup_mod.on_allowed_site("ftp://rules.example/", ["rules.example"]))
