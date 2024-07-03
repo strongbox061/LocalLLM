@@ -5,7 +5,7 @@
   "system_prompt": "You help with questions about the documents in this chat. Answer from the documents and the attached Knowledge base first, and quote the exact wording you rely on. Only when they don't answer the question, use the protected_lookup tool with a short query in general terms (the topic, the rule and its number), never with names, numbers or other details from the documents.",
   "_allowed_sites": "Domains a lookup may search and read; each one includes its subdomains (example.org also allows www.example.org).",
   "allowed_sites": ["example.org"],
-  "_sources": "Official pages downloaded into this chat type's Knowledge base by install/chat-types.sh --refresh-sources.",
+  "_sources": "Official pages downloaded into this chat type's Knowledge base by install/chat-types.sh --refresh-sources. A source with several urls is joined into one document, in that order; a url with {n:03} is a numbered series (page_001.html, page_002.html, ... until the first missing one).",
   "sources": [
     { "name": "Example rules", "urls": ["https://example.org/"] }
   ],
