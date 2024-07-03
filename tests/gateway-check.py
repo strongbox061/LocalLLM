@@ -94,34 +94,22 @@ async def _slow(query):
 
 
 def get(path, headers=None):
-    """Make a GET request to the gateway."""
-    url = f"http://127.0.0.1:{path['port']}{path['endpoint']}"
-    req = urllib.request.Request(url)
-    if headers:
-        for k, v in headers.items():
-            req.add_header(k, v)
+    req = urllib.request.Request(base + path, headers=headers or {})
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            return json.loads(resp.read().decode())
-    except Exception as e:
-        return {"error": str(e)}
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return r.status, json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        return e.code, json.loads(e.read() or b"{}")
 
 
 def post(path, data, headers=None, raw=None, ctype="application/json"):
-    """Make a POST request to the gateway."""
-    url = f"http://127.0.0.1:{path['port']}{path['endpoint']}"
     body = raw if raw is not None else json.dumps(data).encode()
-    req = urllib.request.Request(url, data=body, method="POST")
-    if headers:
-        for k, v in headers.items():
-            req.add_header(k, v)
-    if ctype:
-        req.add_header("Content-Type", ctype)
+    req = urllib.request.Request(base + path, data=body, method="POST", headers={"Content-Type": ctype, **(headers or {})})
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            return json.loads(resp.read().decode())
-    except Exception as e:
-        return {"error": str(e)}
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return r.status, json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        return e.code, json.loads(e.read() or b"{}")
 
 
 def concurrent_searches(data):
