@@ -107,13 +107,7 @@ a {
   font: 13px ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-.field input[type="text"]:focus,
-.field input[type="password"]:focus,
-.field input[type="number"]:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
-}
+
 
 .meta {
   font-size: 12px;
