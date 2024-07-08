@@ -55,17 +55,13 @@ def old_valves(webui_db: Path) -> dict:
 
 
 def write_settings(data: dict):
-    """Write migrated settings to the gateway's JSON config file."""
     SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    tmp_fd, tmp_path = tempfile.mkstemp(dir=SETTINGS_FILE.parent, suffix=".tmp")
-    try:
-        with os.fdopen(tmp_fd, "w") as f:
-            json.dump(data, f, indent=2)
-            f.write("\n")
-        os.replace(tmp_path, str(SETTINGS_FILE))
-    except BaseException:
-        os.unlink(tmp_path)
-        raise
+    fd, tmp = tempfile.mkstemp(dir=SETTINGS_FILE.parent, prefix=".search-gateway.", suffix=".json")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False, sort_keys=True)
+        f.write("\n")
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, SETTINGS_FILE)
 
 
 def migrate_settings(eng, webui_db: Path):
