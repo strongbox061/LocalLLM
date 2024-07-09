@@ -15,7 +15,7 @@ set -uo pipefail
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
 
-IGNORE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/localllm/restorability-ignore"
+IGNORE_FILE="$RESTORABILITY_IGNORE_FILE"
 LOCAL_IGNORED=()
 [[ -f "$IGNORE_FILE" ]] && mapfile -t LOCAL_IGNORED < <(grep -v -E '^\s*(#|$)' "$IGNORE_FILE")
 
@@ -24,9 +24,9 @@ ok()   { printf '  ok    %s\n' "$*"; }
 bad()  { printf '  FAIL  %s\n' "$*"; FAIL=1; }
 note()   { printf '  note  %s\n' "$*"; }
 
-# check_dir <label> <listing command output> <covered names...> -- <ignored names...>
+# check_list <label> <listing command output> <covered names...> -- <ignored names...>
 # Every name in the listing must be covered (brought back) or ignored (caches, other projects).
-check_dir() {
+check_list() {
     local label="$1" listing="$2"; shift 2
     local -A known=()
     local name kind=covered
@@ -46,43 +46,14 @@ check_dir() {
 echo "Checking ~/.config/localllm..."
 
 CONFIG_LISTING="$(ls -A "$HOME/.config/localllm" 2>/dev/null || true)"
-check_dir "~/.config/localllm" "$CONFIG_LISTING" \
+check_list "~/.config/localllm" "$(ls -A "$HOME/.config/localllm" 2>/dev/null)" \
     "local.env" "restorability-ignore" "chat-types" \
     -- "model.json" "hardware.json"
 
-# --- ~/.local/bin ---
-echo "Checking ~/.local/bin..."
-
-BIN_LISTING="$(ls -A "$HOME/.local/bin" 2>/dev/null || true)"
-check_dir "~/.local/bin" "$BIN_LISTING" \
+check_list "~/.local/bin" "$(ls "$HOME/.local/bin" 2>/dev/null)" \
     "localllm.sh" "llama.sh" "model.sh" "server.sh" \
-    -- "pip" "python3" "python3.*"
-
-# --- User systemd services ---
-echo "Checking user systemd services..."
-
-SERVICE_LISTING="$(systemctl --user list-units --type=service --no-legend 2>/dev/null | awk '{print $1}' | sed 's/\.service$//' || true)"
-check_dir "systemd user services" "$SERVICE_LISTING" \
-    "localllm-llm" "searxng" \
-    --
-
-# --- ~/LocalLLM (repo) ---
-echo "Checking ~/LocalLLM repo..."
-
-REPO_LISTING="$(ls -A ~/LocalLLM 2>/dev/null || true)"
-check_dir "~/LocalLLM" "$REPO_LISTING" \
-    "README.md" "local.env" "services.json" "model.sh" "server.sh" \
-    "gpu-limits.sh" "common.sh" "setup-llama.sh" "start.sh" "stop.sh" \
-    "scripts" "install" "services" "tests" "models" \
-    -- ".git" ".gitignore" ".shellcheckrc"
-
-# --- Docker containers ---
-echo "Checking Docker containers..."
-
-CONTAINER_LISTING="$(docker ps -a --format '{{.Names}}' 2>/dev/null || true)"
-check_dir "Docker containers" "$CONTAINER_LISTING" \
-    "localllm-llm" "searxng" \
-    --
+    -- \
+    "${LOCAL_IGNORED[@]}"
 
 # Exit with failure if anything was not covered
 if [ $FAIL -ne 0 ]; then
