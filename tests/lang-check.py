@@ -9,7 +9,7 @@ Run by tests/guard-tests.mjs (which checks Pi's side of the same sentences); no 
   - the tool: current_info and bot_check sentences match, months with a year are dropped from a query, and the
     ordinary sentences match neither;
   - collisions: each language's phrases, one by one, against the other languages' ordinary sentences.
-
+The tool imports aiohttp and pydantic, which only Open WebUI has; small stand-ins are used here.
 """
 
 import importlib.util
