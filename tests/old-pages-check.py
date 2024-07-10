@@ -62,7 +62,7 @@ def answer(question, pages, searches=1, page_chars=20000):
     out = [{"role": "user", "content": question}]
     for i in range(searches):
         cid, m = call("web_search", query=f"{question} {i}")
-        out += [m, {"role": "tool", "tool_call_id": cid, "content": f"1. Result\n   https://r.example\n   {'s' * 1400}"}]
+        out += [m, {"role": "tool", "tool_call_id": cid, "content": "1. Result\n   https://r.example\n   " + "s" * 1400}]
     for url in pages:
         cid, m = call("read_page", url=url)
         out += [m, {"role": "tool", "tool_call_id": cid, "content": f"{url}\n{'p' * page_chars}"}]
