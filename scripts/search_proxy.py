@@ -80,31 +80,34 @@ REQUEST_TIMEOUT = 300  # seconds a search, page read or tool call may take in al
 LEAD_BANGS_RE = re.compile(r"^(?:!!?[\w.-]+\s+)+")
 
 
-def _load_settings():
-    """Load settings from JSON file, return dict with defaults."""
-    defaults = {
-        "services": ["searxng"],
-        "searxng_url": "http://localhost:8888",
-        "timeout": 30,
-        "max_results": 10,
-        "api_keys": {},
-    }
-    if not os.path.exists(SETTINGS_FILE):
-        return defaults
+TIME_RANGES = {"day", "week", "month", "year"}
+TOOL_METHODS = ("web_search", "plan_research", "read_page")
+# Settings shown as "set / not set", never sent back to the page.
+SECRET_RE = re.compile(r"(?:api_key|token|secret|password)$")
+LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
+
+_build_lock = threading.Lock()
+_loaded = {"key": None, "tool": None, "module": None}
+LOOP = asyncio.new_event_loop()
+
+
+def log(text: str):
+    print(f"[search-gateway] {text}", flush=True)
+
+
+def run(coro, timeout: float = REQUEST_TIMEOUT):
+    """Runs a coroutine on the gateway's event loop (from a request's thread) and waits for its result."""
+    future = asyncio.run_coroutine_threadsafe(coro, LOOP)
     try:
-        with open(SETTINGS_FILE, "r") as f:
-            user = json.load(f)
-        defaults.update(user)
-    except (json.JSONDecodeError, OSError):
-        pass
-    return defaults
+        return future.result(timeout)
+    except concurrent.futures.TimeoutError:
+        future.cancel()
+        raise TimeoutError(f"took longer than {timeout} s")
 
 
-def _save_settings(settings):
-    """Save settings dict to JSON file."""
-    os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
-    with open(SETTINGS_FILE, "w") as f:
-        json.dump(settings, f, indent=2)
+async def _call(fn, *args):
+    """A plain function run on the event loop, so it sees the engine's state as the searches do."""
+    return fn(*args)
 
 
 def _strip_bangs(query):
