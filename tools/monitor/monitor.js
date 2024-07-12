@@ -329,25 +329,45 @@ function renderMachineCard(machineKey, title, machine, isHelper, setup) {
     occupiedText: ramOccupied, detailText: ramDetail,
   }));
 
-  // GPU info
-  if (machine.gpu && machine.gpu.length > 0) {
-    for (const gpu of machine.gpu) {
-      cards.push(h("div", { class: "machine-section" },
-        h("h4", null, "GPU: " + gpu.name),
-        h("div", { class: "gpu-info" },
-          h("span", null, "Temp: " + gpu.temp + "°C"),
-          h("span", null, "Util: " + fmtPct(gpu.util)),
-          h("span", null, "VRAM: " + gpu.mem_used.toFixed(0) + " / " + gpu.mem_total.toFixed(0) + " MB"),
-        ),
-      ));
-    }
-  }
+  // GPUs
+  const gpus = Array.isArray(machine.gpus) ? machine.gpus : [];
+  if (gpus.length > 0) {
+    gpus.forEach((gpu, idx) => {
+      const prefix = gpus.length > 1 ? `GPU ${idx} ` : "GPU ";
+      const vramCap = fmtCapacityGB(gpu.mem_total_mib);
+      const gpuHeader = vramCap ? `${gpu.name || "GPU"} · ${vramCap}` : (gpu.name || "GPU");
+      const tempSpec = gpu.temp_c !== null && gpu.temp_c !== undefined ? `${gpu.temp_c}°C` : "";
 
-  // Process list button
-  cards.push(h("div", { class: "machine-section" },
-    h("h4", null, "Top Processes"),
-    h("button", { type: "button", class: "proc-btn", "data-machine": machineKey }, "View processes"),
-  ));
+      const vramOccupied = fmtMem(gpu.mem_used_mib);
+      const vramDetail = gpu.mem_total_mib
+        ? `${Math.round(gpu.mem_used_mib || 0).toLocaleString()} MB of ${Math.round(gpu.mem_total_mib).toLocaleString()} MB (${fmtPct(gpu.mem_percent)})`
+        : "Unavailable";
+      cards.push(pieCard({
+        machineKey, machineTitle: title, component: "gpu_vram", kind: prefix + "VRAM",
+        deviceName: gpuHeader, specLine: tempSpec, percent: gpu.mem_percent,
+        occupiedText: vramOccupied, detailText: vramDetail,
+      }));
+
+      const loadOccupied = fmtPct(gpu.util_percent);
+      const loadDetail = tempSpec ? `Compute load · ${tempSpec}` : "Compute load";
+      cards.push(pieCard({
+        machineKey, machineTitle: title, component: "gpu_load", kind: prefix + "Load",
+        deviceName: gpuHeader, specLine: "", percent: gpu.util_percent,
+        occupiedText: loadOccupied, detailText: loadDetail,
+      }));
+    });
+  } else {
+    cards.push(pieCard({
+      machineKey, machineTitle: title, component: "gpu_vram", kind: "GPU VRAM",
+      deviceName: "No GPU detected", specLine: "", percent: null,
+      occupiedText: "–", detailText: machine.gpu_error || "Unavailable",
+    }));
+    cards.push(pieCard({
+      machineKey, machineTitle: title, component: "gpu_load", kind: "GPU Load",
+      deviceName: "No GPU detected", specLine: "", percent: null,
+      occupiedText: "–", detailText: machine.gpu_error || "Unavailable",
+    }));
+  }
 
   return h("article", { class: "machine" },
     head,
