@@ -53,8 +53,8 @@ YEAR_WITH_MONTH_RE = re.compile(rf"\b(?:(?:{MONTHS})\.?\s+(?:de\s+)?)?((?:19|20)
 YEAR_RE = re.compile(r"\b(?:19|20)\d{{2}}\b")
 
 def wants_current_info(text):
-    """Check if the query seems to want current/recent information."""
-    return bool(LANG_CURRENT_INFO_RE.search(text))
+    """Words in any language that mean the user wants current information ("latest version", "precio actual")."""
+    return bool(LANG_CURRENT_INFO_RE.search(lang_norm(text)))
 
 # Empty searches in a row before the tool says that search is down.
 MAX_EMPTY_SEARCHES = 2
