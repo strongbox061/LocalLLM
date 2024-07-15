@@ -85,12 +85,22 @@ check("8 threads x 50 updates at once: all 400 counted", n == 400, n)
 check("WAL mode: reading never waits for a search's write", mode == "wal", mode)
 check("only you can read it (0600)", oct(os.stat(tmp / "state.db").st_mode & 0o777) == "0o600")
 
-# ---------------------------------------------------------------- searches side by side, through the real server
+print("Searches at the same time")
 # Settings: no services but a stand-in SearXNG, which takes 1 second per search.
+srv.write_settings({"you_mcp_url": "", "searxng_url": "http://stand-in.invalid/search", "cache_hours": 0})
+tool = srv._tool()
+type(tool)._searxng = lambda self, session, query, time_range: _slow(query)
+
+
 async def _slow(query):
-    """Simulate a slow search service that takes 1 second."""
-    await asyncio.sleep(1)
-    return {"results": [{"title": f"Result for {query}"}]}
+    await asyncio.sleep(1.0)
+    return [{"url": f"https://example.com/{query.replace(' ', '-')}", "title": query, "snippet": "s"}]
+
+
+server = ThreadingHTTPServer(("127.0.0.1", 0), srv.Handler)
+server.daemon_threads = True
+threading.Thread(target=server.serve_forever, daemon=True).start()
+base = f"http://127.0.0.1:{server.server_address[1]}"
 
 
 def get(path, headers=None):
@@ -112,41 +122,19 @@ def post(path, data, headers=None, raw=None, ctype="application/json"):
         return e.code, json.loads(e.read() or b"{}")
 
 
-def concurrent_searches(data):
-    """Test that searches at the same time run side by side."""
-    port = data["port"]
-    results = []
-    errors = []
-
-    def search(query):
-        try:
-            start = time.time()
-            resp = get({"port": port, "endpoint": f"/search?q={query}"})
-            elapsed = time.time() - start
-            if "error" in resp:
-                errors.append(resp["error"])
-            else:
-                results.append(elapsed)
-        except Exception as e:
-            errors.append(str(e))
-
-    workers = []
-    for i in range(4):
-        w = threading.Thread(target=search, args=(f"query{i}",))
-        workers.append(w)
-
-    for w in workers:
-        w.start()
-    for w in workers:
-        w.join()
-
-    if not results:
-        return check("concurrent searches: four 1s searches ~1s total", False, "no results")
-
-    total = max(results)
-    ok = total < 3.0  # should be ~1s, not ~4s
-    detail = f"max elapsed: {total:.2f}s" if not ok else f"max elapsed: {total:.2f}s"
-    return check("concurrent searches: four 1s searches ~1s total", ok, detail)
+results = {}
+started = time.time()
+apps = ["Pi", "Open WebUI", "Pi", "Protected Lookup"]
+workers = [threading.Thread(target=lambda i=i: results.__setitem__(i, get(f"/search?q=query+{i}&app={apps[i].replace(' ', '+')}")))
+           for i in range(4)]
+[w.start() for w in workers]
+[w.join() for w in workers]
+took = time.time() - started
+check("four 1-second searches at once take about 1 second (not 4)", took < 2.5, f"{took:.1f} s")
+check("each got its own results", all(results[i][1]["results"][0]["url"].endswith(f"query-{i}") for i in range(4)),
+      [results[i][1].get("results") for i in range(4)])
+apps_logged = sorted(e.get("app") for e in eng.read_log(started - 1))
+check("the log names each app", apps_logged == sorted(apps), apps_logged)
 
 
 # A tool call from Open WebUI and a Pi search at the same time.
