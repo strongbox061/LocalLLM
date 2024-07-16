@@ -319,13 +319,6 @@ class Tools:
         reference numbers, addresses, amounts or other details from the user's messages or documents in it.
         :param query: A short search query in general terms, e.g. "safety rule 12 latest version".
         """
-        if not isinstance(query, str) or not query.strip():
-            return "Lookup refused: the query is empty. Ask with general terms only (the topic, the rule or reference)."
-        if len(query) > 500:
-            return (
-                "Lookup refused: the query is too long (over 500 characters). Write a short query with general terms "
-                "only — the topic and its reference number, without names, numbers or details from documents."
-            )
         cfg = await self._chat_type(__metadata__, __model__)
         sites = clean_sites(cfg.get("allowed_sites"))
         if not sites:

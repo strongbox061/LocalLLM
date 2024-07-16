@@ -10,7 +10,6 @@ import time
 
 from pydantic import BaseModel, Field
 
-
 TIMER_LINE_RE = re.compile(r"\n*\*⏱ Answered in [^*\n]*\*\s*$")
 
 
