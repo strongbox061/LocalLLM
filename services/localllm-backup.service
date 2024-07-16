@@ -1,4 +1,5 @@
 # Encrypted backup of backup/ to the rclone remote. Started by localllm-backup.timer.
+# install/backup-timer.sh fills in @REPO_DIR@ and installs it as ~/.config/systemd/user/localllm-backup.service.
 
 [Unit]
 Description=LocalLLM encrypted off-site backup
