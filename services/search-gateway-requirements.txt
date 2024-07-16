@@ -1,4 +1,5 @@
-# Search gateway Python dependencies.
+# The search gateway's own Python environment (install/search-gateway.sh makes it with uv). Pinned to versions known
+# to work; playwright's version decides which Chromium build it downloads (into ~/.cache/ms-playwright).
 aiohttp==3.14.5
 pydantic==2.6.4
 playwright==1.42.0
