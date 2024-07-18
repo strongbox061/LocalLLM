@@ -18,6 +18,8 @@ import sys
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from sync import token  # noqa: E402  (the same admin login as sync.py)
 
 FAILED = 0
@@ -40,24 +42,25 @@ def call(base, args, method, path, body=None):
 
 
 def update(base, args, label, get_path, post_path, change, partial=False):
-    """Fetch current settings, apply *change*, and POST back if anything shifted."""
-    current = call(base, args, "GET", get_path)
-    if current is None:
-        return False
-    # flatten nested dicts that Open WebUI returns
-    flat = {}
-    for item in current.get("data", current):
-        key = item.get("key") or item.get("name")
-        val = item.get("value", item.get("val"))
-        if key is not None:
-            flat[key] = val
-    before = dict(flat)
-    change(flat, before)
-    if flat == before and not partial:
-        return True
-    payload = [{"key": k, "value": v} for k, v in flat.items()]
-    call(base, args, "POST", post_path, body={"data": payload})
-    return True
+    """Reads a settings group, applies change(current) -> wanted values, and writes it back when something differs."""
+    global FAILED
+    status, current = call(base, args, "GET", get_path)
+    if status != 200:
+        print(f"  FAILED   {label}: can't read ({status})")
+        FAILED += 1
+        return
+    wanted = change(json.loads(json.dumps(current)))
+    diff = {k: v for k, v in wanted.items() if current.get(k) != v}
+    if not diff:
+        print(f"  same     {label}")
+        return
+    body = diff if partial else {**current, **wanted}
+    status, result = call(base, args, "POST", post_path, body)
+    if status == 200:
+        print(f"  updated  {label}: {', '.join(sorted(diff))}")
+    else:
+        print(f"  FAILED   {label}: {status} {(result or {}).get('detail', '')}")
+        FAILED += 1
 
 
 # Images are made the way the checkpoint's own examples are: a portrait-shaped first pass, then a second pass on the

@@ -53,18 +53,21 @@ def header(content: str, field: str) -> str:
 
 
 def token(db_path: str, key_path: str) -> str:
-    """Build a JWT token from the Open WebUI database secret and the admin key."""
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute("SELECT secret_key FROM info LIMIT 1")
-    secret = cursor.fetchone()[0]
-    conn.close()
-
-    with open(key_path, 'r') as f:
-        private_key = f.read()
-
-    payload = {"sub": "admin@email.com", "role": "admin"}
-    return jwt.encode(payload, private_key, algorithm="RS256")
+    con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=10)
+    try:
+        row = con.execute(
+            "SELECT user.id, auth.session_stamp FROM user JOIN auth ON auth.id = user.id "
+            "WHERE user.role = 'admin' ORDER BY user.created_at LIMIT 1"
+        ).fetchone()
+    finally:
+        con.close()
+    if not row:
+        sys.exit("ERROR: no admin user in Open WebUI's database.")
+    user_id, stamp = row
+    secret = Path(key_path).read_text(encoding="utf-8").strip()
+    now = int(time.time())
+    payload = {"id": user_id, "typ": "automation", "session_stamp": stamp, "iat": now, "exp": now + 60}
+    return jwt.encode(payload, secret, algorithm="HS256")
 
 
 def call(base: str, auth: str, method: str, path: str, body: dict | None = None, timeout: int = 120):
