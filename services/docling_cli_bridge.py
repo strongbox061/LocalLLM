@@ -12,7 +12,12 @@ def process_document(input_path: str, output_dir: str) -> None:
 
     converter = DocumentConverter()
     source = Path(input_path)
-    result = converter.convert(str(source))
+
+    try:
+        result = converter.convert(str(source))
+    except Exception as exc:
+        print(f"Error converting {source}: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
