@@ -16,7 +16,7 @@ is overwritten on the next run; a preset whose file is gone is reported, not del
   --only <id>        only that chat type (with or without --refresh-sources)
   --remove <id>      delete the preset chat-<id> and its Knowledge base (not the file)
 
-Usage: python chat_profiles.py <Open WebUI URL> <webui.db> <.webui_secret_key> <model.json> <chat profiles dir> [options]
+Usage: python chat_types.py <Open WebUI URL> <webui.db> <.webui_secret_key> <model.json> <chat types dir> [options]
 """
 
 import datetime
@@ -114,48 +114,45 @@ def load_chat_type(path: Path) -> tuple[dict, list]:
 
 
 def preset_id(ct: dict) -> str:
-    """Return the Open WebUI preset ID from a chat type dict."""
     return f"chat-{ct['id']}"
 
 
 def knowledge_marker(ct: dict) -> str:
-    """Return the knowledge base name suffix for this chat type's sources."""
-    return f"{ct.get('name', ct['id'])} - sources"
+    return f"[chat type: {ct['id']}]"
 
 
 def build_preset(ct: dict, alias: str, user_ids: list, knowledge: dict | None) -> dict:
-    """Build the Open WebUI preset dict from a chat type definition."""
-    capabilities = dict(CAPABILITIES)
-
-    preset = {
-        "name": f"chat-{ct['id']}",
-        "model": alias,
-        "description": DESCRIPTION_NOTE,
-        "prompt": ct.get("system_prompt", ""),
-        "prefix_prompt": "",
-        "suffix_prompt": "",
-        "images": capabilities["file_upload"],
-        "citations": capabilities["citations"],
-        "vision": capabilities["vision"],
-        "web_search": capabilities["web_search"],
-        "image_generation": capabilities["image_generation"],
-        "code_interpreter": capabilities["code_interpreter"],
-        "memory": capabilities["memory"],
-        "terminal": capabilities["terminal"],
-        "tools": {k: v for k, v in BUILTIN_TOOLS.items() if v},
-        "metadata": {
-            "protected_chat": {
-                "user_ids": user_ids,
-                "allowed_sites": ct.get("allowed_sites", []),
-                "patterns": ct.get("patterns", []),
-            }
+    sites = ct["allowed_sites"]
+    meta = {
+        "description": ((ct.get("description") or "").strip() + DESCRIPTION_NOTE).strip(),
+        "suggestion_prompts": [{"content": p, "title": ["", ""]} for p in ct.get("starter_prompts") or []] or None,
+        "capabilities": dict(CAPABILITIES),
+        "builtinTools": dict(BUILTIN_TOOLS),
+        "toolIds": [TOOL_ID],
+        "filterIds": [FILTER_ID],
+        "defaultFeatureIds": [],
+        "tags": [{"name": "protected"}],
+        META_KEY: {
+            "chat_type": ct["id"],
+            "allowed_sites": sites,
+            "patterns": ct.get("patterns") or [],
+            "allowed_patterns": ct.get("allowed_patterns") or [],
+            "allowed_terms": ct.get("allowed_terms") or [],
+            "reference_words": ct.get("reference_words") or [],
         },
     }
-
     if knowledge:
-        preset["knowledge"] = knowledge
-
-    return preset
+        meta["knowledge"] = [{"id": knowledge["id"], "name": knowledge["name"],
+                              "description": knowledge.get("description", ""), "type": "collection"}]
+    return {
+        "id": preset_id(ct),
+        "base_model_id": alias,
+        "name": ct["name"].strip(),
+        "meta": meta,
+        "params": {"system": ct["system_prompt"].strip() + PROMPT_NOTE.format(sites=", ".join(sites))},
+        "access_grants": [{"principal_type": "user", "principal_id": u, "permission": "read"} for u in user_ids],
+        "is_active": True,
+    }
 
 
 def grants_of(model: dict) -> list:
