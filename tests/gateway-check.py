@@ -85,6 +85,7 @@ check("8 threads x 50 updates at once: all 400 counted", n == 400, n)
 check("WAL mode: reading never waits for a search's write", mode == "wal", mode)
 check("only you can read it (0600)", oct(os.stat(tmp / "state.db").st_mode & 0o777) == "0o600")
 
+# ---------------------------------------------------------------- searches side by side, through the real server
 print("Searches at the same time")
 # Settings: no services but a stand-in SearXNG, which takes 1 second per search.
 srv.write_settings({"you_mcp_url": "", "searxng_url": "http://stand-in.invalid/search", "cache_hours": 0})
