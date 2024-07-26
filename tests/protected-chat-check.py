@@ -62,7 +62,6 @@ CFG = {
     "allowed_patterns": [{"name": "rule code", "regex": r"\bR-\d{3,4}\b"}],
     "allowed_terms": ["Boletín", "Reglamento", "Técnico"],
 }
-
 DOCUMENT = (
     "ACUERDO DE SERVICIO\n"
     "Entre los suscritos Fulana Ficticia Ejemplar, identificada con documento 1.111.111.111, y el señor Mengano "
