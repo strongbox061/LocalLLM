@@ -37,14 +37,20 @@ load_model_profile() {
     # shellcheck source=/dev/null
     source "$file"
     MODEL_PROFILE="$name"
+    MODEL_PROFILE_FILE="$file"
 
     local problems=() v
     for v in MODEL_NAME MODEL_REPO MODEL_FILE; do
         [[ -n "${!v}" ]] || problems+=("$v is empty")
     done
-    for v in CTX_PER_SLOT SLOTS MAX_TOKENS; do
+    for v in CTX_PER_SLOT SLOTS MAX_TOKENS CACHE_RAM_MIB; do
         [[ "${!v}" =~ ^[1-9][0-9]*$ ]] || problems+=("$v must be a number")
     done
+    case "$REASONING" in
+        qwen-template | none) ;;
+        reasoning-effort) REASONING_OFF_EFFORT="${REASONING_OFF_EFFORT:-low}" ;;
+        *) problems+=("REASONING must be qwen-template, reasoning-effort or none") ;;
+    esac
     if [[ ${#problems[@]} -gt 0 ]]; then
         printf 'ERROR: model profile %s: %s\n' "$file" "${problems[@]}" >&2
         return 1
