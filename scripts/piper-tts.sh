@@ -41,9 +41,7 @@ else
   INPUT_TEXT="$*"
 fi
 
-[[ -z "${INPUT_TEXT}" ]] && usage
-
-INPUT_TEXT="$*"
+  [[ -z "${INPUT_TEXT}" ]] && usage
 mkdir -p "$OUTPUT_DIR"
 
 if [[ -z "${OUTPUT_FILE}" ]]; then
