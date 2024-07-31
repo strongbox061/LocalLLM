@@ -82,22 +82,7 @@
       "bot_check": ["Accesso negato"],
       "none": ["Mia sorella ha comprato una bicicletta rossa ieri.", "Il giardino è molto bello in primavera."]
     },
-    "ja": {
-      "latest": ["最新のViteの新機能は何ですか"],
-      "error": ["ビルドが奇妙なメッセージで失敗します"],
-      "question_start": ["Viteでプロキシを設定するにはどうすればよいですか"],
-      "local_current": ["現在のディレクトリのファイルをリストアップ"],
-      "lookup": "記憶ではなく検索してください",
-      "none": "レポートには実際の数値が必要です。"
-    },
-    "zh": {
-      "latest": ["Vite 最新版本有什么新功能"],
-      "error": ["我的构建因奇怪的错误而失败"],
-      "question_start": ["如何在 Vite 中配置代理"],
-      "local_current": ["列出当前目录中的文件"],
-      "lookup": "请去查找，不要凭记忆",
-      "none": "我需要报告的实际数据。"
-    },
+
     "pt": {
       "latest": ["Quais são as novidades da última versão do Vite"],
       "error": ["O programa travou ao iniciar"],
