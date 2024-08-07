@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Serve LLaMA-7B / Vicuna-7B GGML models via llama.cpp (main binary)
-# Renamed from server.sh for clarity; relocated to scripts/ for organization.
+# Renamed from server.sh for clarity; moved to services/ alongside other service scripts.
 # This PC only, in both modes; in split mode `tailscale serve` passes the helper PC's requests on (see below).
 
 set -euo pipefail
