@@ -138,54 +138,18 @@ apps_logged = sorted(e.get("app") for e in eng.read_log(started - 1))
 check("the log names each app", apps_logged == sorted(apps), apps_logged)
 
 
-# A tool call from Open WebUI and a Pi search at the same time.
-def mixed_concurrency(data):
-    """Test that different client types can search concurrently."""
-    port = data["port"]
-    results = {"webui": None, "pi": None}
-    errors = []
-
-    def webui_search():
-        try:
-            start = time.time()
-            resp = post({
-                "port": port,
-                "endpoint": "/api/tool/call"
-            }, {
-                "tool": "search",
-                "arguments": {"query": "webui test"}
-            }, headers={"X-WebUI-Key": "test-key"})
-            elapsed = time.time() - start
-            results["webui"] = elapsed
-        except Exception as e:
-            errors.append(f"webui: {e}")
-
-    def pi_search():
-        try:
-            start = time.time()
-            resp = get({
-                "port": port,
-                "endpoint": "/search?q=pi+test"
-            }, headers={"X-Pi-Key": "pi-key"})
-            elapsed = time.time() - start
-            results["pi"] = elapsed
-        except Exception as e:
-            errors.append(f"pi: {e}")
-
-    w1 = threading.Thread(target=webui_search)
-    w2 = threading.Thread(target=pi_search)
-    for w in (w1, w2):
-        w.start()
-    for w in (w1, w2):
-        w.join()
-
-    if errors:
-        return check("mixed concurrency: webui + pi at same time", False, "; ".join(errors))
-
-    max_elapsed = max(results["webui"], results["pi"])
-    ok = max_elapsed < 3.0
-    detail = f"max elapsed: {max_elapsed:.2f}s" if not ok else ""
-    return check("mixed concurrency: webui + pi at same time", ok, detail)
+both = {}
+started = time.time()
+w1 = threading.Thread(target=lambda: both.__setitem__("owui", post("/tool/web_search", {
+    "args": {"query": "owui words"}, "metadata": {"message_id": "m1", "chat_id": "c1"}, "user_text": "owui words?"})))
+w2 = threading.Thread(target=lambda: both.__setitem__("pi", get("/search?q=pi+words")))
+[w.start() for w in (w1, w2)]
+[w.join() for w in (w1, w2)]
+check("Open WebUI's tool call and Pi's search run side by side", time.time() - started < 2.0, f"{time.time() - started:.1f} s")
+status, data = both["owui"]
+check("tool call: the result text and the status events", status == 200 and "owui-words" in data["result"]
+      and any(e["type"] == "status" for e in data["events"]), data)
+check("tool call: an unknown function is refused", post("/tool/rm_rf", {})[0] == 404)
 
 
 # ---------------------------------------------------------------- in-flight searches and allowances
