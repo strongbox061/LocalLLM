@@ -201,52 +201,6 @@ if ($smi) {
 """.strip()
 
 
-def friendly_process_name(raw_name: str, cmdline: str = "") -> str:
-    """Turn a raw process name + command line into a user-friendly program/model label."""
-    raw = (raw_name or "").strip()
-    cmd = (cmdline or "").strip()
-    low_raw = raw.lower()
-    low_cmd = cmd.lower()
-
-    # llama-server: extract the GGUF model filename if present (-m / --model)
-    if "llama-server" in low_raw or "llama-server" in low_cmd:
-        m = re.search(r"(?:-m|--model)\s+['\"]?([^'\"\s]+)", cmd)
-        if m:
-            model_file = Path(m.group(1).replace("\\", "/")).name
-            model_stem = re.sub(r"\.gguf$", "", model_file, flags=re.IGNORECASE)
-            return f"llama-server ({model_stem})"
-        return "llama-server"
-
-    # LocalLLM stack services
-    if "open-webui" in low_cmd or "open_webui" in low_cmd:
-        return "Open WebUI"
-    if "whisper_server.py" in low_cmd:
-        return "Whisper STT"
-    if "voice_router.py" in low_cmd:
-        return "Voice Router"
-    if "search_gateway.py" in low_cmd:
-        return "Search Gateway"
-    if "comfyui" in low_cmd or ("main.py" in low_cmd and "--listen" in low_cmd):
-        return "ComfyUI"
-    if "searxng" in low_cmd or "searx" in low_cmd:
-        return "SearXNG"
-    if "monitor.py" in low_cmd:
-        return "LocalLLM Monitor"
-    if "chat_types_server.py" in low_cmd:
-        return "Chat Types Server"
-
-    base = re.sub(r"\.exe$", "", raw, flags=re.IGNORECASE).strip()
-    low_base = base.lower()
-
-    # Well-known desktop/system apps
-    known = {
-        "brave": "Brave Browser",
-    }
-    if low_base in known:
-        return known[low_base]
-
-    return raw or "Process"
-
 
 def _to_float(value) -> float | None:
     if value is None or isinstance(value, bool):
