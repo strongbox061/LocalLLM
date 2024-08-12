@@ -217,7 +217,7 @@ class Tools:
             default="http://127.0.0.1:8090",
             description="The local search gateway (install/search-gateway.sh), which searches with Search Gateway's services and reads pages.",
         )
-        max_results: int = Field(default=5, description="Results on the allowed sites listed for the model.")
+        max_results: int = Field(default=5, ge=1, le=20, description="Results on the allowed sites listed for the model.")
         max_page_chars: int = Field(default=12000, description="Characters of the best page given to the model.")
         timeout_seconds: int = Field(default=90, description="Wait at most this long for a search or a page.")
 
