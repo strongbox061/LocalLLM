@@ -1,5 +1,5 @@
 """
-services/search_proxy_migrate.py: moves a setup from before the search gateway had its own settings and database
+search_gateway_migrate.py: moves a setup from before the search gateway had its own settings and database
 (run by install/search-gateway.sh with the gateway's Python; safe to run again: what's done already is skipped).
 
   1. Settings: when ~/.config/localllm/search-gateway.json doesn't exist yet, the old Open WebUI tool's Valves (API keys,
@@ -19,9 +19,7 @@ import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-SETTINGS_FILE = Path(os.path.expanduser(
-    os.environ.get("SEARCH_GATEWAY_SETTINGS", "~/.config/localllm/search-gateway.json")
-))
+SETTINGS_FILE = Path(os.path.expanduser(os.environ.get("SEARCH_GATEWAY_SETTINGS", "~/.config/localllm/search-gateway.json")))
 OLD_TOOL_IDS = ("search_gateway", "local_web_research")
 OLD_NAMES = ("search_gateway", "web_research")  # file name prefixes, newest first
 DROPPED = {"usage_file", "cache_file"}  # settings the engine no longer has
@@ -65,19 +63,20 @@ def write_settings(data: dict):
 
 
 def migrate_settings(eng, webui_db: Path):
-    """Read old tool settings from Open WebUI and write them to the gateway config."""
     if SETTINGS_FILE.exists():
-        print("settings already exist, skipping")
+        print(f"  same     settings ({SETTINGS_FILE})")
         return
-
     valves = old_valves(webui_db)
     if not valves:
-        print("no old tool settings found, nothing to migrate")
+        print(f"  none     no old settings in Open WebUI; set your API keys on the settings page (/settings)")
         return
-
-    filtered = {k: v for k, v in valves.items() if k not in DROPPED}
-    write_settings(filtered)
-    print(f"wrote {len(filtered)} settings to {SETTINGS_FILE}")
+    fields = eng.Tools.Valves.model_fields
+    known = {k: v for k, v in valves.items() if k in fields and k not in DROPPED}
+    checked = eng.Tools.Valves(**known)  # fails loudly rather than writing settings the engine can't use
+    out = {k: getattr(checked, k) for k in fields if getattr(checked, k) != fields[k].default}
+    write_settings(out)
+    keys = sum(1 for k in out if k.endswith("_api_key"))
+    print(f"  moved    settings from Open WebUI: {len(out)} changed from the defaults, {keys} API keys -> {SETTINGS_FILE}")
 
 
 def migrate_state(eng, data_dir: Path):
