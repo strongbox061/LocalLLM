@@ -117,9 +117,11 @@ def lookup(tool, query, cfg=CFG, user=None, messages=None, files=None):
         __event_emitter__=user.emit, __event_call__=user.call))
     return out, user
 
+
 print("The Protected Chat filter")
 f = filter_mod.Filter()
-body = {"features": {"web_search": True, "image_generation": True, "code_interpreter": True, "memory": True, "voice": True},
+body = {
+        "features": {"web_search": True, "image_generation": True, "code_interpreter": True, "memory": True, "voice": True},
         "metadata": {"tool_servers": [{"url": "x"}]}}
 md = {"tool_servers": [{"url": "x"}], "features": {"web_search": True}}
 out = run(f.inlet(body, __metadata__=md))
