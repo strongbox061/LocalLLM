@@ -46,6 +46,9 @@ _spec.loader.exec_module(builder)
 STATUS_SOURCE = None
 ON_MAIN = os.environ.get("CHAT_TYPES_ON_MAIN") == "1"
 
+_job_lock = threading.Lock()
+_job = {"running": False, "kind": "", "id": "", "started": 0, "ended": 0, "exit": None, "output": ""}
+
 
 # ---------------------------------------------------------------- reading
 
@@ -132,9 +135,8 @@ def overview(db_path: str) -> dict:
 
 
 def job() -> dict:
-    """Return the current background job state (running command or None)."""
-    # Simplified v1: just return idle
-    return {"running": False, "command": None}
+    with _job_lock:
+        return dict(_job)
 
 
 # ---------------------------------------------------------------- changing
