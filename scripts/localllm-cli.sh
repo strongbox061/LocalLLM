@@ -31,7 +31,6 @@
 # Order: start = the main PC's services first (llama-server first), then the helper's; stop = the helper's first,
 # then the main PC's, llama-server last. SearXNG keeps running on stop (it starts at boot); `stop searxng` stops it.
 # When the helper can't be reached, the main PC's part still runs and the helper is reported as unreachable.
-
 set -uo pipefail
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/lib/common.sh"
@@ -52,28 +51,14 @@ usage() {
 
 # The services config/services.json lists, in its order.
 all_services() {
-    python3 -c "
-import json, sys
-with open('$SERVICES_JSON') as f:
-    cfg = json.load(f)
-for svc in cfg.get('services', []):
-    print(svc['name'])
-"
+    python3 -c 'import json,sys; [print(s["name"]) for s in json.load(open(sys.argv[1]))["services"]]' "$SERVICES_FILE"
 }
 
-# where <service> -> prints main, helper, or empty (doesn't run in this mode).
+# where <service>: main, helper, or empty (doesn't run in this mode).
 where() {
-    local service="$1"
-    python3 -c "
-import json, sys
-with open('$SERVICES_JSON') as f:
-    cfg = json.load(f)
-for svc in cfg.get('services', []):
-    if svc['name'] == '$service':
-        location = svc.get('location', '')
-        print(location if location else 'none')
-        break
-"
+    local var="WHERE_${1//-/_}"
+    var="${var^^}"
+    printf '%s' "${!var:-}"
 }
 
 main_script() {
