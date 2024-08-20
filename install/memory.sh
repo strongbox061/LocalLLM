@@ -36,3 +36,18 @@ if install_system_file /etc/sysctl.d/99-localllm-zram.conf "$SYSCTL_CONF"; then
     sudo sysctl --system >/dev/null
     echo "Applied the swap settings."
 fi
+
+# --- Browser Memory Saver (optional, when BROWSER_POLICY_DIR is set in local.env) ---
+# Discards background tabs to free their memory. Written even before the browser is installed, so it applies once it is.
+if [[ -n "${BROWSER_POLICY_DIR:-}" ]]; then
+    install_system_file "${BROWSER_POLICY_DIR%/}/recommended/localllm-memory.json" '{ "HighEfficiencyModeEnabled": true }' \
+        || true
+fi
+
+# --- result ---
+echo
+swapon --show
+if ! swapon --show=NAME --noheadings | grep -qv '^/dev/zram'; then
+    warn "No disk swap besides zram. It is optional, but it is the last resort when zram is full;" \
+        "it comes from the OS install (a swap partition or swap file), not from this repo."
+fi
