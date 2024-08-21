@@ -137,6 +137,31 @@ def test_helpers() -> None:
     )
 
 
+def test_edge_cases() -> None:
+    """Test edge cases and error handling in parsers."""
+    # Empty GPU list should stay empty
+    helper = monitor.normalize_helper_payload(
+        {"hostname": "TEST", "brand": "", "os": "Linux", "os_id": "linux",
+         "cpu": {"name": "Test", "threads": 4, "percent": 10.0, "normal_ghz": 2.5, "performant_ghz": 3.2},
+         "ram": {"name": "DDR4", "speed_mhz": 3200, "installed_mib": 8192.0, "used_mib": 4096.0, "total_mib": 8192.0},
+         "gpus": [],
+         "processes": {"cpu": [], "ram": [], "gpu": []},
+         "gaming": False},
+        "localhost",
+    )
+    check("empty GPU list stays empty", len(helper["gpus"]) == 0, str(helper["gpus"]))
+
+    # Unknown process name should return raw name
+    check(
+        "friendly_process_name returns raw name for unknown processes",
+        monitor.friendly_process_name("node", "node some-unknown-script.js") == "some-unknown-script",
+    )
+
+    # Malformed nvidia-smi data should not crash
+    gpus = monitor._parse_nvidia_smi_csv("invalid, data\n")
+    check("malformed nvidia-smi returns empty list", gpus == [], str(gpus))
+
+
 def test_http_server() -> None:
     mc = monitor.MainCollector()
 
