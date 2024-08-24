@@ -21,22 +21,24 @@ default CPU/GPU split for models with experts, sampling, and how its reasoning i
 `install/pi.sh` (Pi's context window and answer length) and `services/open-webui.sh` (when chats are compacted), and
 writes `~/.config/localllm/model.json` for Pi's `thinking-switch` extension.
 
-The default profile (`models/default`) is for general chat and writing. It handles basic conversation, translation,
-and code assistance. The model files are kept in `~/LocalLLM/models/`; `install/llama.sh` downloads them from Hugging Face
-(checking their size against the free space first), and no copy is kept anywhere else.
+It handles general chat, writing, research with web search, and coding help in several languages. The model files
+are kept in `~/LocalLLM/models/`; `install/llama.sh` downloads them from Hugging Face (checking their size against
+the free space first), and no copy is kept anywhere else.
 
-To use another model (or another GGML build, if the uploader renames or removes the file):
+To use another model (or another GGUF build, if the uploader renames or removes the file):
 
 1. Add a profile in `models/`: copy the default one and change its values. Leave `MMPROJ_*` empty without image input, and `MOE_LAYERS`/`N_CPU_MOE` empty without experts.
 2. Set `MODEL_PROFILE="<file name without .env>"` in `~/.config/localllm/local.env`.
-3. Run `install/llama.sh` (downloads it), `stop/llama.sh && start/llama.sh`,
+3. Run `install/llama.sh` (downloads it), `install/pi.sh` (Pi's context window), `stop/llama.sh && start/llama.sh`,
+   and `stop/open-webui.sh && start/open-webui.sh` (Open WebUI's compaction limit).
 
 What depends on the PC rather than the model (GPU, threads, the CPU/GPU split) stays in `local.env` and wins over
 the profile (see "Tuning llama-server").
 
 Before the alias `local`, the model was served under its own name and the service had the model's name too.
-`install/llama.sh` stops and removes that old service (`llama-7b`), `install/pi.sh` rewrites Pi's `llamacpp`
-provider, and moves the admin's chats to `local` (the names in the profile's `OLD_ALIASES`).
+`install/llama.sh` stops and removes that old service (`llama-qwen`), `install/pi.sh` rewrites Pi's `llamacpp`
+provider, and `install/open-webui-config.sh` moves Open WebUI's settings for the model (system prompt, tools, slot),
+presets built on it and the admin's chats to `local` (the names in the profile's `OLD_ALIASES`).
 
 ### Reinstalling from scratch
 
