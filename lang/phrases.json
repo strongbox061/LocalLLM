@@ -1,4 +1,5 @@
 {
+  "about": "The word rules of Pi's extensions and the Open WebUI tool, per language. Edit here, then run python3 lang/build.py. Syntax: see the top of lang/build.py.",
   "engines": ["google", "bing", "duckduckgo", "mojeek", "brave", "yahoo", "qwant", "startpage", "ecosia"],
   "rules": {
     "please": {"for": ["pi"], "about": "Allowed before a phrase that must start the message."},
@@ -99,6 +100,23 @@
       "current_info": ["ultima versione", "più recent*", "recentemente", "attualmente", "in questo momento", "oggi", "questa settimana", "questo mese", "quest'anno", "aggiornato", "prezzo attuale", "prezzi attuali", "prezzo di", "prezzi di", "quanto costa", "tasso di cambio", "offerte"],
       "months": ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"],
       "bot_check": ["verifica di essere un essere umano", "verifica che tu sia umano", "controllo del browser", "accesso negato", "traffico insolito", "un momento...", "verifica in corso"]
+    },
+    "pt": {
+      "name": "Portuguese",
+      "please": ["por favor", "por gentileza"],
+      "latest": ["última versão", "últimas versões", "o mais recente", "mais recent*", "recentemente", "recente", "recentes", "novidades", "o que há de novo", "atualizado", "atualizada", "versão atual", "registro de alterações", "notas de versão", "notas de lançamento", "novos recursos", "novas funcionalidades"],
+      "error": ["erro", "erros", "exceção", "exceções", "falha*", "falhou", "travou", "trava", "não funciona", "corrija", "corrigir", "conserte", "consertar"],
+      "action_start": ["pesquise", "pesquisa", "pesquisar", "procure", "procura", "busque", "encontre", "abra", "leia", "navegue", "vá para", "visite", "baixe", "edite"],
+      "question_start": ["o que", "por que", "por quê", "como", "quando", "onde", "quem", "qual", "quais", "quanto", "quantos", "quanta", "quantas", "você pode explicar", "pode explicar"],
+      "local_current": ["diretório atual", "pasta atual", "arquivo atual", "ficheiro atual", "branch atual", "ramo atual", "diretório de trabalho"],
+      "named_engine": ["pesquise no {engine}", "pesquisa no {engine}", "pesquisar no {engine}", "procure no {engine}", "busque no {engine}", "busca no {engine}", "pesquise com {engine}", "pesquise em {engine}", "procure em {engine}"],
+      "named_source": {"verbs": ["leia", "ler", "abra", "abrir", "encontre", "encontrar", "consulte"], "nouns": ["página", "artigo", "documentação", "docs", "readme", "site oficial", "página inicial"], "phrases": ["segundo a", "segundo o", "segundo os", "segundo as", "de acordo com", "cartão do modelo"]},
+      "lookup": ["pesquise isso", "procure isso", "pesquisa isso", "não da memória", "não de memória", "não use sua memória", "pesquise na internet", "pesquise online"],
+      "offer": ["gostaria que", "você gostaria", "quer que", "deseja que", "se quiser", "me avise", "me diga se", "posso ajudar"],
+      "from_memory": ["conhecimento geral", "conhecimentos gerais", "de memória", "já sei", "sem pesquisa na web", "sem pesquisar na web"],
+      "current_info": ["última versão", "mais recent*", "recentemente", "atualmente", "agora mesmo", "neste momento", "hoje", "esta semana", "este mês", "este ano", "atualizado", "preço atual", "preços atuais", "preço de", "preços de", "quanto custa", "taxa de câmbio", "cotação", "ofertas"],
+      "months": ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"],
+      "bot_check": ["verificando se você é humano", "verifique se você é humano", "confirme que você é humano", "verificando seu navegador", "acesso negado", "tráfego incomum", "um momento...", "só um momento"]
     }
   }
 }
