@@ -156,60 +156,62 @@ def build_preset(ct: dict, alias: str, user_ids: list, knowledge: dict | None) -
 
 
 def grants_of(model: dict) -> list:
-    """Return list of user IDs that have access to this model."""
-    return model.get("grants", [])
+    keys = ("principal_type", "principal_id", "permission")
+    return sorted(tuple(g.get(k) for k in keys) for g in model.get("access_grants") or [])
 
 
 def differences(want: dict, have: dict) -> list:
-    """Compare a wanted preset against an existing one and return the differences."""
-    diffs = []
-    for key in want:
-        if key not in have:
-            diffs.append(f"missing key: {key}")
-        elif want[key] != have[key]:
-            diffs.append(f"{key}: want={want[key]!r} have={have[key]!r}")
-    for key in have:
-        if key not in want:
-            diffs.append(f"extra key: {key}")
-    return diffs
+    """What differs between the preset to send and the one in Open WebUI (only what this script sets)."""
+    out = []
+    for key in ("base_model_id", "name", "is_active"):
+        if want.get(key) != have.get(key):
+            out.append(key)
+    if want["params"].get("system") != (have.get("params") or {}).get("system"):
+        out.append("system prompt")
+    have_meta = have.get("meta") or {}
+    for key, value in want["meta"].items():
+        if json.loads(json.dumps(value)) != have_meta.get(key):
+            out.append(key)
+    if "knowledge" not in want["meta"] and have_meta.get("knowledge"):
+        out.append("knowledge")
+    if grants_of(want) != grants_of(have):
+        out.append("users")
+    return out
 
 
 # ---------------------------------------------------------------- downloading sources
 
 
 class _Text(HTMLParser):
-    """Minimal HTML-to-text converter that preserves line breaks."""
+    SKIP = {"script", "style", "noscript", "nav", "header", "footer", "form", "button", "select", "svg"}
+    BLOCK = {"p", "div", "br", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6", "table", "section", "article",
+             "blockquote", "pre", "dd", "dt", "ul", "ol"}
 
     def __init__(self):
-        super().__init__()
-        self._parts = []
-        self._skip = False
+        super().__init__(convert_charrefs=True)
+        self.parts, self.skip = [], 0
 
     def handle_starttag(self, tag, attrs):
-        if tag in ("script", "style"):
-            self._skip = True
-        elif tag in ("br", "p", "div", "h1", "h2", "h3", "li"):
-            self._parts.append("\n")
+        if tag in self.SKIP:
+            self.skip += 1
+        elif tag in self.BLOCK:
+            self.parts.append("\n")
 
     def handle_endtag(self, tag):
-        if tag in ("script", "style"):
-            self._skip = False
-        elif tag in ("p", "div", "h1", "h2", "h3", "li", "br"):
-            self._parts.append("\n")
+        if tag in self.SKIP:
+            self.skip = max(0, self.skip - 1)
+        elif tag in self.BLOCK:
+            self.parts.append("\n")
 
     def handle_data(self, data):
-        if not self._skip:
-            self._parts.append(data)
-
-    def get_text(self) -> str:
-        return "".join(self._parts).strip()
+        if not self.skip:
+            self.parts.append(data)
 
 
 def html_to_text(raw: str) -> str:
-    """Convert HTML content to plain text."""
     parser = _Text()
     parser.feed(raw)
-    return parser.get_text()
+    return "".join(parser.parts).strip()
 
 
 def download(url: str) -> str:
