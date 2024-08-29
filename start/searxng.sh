@@ -9,13 +9,11 @@ log "SearXNG"
 
 if searxng_sync_override; then
     echo "Recreating the containers to use it..."
-    cd "$(dirname -- "${BASH_SOURCE[0]}")/../docker/searxng" || exit 1
-    docker-compose up -d --force-recreate
+    searxng_compose up -d --force-recreate
 elif curl -fsS -m 2 -o /dev/null "$SEARXNG_URL/" 2>/dev/null; then
     echo "Already running."
 else
-    cd "$(dirname -- "${BASH_SOURCE[0]}")/../docker/searxng" || exit 1
-    docker-compose up -d
+    searxng_compose up -d
 fi
 wait_for "$SEARXNG_URL/" 30 || die "SearXNG did not become ready. Logs: docker compose logs core (in $SEARXNG_DIR)"
 
@@ -25,8 +23,7 @@ elif ! host_online; then
     warn "This machine is offline, so SearXNG cannot search either. Connect to a network, then run this again."
 else
     echo "The container has no internet while this machine does (stale network settings). Recreating..."
-    cd "$(dirname -- "${BASH_SOURCE[0]}")/../docker/searxng" || exit 1
-    docker-compose up -d --force-recreate
+    searxng_compose up -d --force-recreate
     wait_for "$SEARXNG_URL/" 30 || die "SearXNG did not become ready. Logs: docker compose logs core (in $SEARXNG_DIR)"
     if searxng_online; then
         echo "Internet from the container: OK"
