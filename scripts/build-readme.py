@@ -147,22 +147,16 @@ def highlight_code(code: str, lang: str) -> str:
             parts = re.split(r"(//.*)$", line, maxsplit=1)
             body = parts[0]
             comment = parts[1] if len(parts) > 1 else ""
-            # Highlight keys
+            # Keys
             body = re.sub(
-                r'(&quot;[^&]*?&quot;)\s*:',
-                r'<span class="tok-key">\1</span>:',
+                r"(&quot;[^&]+?&quot;)(\s*:)",
+                r'<span class="tok-key">\1</span>\2',
                 body,
             )
-            # Highlight string values
+            # Remaining string values
             body = re.sub(
-                r'(&quot;[^&]*?&quot;)',
+                r"(?<!>)(&quot;[^&]*?&quot;)(?!<)",
                 r'<span class="tok-str">\1</span>',
-                body,
-            )
-            # Highlight numbers
-            body = re.sub(
-                r'\b(\d+\.?\d*)\b',
-                r'<span class="tok-num">\1</span>',
                 body,
             )
             if comment:
