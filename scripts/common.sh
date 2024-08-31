@@ -8,6 +8,10 @@ BACKUP_DIR="$REPO_DIR/backup"
 
 LLM_HOME="$HOME/LocalLLM"
 SEARXNG_DIR="$LLM_HOME/searxng"
+WEBUI_DATA_DIR="$HOME/.open-webui"
+WEBUI_PYTHON="$HOME/.local/share/uv/tools/open-webui/bin/python"
+# services/open-webui.sh runs Open WebUI in backup/open-webui, where it keeps this key.
+WEBUI_KEY_FILE="$BACKUP_DIR/open-webui/.webui_secret_key"
 
 # --- Key declarations / sections / selectors (bodies omitted for v1) ---
 # This machine's own settings (config/local.example.env), kept out of the repo: where the backup passphrase, the
@@ -64,3 +68,24 @@ for k, v in data.items():
     # Reset ENDPOINTS_ERROR if endpoints are valid.
     [ -s "$ENDPOINTS_FILE" ] && ENDPOINTS_ERROR=""
 }
+
+# When local.env settings don't fit together, refresh_endpoints returns 1 and ENDPOINTS_ERROR says why.
+# Otherwise it sources endpoints.env (which sets LOCALLLM_MODE, LOCALLLM_APPS, and the service URLs).
+if ! refresh_endpoints; then
+    printf 'WARNING: %s\nUsing the single-mode addresses (127.0.0.1) for now.\n' "$ENDPOINTS_ERROR" >&2
+fi
+LOCALLLM_MODE="${LOCALLLM_MODE:-single}"
+LOCALLLM_APPS="${LOCALLLM_APPS:-pi,owui}"
+# apps_has <app>: true when LOCALLLM_APPS includes <app> (pi or owui).
+apps_has() { [[ ",${LOCALLLM_APPS:-pi,owui}," == *",$1,"* ]]; }
+
+# The search gateway's own Python environment (install/search-gateway.sh), its settings and its state database.
+SEARCH_GATEWAY_VENV="$HOME/.local/share/localllm/search-gateway-venv"
+SEARCH_GATEWAY_PYTHON="$SEARCH_GATEWAY_VENV/bin/python"
+SEARCH_GATEWAY_SETTINGS="$HOME/.config/localllm/search-gateway.json"
+SEARCH_GATEWAY_DB="$HOME/.local/share/localllm/search-gateway.db"
+
+# Only you may read Open WebUI's signing key, its database (your chats) and the backup folder.
+# GitHub token file for search gateway (README, "Library docs in Pi"). Without it GitHub allows
+# 10 searches a minute instead of 30.
+GITHUB_TOKEN_FILE="$HOME/.config/localllm/github-token"
