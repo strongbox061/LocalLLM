@@ -18,7 +18,7 @@ import sys
 import unicodedata
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 PHRASES = ROOT / "lang" / "phrases.json"
 TS_OUT = ROOT / "pi" / "extensions" / "lang-words.ts"
 TOOL = ROOT / "services" / "search_gateway_engine.py"
@@ -35,7 +35,7 @@ MARKS = "̀-֑ͯ-ׇֽֿׁׂًׅׄ-ٰٟ"
 SAME = {"'": "'", "'": "'", "ʼ": "'", "`": "'", "ς": "σ",
         "ي": "ي", "ى": "ي", "ك": "ک", "\u200c": "", "\u200d": ""}
 
-NOSPACE = re.compile(r"[^\w\s]")
+NOSPACE = re.compile(r"[฀-๿぀-ヿ㐀-鿿豈-﫿]")
 GAP_MARK = "…"
 PUNCT = ".!?,:;"
 STOP = r".?!。？！\n"
