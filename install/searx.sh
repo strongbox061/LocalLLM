@@ -51,7 +51,7 @@ docker_cmd compose up -d
 echo "Waiting for SearXNG..."
 
 for _ in $(seq 1 30); do
-    if curl -fsS "$SEARXNG_URL/" >/dev/null 2>&1; then
+    if curl -fsS --connect-timeout 5 --max-time 10 "$SEARXNG_URL/" >/dev/null 2>&1; then
         break
     fi
 
@@ -64,7 +64,7 @@ for _ in $(seq 1 30); do
     sleep 1
 done
 
-if ! curl -fsS "$SEARXNG_URL/" >/dev/null 2>&1; then
+if ! curl -fsS --connect-timeout 5 --max-time 10 "$SEARXNG_URL/" >/dev/null 2>&1; then
     echo "ERROR: SearXNG did not become ready."
     docker_cmd compose logs --tail=100 core
     exit 1
@@ -75,7 +75,7 @@ docker_cmd compose ps
 echo
 echo "SearXNG search test:"
 
-curl -fsS "$SEARXNG_URL/search?q=llama.cpp&format=json" | head -c 2000
+curl -fsS --connect-timeout 5 --max-time 10 "$SEARXNG_URL/search?q=llama.cpp&format=json" | head -c 2000
 
 echo
 echo
