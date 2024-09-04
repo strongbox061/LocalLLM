@@ -86,47 +86,243 @@ a {
   margin-top: 16px;
 }
 
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
-.card.chart { min-height: 60px; }
-.card.off .name { text-decoration: line-through; opacity: 0.5; }
+.tile,
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
 
-.tile { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 1rem; text-align: center; }
-.tile b { display: block; font-size: 1.5rem; }
-.tile span { color: var(--muted); font-size: 0.85rem; }
+.tile {
+  padding: 12px 14px;
+}
 
-.services { display: flex; flex-direction: column; gap: 0.5rem; }
+.tile b {
+  display: block;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
 
-.svc { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0.8rem; background: var(--card); border: 1px solid var(--line); border-radius: 6px; flex-wrap: wrap; }
-.rank { color: var(--muted); font-size: 0.8rem; min-width: 24px; text-align: right; }
-.name { font-weight: 600; flex: 1; min-width: 120px; }
-.pill { font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 999px; white-space: nowrap; }
-.available { background: #e6f4ea; color: var(--ok); }
-.near { background: #fef3cd; color: var(--warn); }
-.paused { background: #fff3e0; color: var(--warn); }
-.nokey { background: #fde8e8; color: var(--bad); }
-.fallback { background: #e8eaed; color: var(--off); }
+.tile span {
+  color: var(--muted);
+  font-size: 12px;
+}
 
-.donut-wrap { position: relative; width: 116px; height: 116px; margin: 0 auto; }
-.donut svg { display: block; }
-.donut .hole { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-.donut .hole b { font-size: 1.1rem; }
-.donut .hole span { font-size: 0.75rem; color: var(--muted); }
+.services {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px;
+}
 
-.limit { font-size: 0.8rem; color: var(--muted); }
+.card {
+  padding: 12px 14px;
+}
 
-.info { display: flex; align-items: center; gap: 0.5rem; }
-.info > button { background: none; border: none; cursor: pointer; color: var(--muted); padding: 0; }
-.info > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.info > button svg { transition: transform 0.15s; }
+.card.off .name {
+  color: var(--muted);
+}
 
-.pop { display: none; position: absolute; z-index: 10; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 0.75rem; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); min-width: 200px; }
-.pop.show { display: block; }
+.svc {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  padding-top: 28px;
+  border-top: 3px solid var(--svc, var(--line));
+}
 
-.meta { font-size: 0.8rem; color: var(--muted); display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.25rem; }
-.meta div { display: inline-flex; gap: 0.25rem; }
-.meta b { color: var(--text); }
+.rank {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
 
-.legend { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.75rem; font-size: 0.8rem; }
-.legend span { display: inline-flex; align-items: center; gap: 0.25rem; }
+.name {
+  font-weight: 600;
+  font-size: 15px;
+}
 
-.empty { color: var(--muted); font-style: italic; text-align: center; padding: 2rem; }
+.pill {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 1px 8px;
+  border-radius: 10px;
+  color: var(--on-status);
+}
+
+.available {
+  background: var(--ok);
+}
+
+.near {
+  background: var(--warn);
+}
+
+.usedup,
+.paused {
+  background: var(--bad);
+}
+
+.nokey {
+  background: var(--off);
+}
+
+.fallback {
+  background: var(--accent);
+}
+
+.donut {
+  position: relative;
+  width: 112px;
+  height: 112px;
+  margin: 6px 0 2px;
+}
+
+.donut svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  transform: rotate(-90deg);
+}
+.donut .hole {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.donut .hole b {
+  font-size: 20px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.donut .hole span {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.limit {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.info {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+}
+
+.info > button {
+  all: unset;
+  cursor: default;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  color: var(--muted);
+}
+
+.info > button:hover,
+.info > button:focus-visible {
+  background: var(--track);
+  color: var(--text);
+}
+
+.info > button:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+.info > button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.pop {
+  display: none;
+  position: absolute;
+  top: 24px;
+  left: 0;
+  z-index: 10;
+  width: max-content;
+  max-width: min(340px, calc(100vw - 32px));
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  text-align: left;
+  font-size: 13px;
+}
+
+.info:hover .pop,
+.info:focus-within .pop {
+  display: block;
+}
+
+.facts {
+  display: grid;
+  gap: 2px;
+}
+
+.facts span {
+  color: var(--muted);
+}
+
+.facts b {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.extras {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+.legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+
+.chart {
+  padding: 12px 14px 6px;
+}
+
+.chart + .chart {
+  margin-top: 8px;
+}
+
+.chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.chart text {
+  fill: var(--muted);
+  font-size: 10px;
+}
