@@ -47,6 +47,7 @@ HONORIFIC_RE = re.compile(
 WORD_RE = re.compile(r"[^\W\d_][\w'-]*", re.U)
 MAX_CHAT_TEXT = 3_000_000  # characters of documents and messages read for names and numbers
 
+
 def fold(text: str) -> str:
     """Lower case without accents, for comparisons."""
     return "".join(c for c in unicodedata.normalize("NFKD", text.casefold()) if not unicodedata.combining(c))
@@ -217,7 +218,7 @@ class Tools:
             default="http://127.0.0.1:8090",
             description="The local search gateway (install/search-gateway.sh), which searches with Search Gateway's services and reads pages.",
         )
-        max_results: int = Field(default=5, ge=1, le=20, description="Results on the allowed sites listed for the model.")
+        max_results: int = Field(default=5, description="Results on the allowed sites listed for the model.")
         max_page_chars: int = Field(default=12000, description="Characters of the best page given to the model.")
         timeout_seconds: int = Field(default=90, description="Wait at most this long for a search or a page.")
 
