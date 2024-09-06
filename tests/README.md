@@ -47,11 +47,18 @@ The `site:` table in AGENTS.md. Results come through the search gateway.
 
 ## B. Reading pages
 
-Test that page extraction works correctly. The tool extracts readable text from HTML pages, strips navigation and footers, and returns the main content.
+| # | Prompt | Expected |
+|---|---|---|
+| B1 | Summarize https://docs.python.org/3/whatsnew/3.13.html | `open`, `get text body`, then reads the saved .txt in chunks; no snapshot |
+| B3 | On https://wiki.archlinux.org/title/Pacman, what does the -Syu option do? | Opens the page; grep on the saved .txt (run by the guard) instead of reading it all |
+| B4 | Read https://huggingface.co/Qwen/this-model-does-not-exist and tell me what's there. | Says the page doesn't exist (404); invents no content |
 
 ## C. Links and PDFs
 
-Verify link following and PDF handling. PDFs are extracted as plain text when possible. Unsupported formats return an error message.
+| # | Prompt | Expected |
+|---|---|---|
+| C1 | Open https://pypi.org/project/httpx/ and follow the link to its documentation. Tell me what the docs' homepage says. | Link-finding `eval`, then `open` of the docs URL; no `find`, no clicking |
+| C2 | Open https://arxiv.org/abs/1706.03762 and tell me the paper's title and authors, then open its PDF and tell me the first sentence of the abstract. | Reads the abstract page, opens the PDF; its text comes from pdftotext |
 
 ## D. Search behaviour and limits
 
@@ -63,7 +70,14 @@ The search tool has rate limits to prevent abuse:
 
 ## E. Reasoning switch and questions without the web
 
-Some questions don't need the web. The reasoning mode answers from training data. This is faster and cheaper since it skips search entirely.
+Reasoning is on when the assistant messages have thinking blocks (the report says "Reasoning: on/off").
+
+| # | Prompt | Expected |
+|---|---|---|
+| E1 | What's a Python decorator? | No tools, no reasoning, a few seconds |
+| E2 | What's the capital of Portugal? | No tools, no reasoning |
+| E3 | think: is 2^31 - 1 prime? | Reasoning on, no web; yes (a Mersenne prime) |
+| E4 | What files are in the current directory? (in a folder with config.yml) | `bash` only, no web; lists config.yml |
 
 ## F. Failures and fallbacks
 
