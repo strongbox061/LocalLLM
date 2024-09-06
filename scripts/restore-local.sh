@@ -10,8 +10,8 @@ source "$(dirname -- "${BASH_SOURCE[0]}")/lib/common.sh"
 MISSING_ONLY=false
 case "${1:-}" in
     "") ;;
-    "--missing-only") MISSING_ONLY=true ;;
-    *) echo "Usage: $0 [--missing-only]"; exit 1 ;;
+    --missing-only) MISSING_ONLY=true ;;
+    *) die "Usage: $0 [--missing-only]" ;;
 esac
 
 STAMP="$(date +%Y%m%d-%H%M%S)"

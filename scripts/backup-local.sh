@@ -14,6 +14,8 @@ PI_FILES=(
     models.json
     sandbox.json
     auth.json
+    models-store.json
+    tool-view-mode.json
 )
 
 # copy_file <source> <destination>
@@ -21,7 +23,7 @@ copy_file() {
     if [[ -f "$1" ]]; then
         mkdir -p "$(dirname -- "$2")"
         cp "$1" "$2"
-        echo "  saved   ${2#"$BACKUP_DIR"/}"
+        echo "  saved   ${2#"$REPO_DIR"/}"
     else
         echo "  missing $1"
     fi
@@ -32,7 +34,7 @@ copy_dir() {    # copy_dir <source> <destination>, replacing the destination
         rm -rf "$2"
         mkdir -p "$(dirname -- "$2")"
         cp -r "$1" "$2"
-        echo "  saved   ${2#"$BACKUP_DIR"/}/"
+        echo "  saved   ${2#"$REPO_DIR"/}/"
     else
         echo "  missing $1"
     fi
@@ -53,7 +55,7 @@ snapshot_db() {
     sqlite3 "$tmp" 'pragma journal_mode=delete;' >/dev/null
     rm -f "$dst" "$dst-wal" "$dst-shm"
     mv "$tmp" "$dst"
-    echo "  saved   ${dst#"$BACKUP_DIR"/}"
+    echo "  saved   ${dst#"$REPO_DIR"/}"
 }
 
 # write_versions <file>: the versions running now, so a fresh install from this backup gets the same ones
