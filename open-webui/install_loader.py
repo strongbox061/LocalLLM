@@ -6,8 +6,10 @@ windows/run-service.ps1 on the helper PC), and by ./localllm.sh deploy when load
 Open WebUI copies its frontend's static files, an empty loader.js among them, into its static folder on every start,
 so the file goes into both: the frontend's copy (what the next start uses) and the static folder (what a running
 Open WebUI serves now; a reload of the page picks it up). An Open WebUI update brings back the empty file; the next
+start puts this one back. Finds the package without importing it (importing Open WebUI starts its whole setup).
+Safe to run again: prints only when it changed something.
 
-start of Open WebUI (or ./localllm.sh deploy) puts this one back.
+Usage: python install_loader.py
 """
 
 import importlib.util

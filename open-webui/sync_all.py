@@ -87,10 +87,25 @@ def call(base: str, auth: str, method: str, path: str, body: dict | None = None,
 
 
 # The embedding model: multilingual-e5-small (small, fine on a CPU) where Open WebUI shares the PC with the main
+# model; bge-m3 (better, ~2 GB, on the GPU) on the helper PC of the two-PC setup (LOCALLLM_EMBEDDING=bge-m3, set by
+# ./localllm.sh). bge-m3 needs no prefixes.
 EMBEDDINGS = {
-    "e5-small": {"model": "intfloat/multilingual-e5-small", "dimension": 1024},
+    "e5-small": {
+        "RAG_EMBEDDING_ENGINE": "",
+        "RAG_EMBEDDING_MODEL": "intfloat/multilingual-e5-small",
+        "RAG_EMBEDDING_QUERY_PREFIX": "query: ",
+        "RAG_EMBEDDING_CONTENT_PREFIX": "passage: ",
+    },
+    "bge-m3": {
+        "RAG_EMBEDDING_ENGINE": "",
+        "RAG_EMBEDDING_MODEL": "BAAI/bge-m3",
+        "RAG_EMBEDDING_QUERY_PREFIX": "",
+        "RAG_EMBEDDING_CONTENT_PREFIX": "",
+    },
 }
 EMBEDDING = EMBEDDINGS.get(os.environ.get("LOCALLLM_EMBEDDING", "") or "e5-small")
+if EMBEDDING is None:
+    sys.exit(f"ERROR: LOCALLLM_EMBEDDING must be one of {', '.join(EMBEDDINGS)}.")
 RETRIEVAL = {"ENABLE_RAG_HYBRID_SEARCH": True}
 
 
