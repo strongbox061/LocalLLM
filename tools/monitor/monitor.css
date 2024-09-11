@@ -428,6 +428,16 @@ select:hover {
   transition: stroke-dasharray 0.35s ease;
 }
 
+.error-banner {
+  background: var(--bad-bg);
+  color: var(--bad-fg);
+  border: 1px solid var(--pie-used);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+
 .notice {
   background: var(--card-soft);
   border: 1px dashed var(--line);
@@ -436,13 +446,6 @@ select:hover {
   color: var(--muted);
   font-size: 13px;
   text-align: center;
-}
-
-.notice code {
-  background: var(--muted-bg);
-  color: var(--text);
-  padding: 1px 5px;
-  border-radius: 4px;
 }
 
 .pie-occupied {
@@ -460,16 +463,21 @@ select:hover {
 }
 
 
-/* Error banner */
-
-.error-banner {
-  background: var(--bad-bg);
-  color: var(--bad-fg);
-  border: 1px solid var(--pie-used);
+.notice {
+  background: var(--card-soft);
+  border: 1px dashed var(--line);
   border-radius: 8px;
-  padding: 10px 14px;
-  margin-bottom: 16px;
-  font-weight: 500;
+  padding: 16px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.notice code {
+  background: var(--muted-bg);
+  color: var(--text);
+  padding: 1px 5px;
+  border-radius: 4px;
 }
 
 /* Process breakdown modal */

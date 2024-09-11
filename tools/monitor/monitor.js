@@ -375,53 +375,57 @@ function renderMachineCard(machineKey, title, machine, isHelper, setup) {
   );
 }
 
-/* ---- Modal ---- */
-
-let openModalState = null;
-
-function openProcessModal(machineKey, machineTitle, component) {
-  const data = latestData;
-  if (!data) return;
-
-  let source = null;
-  if (machineKey === "main") {
-    source = data.processes || [];
-  } else if (data.helper) {
-    source = data.helper.processes || [];
-  }
-
-  openModalState = { machineKey, machineTitle, component };
-
-  document.getElementById("modalTitle").textContent = machineTitle + " — Processes";
-  document.getElementById("modalSub").textContent = component.toUpperCase() + " process list";
-
-  const tbody = h("table", { class: "proc-table" },
-    h("thead", null,
-      h("tr", null,
-        h("th", { class: "col-pid" }, "PID"),
-        h("th", { class: "col-name" }, "Name"),
-        h("th", { class: "col-cpu" }, "CPU Time"),
-      ),
-    ),
-    h("tbody", null,
-      ...source.slice(0, 20).map(p =>
-        h("tr", null,
-          h("td", { class: "col-pid" }, String(p.pid)),
-          h("td", { class: "col-name" }, p.name),
-          h("td", { class: "col-cpu" }, String(p.cpu_time)),
-        ),
-      ),
-    ),
-  );
-
-  document.getElementById("modalBody").replaceChildren(tbody);
+function openProcessModal(machineKey, machineTitle, component, kindLabel) {
+  openModalState = { machineKey, machineTitle, component, kindLabel };
   document.getElementById("procBackdrop").classList.add("open");
+  renderModal();
 }
 
 function closeProcessModal() {
-  document.getElementById("procBackdrop").classList.remove("open");
   openModalState = null;
+  document.getElementById("procBackdrop").classList.remove("open");
 }
+
+function renderModal() {
+  if (!openModalState || !latestData) return;
+  const { machineKey, machineTitle, component, kindLabel } = openModalState;
+  const machine = latestData[machineKey] || {};
+  const procs = machine.processes || {};
+
+  document.getElementById("modalTitle").textContent = `${machineTitle} — ${kindLabel} Processes`;
+  const updatedText = machine.collected_at ? `Updated ${fmtTime(machine.collected_at)}` : "";
+
+  const body = document.getElementById("modalBody");
+  if (machine.status !== "online") {
+    document.getElementById("modalSub").textContent = updatedText;
+    body.replaceChildren(h("div", { class: "notice" }, machine.error || "Machine is offline."));
+    return;
+  }
+
+  let list = [];
+  let totalCap = 100;
+  let mode = "pct"; // "pct" | "mem" | "gpu_load"
+
+  if (component === "cpu") {
+    list = Array.isArray(procs.cpu) ? procs.cpu : [];
+    mode = "pct";
+    document.getElementById("modalSub").textContent =
+      `Total CPU occupied: ${fmtPct(machine.cpu && machine.cpu.percent)} · ${updatedText}`;
+  } else if (component === "ram") {
+    list = Array.isArray(procs.ram) ? procs.ram : [];
+    totalCap = (machine.ram && machine.ram.total_mib) || 1;
+    mode = "mem";
+    document.getElementById("modalSub").textContent =
+      `Total RAM occupied: ${fmtMem(machine.ram && machine.ram.used_mib)} / ${fmtMem(machine.ram && machine.ram.total_mib)} · ${updatedText}`;
+  } else {
+    list = Array.isArray(procs.gpu) ? procs.gpu : [];
+    const gpu0 = (machine.gpus && machine.gpus[0]) || {};
+    totalCap = gpu0.mem_total_mib || 1;
+    mode = component === "gpu_load" ? "gpu_load" : "mem";
+    document.getElementById("modalSub").textContent = component === "gpu_load"
+      ? `Total GPU load: ${fmtPct(gpu0.util_percent)} · ${updatedText}`
+      : `Total VRAM occupied: ${fmtMem(gpu0.mem_used_mib)} / ${fmtMem(gpu0.mem_total_mib)} · ${updatedText}`;
+  }
 
 /* ---- Render ---- */
 
