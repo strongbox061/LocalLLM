@@ -135,6 +135,24 @@ check("terminals and the browser's tool servers are dropped",
 check("it can't be switched off in a chat (no toggle)", not getattr(f, "toggle", False))
 check("it runs after the other filters", f.valves.priority > 0)
 
+print("The lookup fails closed")
+for label, cfg in (("no chat type settings", {}), ("an empty site list", {"allowed_sites": []}),
+                   ("only invalid sites", {"allowed_sites": ["https://", "not a domain"]})):
+    tool = lookup_mod.Tools()
+    server = FakeServer([])
+    server.install(tool)
+    out, user = lookup(tool, "Reglamento Técnico norma 1973", cfg=cfg)
+    check(f"{label}: refused, nothing asked or sent", "switched off" in out and not user.asked and not server.requests, out)
+tool = lookup_mod.Tools()
+server = FakeServer([])
+server.install(tool)
+out = run(tool.protected_lookup("Reglamento Técnico norma 1973", __metadata__={"model_id": "chat-test"},
+                                __model__=model(CFG), __messages__=[], __files__=[], __event_call__=None))
+check("no confirmation box possible: refused, nothing sent", "refused" in out and not server.requests, out)
+out = run(tool.protected_lookup("Reglamento Técnico norma 1973", __metadata__={"model_id": "chat-other"},
+                                __model__=model(CFG), __messages__=[], __files__=[], __event_call__=FakeUser(True).call))
+check("the task model's settings aren't taken for another preset", "switched off" in out, out)
+
 print("Personal data is removed before anything is sent")
 chat_text = MESSAGE + "\n" + DOCUMENT
 cases = [
