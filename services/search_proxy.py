@@ -2,6 +2,7 @@
 search_proxy.py: version 3.0.0
 Runs from this repo as the user service search-gateway (services/search-gateway.service, installed by
 install/search-gateway.sh with its own Python environment, started by start/search-gateway.sh).
+Moved from scripts/ to services/ to group it with other service components.
 
 The one place every web search goes through: Pi's web_search (pi/extensions/search-gateway.ts), Open WebUI's
 "Search Gateway" tool (open-webui/tools/search_gateway.py, a thin client) and the Protected Lookup tool
