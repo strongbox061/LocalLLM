@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Builds llama.cpp with CUDA, downloads the active model profile's model and vision projector (models/<name>.env,
 # MODEL_PROFILE in local.env), and installs the localllm-llm service (not enabled).
-#   install/llama-build.sh          only what is missing
-#   install/llama-build.sh --update also pull and rebuild llama.cpp
+#   install/llama.sh            only what is missing
+#   install/llama.sh --update   also pull and rebuild llama.cpp
 #   A fresh clone checks out the llama.cpp commit recorded by the last backup (versions.env), if any.
 # Before downloading the model, it checks the files' sizes on Hugging Face against the free space.
 set -euo pipefail
