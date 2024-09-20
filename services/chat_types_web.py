@@ -75,63 +75,45 @@ MARKER_RE = re.compile(r"\[chat type: ([a-z0-9-]+)\]")
 
 
 def db_status(db_path: str) -> dict:
-    """Query Open WebUI's database and return a status dict per chat type."""
-    rows = _db_rows(
-        db_path,
-        "SELECT id, name, metadata_ FROM chats WHERE metadata_ IS NOT NULL",
-    )
-    result = {}
-    for row_id, name, meta_raw in rows:
-        try:
-            meta = json.loads(meta_raw) if meta_raw else {}
-        except (json.JSONDecodeError, TypeError):
-            continue
-        # Look for our marker in the metadata
-        chat_type_id = None
-        for k, v in meta.items():
-            m = MARKER_RE.search(str(v))
-            if m:
-                chat_type_id = m.group(1)
-                break
-        if chat_type_id:
-            result[chat_type_id] = {
-                "id": row_id,
-                "name": name or "",
-                "active": True,
-            }
-    return result
+    """What Open WebUI has of the chat types: their presets' last update, their Knowledge bases (name, files), the
+    accounts. Only reads."""
+    presets = {mid[len("chat-"):]: updated for mid, updated in
+               _db_rows(db_path, "SELECT id, updated_at FROM model WHERE id LIKE 'chat-%'")}
+    knowledge = {}
+    for name, description, files in _db_rows(
+            db_path, "SELECT k.name, k.description, COUNT(kf.file_id) FROM knowledge k LEFT JOIN knowledge_file kf "
+                     "ON kf.knowledge_id = k.id WHERE k.description LIKE '%[chat type: %' GROUP BY k.id"):
+        m = MARKER_RE.search(description or "")
+        if m and m.group(1) not in knowledge:
+            knowledge[m.group(1)] = {"name": name, "files": files}
+    users = [{"email": e, "name": n, "role": r} for e, n, r in
+             _db_rows(db_path, "SELECT email, name, role FROM user ORDER BY created_at")]
+    return {"presets": presets, "knowledge": knowledge, "users": users}
 
 
 def overview(db_path: str) -> dict:
-    """Build a full overview: chat types, their status, accounts, template, and job."""
-    # Gather existing chat-type files
-    types = {}
-    if CHAT_TYPES_DIR.exists():
-        for f in sorted(CHAT_TYPES_DIR.glob("*.json")):
-            if f.name.startswith("."):
-                continue
-            try:
-                with open(f) as fh:
-                    data = json.load(fh)
-                types[f.stem] = data
-            except (json.JSONDecodeError, OSError):
-                pass
-
-    # Get Open WebUI status
-    if STATUS_SOURCE is not None:
-        if callable(STATUS_SOURCE):
-            status = STATUS_SOURCE()
-        else:
-            status = db_status(db_path)
-    else:
-        status = db_status(db_path)
-
-    return {
-        "types": types,
-        "status": status,
-        "template": _template(),
-        "job": job(),
-    }
+    error = ""
+    try:
+        status = STATUS_SOURCE() if STATUS_SOURCE else db_status(db_path)
+    except Exception as e:  # the helper unreachable: the files still show, without Open WebUI's side
+        status, error = {"presets": {}, "knowledge": {}, "users": []}, f"{type(e).__name__}: {e}"
+    types = []
+    for f in sorted(CHAT_TYPES_DIR.glob("*.json")) if CHAT_TYPES_DIR.is_dir() else []:
+        ct, problems = builder.load_chat_type(f)
+        try:
+            raw = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            raw = {}
+        data = {k: v for k, v in raw.items() if not k.startswith("_")} if isinstance(raw, dict) else {}
+        updated = status["presets"].get(f.stem)
+        types.append({
+            "id": f.stem, "data": data, "problems": problems,
+            "file_changed": int(f.stat().st_mtime),
+            "preset": {"exists": f.stem in status["presets"], "updated": updated},
+            "knowledge": status["knowledge"].get(f.stem),
+        })
+    return {"folder": str(CHAT_TYPES_DIR), "types": types, "users": status["users"], "template": _template(),
+            "job": job(), "status_error": error}
 
 
 def job() -> dict:
@@ -142,21 +124,21 @@ def job() -> dict:
 # ---------------------------------------------------------------- changing
 
 def _clean(data: dict) -> dict:
-    """Only the form's keys, with list items trimmed and empty ones dropped."""
+    """Only the form's keys, in the template's order, with list items trimmed and empty ones dropped."""
     out = {}
     for key in FORM_KEYS:
         value = data.get(key)
         if key in ("name", "description", "system_prompt"):
             out[key] = str(value or "").strip()
+        elif key in ("allowed_sites", "allowed_terms", "reference_words", "starter_prompts", "users"):
+            out[key] = [str(v).strip() for v in value or [] if str(v).strip()]
         elif key == "sources":
             out[key] = [{"name": str(s.get("name", "")).strip(),
                          "urls": [str(u).strip() for u in s.get("urls") or [] if str(u).strip()]}
                         for s in value or [] if isinstance(s, dict) and (s.get("name") or s.get("urls"))]
-        elif key in ("patterns", "allowed_patterns"):
+        else:  # patterns, allowed_patterns
             out[key] = [{"name": str(p.get("name", "")).strip(), "regex": str(p.get("regex", ""))}
                         for p in value or [] if isinstance(p, dict) and (p.get("name") or p.get("regex"))]
-        else:
-            out[key] = [str(v).strip() for v in value or [] if str(v).strip()]
     out["allowed_sites"] = [re.sub(r"^https?://", "", s).split("/")[0].lower() for s in out["allowed_sites"]]
     return out
 
