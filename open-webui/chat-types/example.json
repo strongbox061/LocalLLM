@@ -20,7 +20,7 @@
     { "name": "rule code", "regex": "\\bR-\\d{1,4}\\b" }
   ],
   "_allowed_terms": "Capitalised words that are never treated as names, even when they appear in the documents.",
-  "allowed_terms": ["Example"],
+  "allowed_terms": ["Example", "Committee", "Board"],
   "starter_prompts": [
     "Summarise the attached document and list its deadlines.",
     "Which rule applies to the situation in my document? Quote it."
