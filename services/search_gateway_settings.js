@@ -10,7 +10,7 @@ function el(tag, attrs = {}, text = "") {
 }
 
 function render(data) {
-  form.innerHTML = "";
+  form.replaceChildren();
   fields = data.fields || [];
   const fileEl = document.getElementById("file");
   if (data.file) fileEl.textContent = data.file;
