@@ -14,6 +14,7 @@ Never prints a setting's value. Usage: <gateway python> search_gateway_migrate.p
 import importlib.util
 import json
 import os
+import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -36,7 +37,6 @@ def old_valves(webui_db: Path) -> dict:
     """The old tool's Valves from Open WebUI's database, or {} (no database, no tool, or a thin client already)."""
     if not webui_db.exists():
         return {}
-    import sqlite3
     con = sqlite3.connect(f"file:{webui_db}?mode=ro", uri=True, timeout=10)
     try:
         for tool_id in OLD_TOOL_IDS:
@@ -85,7 +85,7 @@ def migrate_state(eng, data_dir: Path):
 
     # Check if the gateway already has usage counts; if so, skip.
     try:
-        conn = __import__("sqlite3").connect(db_path)
+        conn = sqlite3.connect(db_path)
         count = conn.execute("SELECT COUNT(*) FROM usage").fetchone()[0]
         conn.close()
         if count > 0:
@@ -109,9 +109,14 @@ def migrate_state(eng, data_dir: Path):
     # Import the engine's state module to load old records.
     state_mod = importlib.util.import_module("search_gateway.state")
     for f in old_files:
-        state_mod.migrate_file(str(f), db_path)
-        f.unlink()
-        print(f"migrated and removed {f.name}")
+        try:
+            state_mod.migrate_file(str(f), db_path)
+        except Exception as e:
+            print(f"  warn     failed to migrate {f.name}: {e}")
+        finally:
+            if f.exists():
+                f.unlink()
+                print(f"migrated and removed {f.name}")
 
 
 def main() -> int:
