@@ -97,6 +97,8 @@ def phrase_regex(rule, raw, anchor):
 
 def culprits(code, rule, text):
     entry = PHRASES["languages"][code][rule]
+    if not entry:
+        return ["(no phrases defined)"]
     anchor = PHRASES["rules"][rule].get("anchor", "any")
     raws = entry.get("phrases", []) if rule == "named_source" else entry
     found = [raw for raw in raws if phrase_regex(rule, raw, anchor).search(text)]
