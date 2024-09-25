@@ -1,5 +1,5 @@
-# The search gateway (services/search_gateway.py) on 127.0.0.1:8090 handles web search for Pi and Open WebUI, the usage
-# dashboard and the settings page. Runs in its own Python environment.
+# The search gateway (services/search_gateway.py) on 127.0.0.1:8090: every web search of Pi and Open WebUI, the usage
+# dashboard (/dashboard) and the settings page (/settings). Runs in its own Python environment; doesn't need Open WebUI.
 # install/search-gateway.sh fills in @PYTHON@ (that environment's Python) and @REPO_DIR@ and installs it as
 # ~/.config/systemd/user/search-gateway.service. Not enabled: start.sh starts it.
 
