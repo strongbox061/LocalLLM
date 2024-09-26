@@ -101,14 +101,9 @@ class Filter:
                     again = f" (part={part})" if part > 1 else ""
                     calls[call.get("id")] = (fn["name"], str(args.get("url") or "the page"), again)
 
-        if not calls:
-            return body
         removed = saved = 0
         for m in messages[:prompt]:
-            if not isinstance(m, dict) or m.get("role") != "tool":
-                continue
-            call_id = m.get("tool_call_id")
-            if call_id is None or call_id not in calls:
+            if not isinstance(m, dict) or m.get("role") != "tool" or m.get("tool_call_id") not in calls:
                 continue
             text = _text(m.get("content"))
             if len(text) < self.valves.min_chars or text.startswith(NOTE_START):
