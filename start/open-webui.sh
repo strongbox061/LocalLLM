@@ -5,11 +5,10 @@ set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
 
 # In split mode it runs on the helper PC; when owui is not in LOCALLLM_APPS it stays off.
-# Its data came from a backup made in split mode (restore.sh): its settings still name the helper's services. Set
-# them for this PC, once (the Knowledge bases are indexed again with this PC's embedding model: a few minutes).
-
-OWUI_PORT="${OWUI_PORT:-3000}"
-OWUI_DATA_DIR="${OWUI_DATA_DIR:-${LOCAL_LLM_DATA_DIR:-$HOME/.local/share}/local-llm/open-webui}"
+apps_has owui \
+    || die "Open WebUI is off (LOCALLLM_APPS=$LOCALLLM_APPS): ./localllm.sh apps pi,owui turns it back on."
+[[ "${WHERE_OPEN_WEBUI-main}" == main ]] \
+    || die "Open WebUI runs on the helper PC in split mode: ./localllm.sh start open-webui (or switch single first)."
 
 start_open_webui() {
   # If the container is already running, skip starting it.
