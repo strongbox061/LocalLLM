@@ -19,6 +19,7 @@ import threading
 import time
 import unicodedata
 from urllib.parse import parse_qs, quote_plus, unquote, urldefrag, urlparse
+
 import aiohttp
 from pydantic import BaseModel, Field
 
@@ -49,8 +50,9 @@ def looks_like_bot_check(text):
     return bool(LANG_BOT_CHECK_RE.search(text))
 
 # A year, optionally with the month before it ("November 2025", "nov. 2025", "noviembre de 2025").
-YEAR_WITH_MONTH_RE = re.compile(rf"\b(?:(?:{MONTHS})\.?\s+(?:de\s+)?)?((?:19|20)\d{{2}})\b", re.I)
-YEAR_RE = re.compile(r"\b(?:19|20)\d{{2}}\b")
+YEAR_WITH_MONTH_RE = re.compile(rf"\b(?:(?:{MONTHS})\.?\s+(?:de\s+)?)?((?:19|20)\d{2})\b", re.I)
+YEAR_RE = re.compile(r"\b(?:19|20)\d{2}\b")
+
 
 def wants_current_info(text):
     """Words in any language that mean the user wants current information ("latest version", "precio actual")."""
