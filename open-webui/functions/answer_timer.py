@@ -38,20 +38,26 @@ class Filter(BaseModel):
     """Timer filter for Open WebUI completions."""
 
     enabled: bool = Field(default=True)
-    start_time: float | None = Field(default=None)
+    _start: dict = Field(default_factory=dict)  # chat id -> start time
 
-    def set_start(self):
+    @staticmethod
+    def _chat(metadata, body) -> str:
+        md = metadata or {}
+        return str(md.get("chat_id") or (body or {}).get("chat_id") or "default")
+
+    def set_start(self, chat: str = "default"):
         """Record when the request started."""
-        self.start_time = time.time()
+        self._start[chat] = time.time()
 
-    def get_elapsed(self) -> float:
+    def get_elapsed(self, chat: str = "default") -> float:
         """Return elapsed seconds since start, or 0 if not started."""
-        if self.start_time is None:
+        start = self._start.get(chat)
+        if start is None:
             return 0.0
-        return time.time() - self.start_time
+        return time.time() - start
 
-    def format_timer_line(self) -> str:
+    def format_timer_line(self, chat: str = "default") -> str:
         """Build the timer display line."""
-        elapsed = self.get_elapsed()
+        elapsed = self.get_elapsed(chat)
         formatted = _fmt(elapsed)
         return f"\n*⏱ Answered in {formatted}*\n"
