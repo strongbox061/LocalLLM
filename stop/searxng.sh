@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Stops the SearXNG search engine containers.
-# Run this when you want to tear down SearXNG (e.g. before network changes).
 set -euo pipefail
 
 cd "$(dirname -- "${BASH_SOURCE[0]}")/.."
 
-# TODO: refactor to use searxng_compose helper from lib/common.sh
-docker compose -f docker-compose.searxng.yml down
+source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
+
+searxng_compose down
 echo "SearXNG stopped."
