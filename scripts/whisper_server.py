@@ -1,8 +1,17 @@
 """
+whisper_server.py: speech-to-text for Open WebUI on the helper PC (README, "Voice in Open WebUI"), an
 OpenAI-compatible /v1/audio/transcriptions with faster-whisper.
 
-The model is loaded before the port opens, so the first recording is as fast as
+Why a service of its own: inside Open WebUI's process the same model on the same GPU took 2-3 times longer per
+recording (it shares the process with the document search models), and it loaded only on the first recording after
+each start (about 9 s more). Here the model is loaded before the port opens, so the first recording is as fast as
 the others, and one recording is transcribed at a time (one GPU).
+
+Language: a recording with a language given (Open WebUI sends one only when it's set in your settings) uses it;
+otherwise the language is detected among LANGUAGES only, then the recording is transcribed in it. A short or
+unclear clip can't come back in a language nobody here speaks.
+
+  POST /v1/audio/transcriptions    multipart: file, optional language
 """
 
 import json
@@ -125,7 +134,22 @@ def parse_form(content_type: str, body: bytes) -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
     """Handle /v1/audio/transcriptions requests."""
+
+    def send(self, status: int, body, content_type="application/json"):
+        data = body if isinstance(body, bytes) else json.dumps(body).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def error(self, status: int, message: str):
+        log(f"refused ({status}): {message}")
+        self.close_connection = True
+        self.send(400, {"error": message})
 
     def _respond(self, code: int, data: dict):
         body = json.dumps(data).encode()
@@ -169,7 +193,7 @@ class Handler(BaseHTTPRequestHandler):
             os.unlink(tmp_path)
 
     def log_message(self, fmt, *args):
-        log(fmt % args)
+        pass
 
 
 class Server(ThreadingHTTPServer):
