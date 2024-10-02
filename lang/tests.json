@@ -99,6 +99,22 @@
       "bot_check": ["Acesso negado"],
       "none": ["Minha irmã comprou uma bicicleta vermelha ontem.", "O jardim é muito bonito na primavera."]
     },
+    "nl": {
+      "latest": ["Wat is er nieuw in de nieuwste versie van Vite"],
+      "error": ["De build is mislukt met een vreemde melding"],
+      "action_start": ["Zoek recensies van dit toetsenbord"],
+      "question_start": ["Hoe stel ik een proxy in Vite in"],
+      "local_current": ["Toon de bestanden in de huidige map"],
+      "named_engine": ["Zoek op Mojeek naar pi coding agent"],
+      "named_source": ["Lees de documentatie van Vite over de proxy"],
+      "lookup": ["Zoek het op, niet uit je geheugen"],
+      "offer": ["Wil je dat ik meer versies vergelijk?"],
+      "from_memory": ["Ik heb uit mijn geheugen geantwoord, zonder webonderzoek."],
+      "current_info": ["Hoeveel kost een RTX 5090 op dit moment"],
+      "months": ["november 2025"],
+      "bot_check": ["Toegang geweigerd"],
+      "none": ["Mijn zus heeft gisteren een rode fiets gekocht.", "De tuin is erg mooi in de lente."]
+    },
     "ru": {
       "latest": ["Что нового в последней версии Vite"],
       "error": ["Мой билд падает с странной ошибкой"],
