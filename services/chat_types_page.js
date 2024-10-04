@@ -60,22 +60,30 @@ function drawList() {
 }
 
 function rows(container, items, fields, addLabel) {
-  for (const [label, key] of fields) {
-    const row = el("div", { class: "row" });
-    row.appendChild(el("label", null, label));
-    const val = typeof key === "function" ? key(items) : items[key];
-    if (typeof val === "string") {
-      row.appendChild(el("textarea", { rows: 3 }, val));
-    } else {
-      row.appendChild(el("span", null, String(val ?? "")));
+  // fields: [{key, placeholder, multiline, mono}]
+  const box = el("div");
+  const add = (item = {}) => {
+    const inputs = fields.map((f) => {
+      const value = Array.isArray(item[f.key]) ? item[f.key].join("\n") : (item[f.key] || "");
+      const attrs = { placeholder: f.placeholder, class: f.mono ? "mono" : "", "data-key": f.key };
+      const input = f.multiline ? el("textarea", { ...attrs, rows: Math.min(6, Math.max(2, value.split("\n").length + 1)) })
+                                : el("input", { ...attrs, type: "text" });
+      input.value = value;
+      return input;
+    });
+    const row = el("div", { class: "row" }, inputs, el("button", { class: "small", type: "button", title: "Remove", onclick: () => row.remove() }, "\u00d7"));
+    box.append(row);
+  };
+  (items || []).forEach(add);
+  container.append(box, el("button", { class: "small", type: "button", onclick: () => add() }, addLabel));
+  return () => [...box.children].map((row) => {
+    const o = {};
+    for (const input of row.querySelectorAll("[data-key]")) {
+      const f = fields.find((x) => x.key === input.dataset.key);
+      o[f.key] = f.list ? lines(input.value) : input.value.trim();
     }
-    container.appendChild(row);
-  }
-  if (addLabel) {
-    const extra = el("div", { class: "row" });
-    extra.appendChild(el("label", null, addLabel));
-    container.appendChild(extra);
-  }
+    return o;
+  }).filter((o) => Object.values(o).some((v) => (Array.isArray(v) ? v.length : v)));
 }
 
 function open(id, fromTemplate = false) {
