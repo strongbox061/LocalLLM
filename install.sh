@@ -93,8 +93,14 @@ log "SearXNG"
 log "Pi"
 "$REPO_DIR/install/pi.sh" $UPDATE
 
-log "Pi extensions, AGENTS.md and skills from this repo"
-"$REPO_DIR/install/pi-config.sh"
+log "Open WebUI"
+"$REPO_DIR/install/open-webui.sh" $UPDATE
+
+log "OCR for scanned PDFs (Tesseract, OCRmyPDF)"
+"$REPO_DIR/install/ocr.sh" $UPDATE
+
+log "Search gateway (web search for Pi and Open WebUI)"
+"$REPO_DIR/install/search-gateway.sh"
 
 log "OCR for scanned PDFs (Tesseract, OCRmyPDF)"
 "$REPO_DIR/install/ocr.sh" $UPDATE
@@ -111,6 +117,6 @@ log "Off-site backup with rclone (the timer; README step 12 turns it on)"
 "$REPO_DIR/install/backup-timer.sh"
 
 log "Done"
-echo "SearXNG is running and starts at boot (Docker, restart: always)."
+echo "llama-server, Open WebUI and the search gateway are installed but not started: run ./start.sh"
 echo "Next, the README's steps after the scripts (\"Reinstalling from scratch\", steps 7-12): log out and in once,"
 echo "and the scheduled backup."
