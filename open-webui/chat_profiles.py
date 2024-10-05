@@ -211,7 +211,9 @@ class _Text(HTMLParser):
 def html_to_text(raw: str) -> str:
     parser = _Text()
     parser.feed(raw)
-    return "".join(parser.parts).strip()
+    text = html.unescape("".join(parser.parts)).replace("\xa0", " ")
+    lines = [" ".join(line.split()) for line in text.splitlines()]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
 
 
 def download(url: str) -> str:
