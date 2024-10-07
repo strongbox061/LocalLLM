@@ -71,6 +71,11 @@ fi
 echo "Search: SearXNG and the search gateway"
 check "SearXNG answers" test "$(code "$SEARXNG_URL/")" = 200
 check "the search gateway answers (/healthz)" test "$(code "$SEARCH_GATEWAY_URL/healthz")" = 200
+usage="$(curl -s -m 30 "$SEARCH_GATEWAY_URL/usage.json")"
+check "its dashboard's numbers (/usage.json): every search service, with a status" python3 -c '
+import json, sys; u = json.loads(sys.argv[1])
+assert u["services"] and all("status" in s and "id" in s for s in u["services"])' "$usage"
+check "the dashboard page loads" bash -c 'curl -s -m 10 "$1/dashboard" | grep -qi "<html"' _ "$SEARCH_GATEWAY_URL"
 
 # --- OCR checks ---
 if command -v ocrmypdf >/dev/null && command -v magick >/dev/null && command -v pdftotext >/dev/null; then

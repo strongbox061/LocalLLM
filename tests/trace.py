@@ -98,38 +98,9 @@ def report(path: str, args) -> str:
 
 
 def summary(path: str, args) -> str:
-    """Print one TSV summary line for automated testing."""
-    data = load(path)
-    messages = data.get('messages', [])
-
-    tool_counts = Counter()
-    has_reasoning = False
-    final_answer = ''
-
-    for msg in messages:
-        role = msg.get('role', '')
-        content = text_of(msg.get('content', ''))
-
-        if role == 'assistant':
-            if 'thinking' in content.lower():
-                has_reasoning = True
-            tool_use = msg.get('tool_use', [])
-            for tc in tool_use:
-                tool_counts[tc.get('name', 'unknown')] += 1
-            if not tool_use and 'thinking' not in content.lower():
-                final_answer = content
-
-    verdict = 'PASS'
-    if hasattr(args, 'expect') and args.expect:
-        if args.expect.lower() not in final_answer.lower():
-            verdict = 'FAIL'
-
-    return '\t'.join([
-        os.path.basename(path),
-        str(len(tool_counts)),
-        'yes' if has_reasoning else 'no',
-        verdict,
-    ])
+    run = load(path)
+    tools = ", ".join(f"{n}×{c}" for n, c in run["tools"].most_common()) or "none"
+    return "\t".join([args.id or "?", str(args.seconds or "?"), "on" if run["thinking"] else "off", tools, str(run["errors"])])
 
 
 def alive(pid: int) -> bool:
