@@ -153,6 +153,17 @@ button:disabled {
   cursor: default;
 }
 
+button:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.field input[type="text"]:focus,
+.field input[type="password"]:focus,
+.field input[type="number"]:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 #msg.ok {
   color: var(--ok);
 }
