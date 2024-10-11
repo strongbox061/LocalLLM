@@ -11,7 +11,7 @@ def transcribe_latency(audio_path: str, model: str = "large-v3-turbo") -> dict:
     """Run Whisper transcription and return timing stats."""
     import openai
 
-    client = openai.OpenAI()
+    client = openai.OpenAI(timeout=60)
     times = []
 
     for _ in range(3):
