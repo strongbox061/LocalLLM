@@ -235,3 +235,19 @@ check("subdomains count as the site, lookalikes don't",
       lookup_mod.on_allowed_site("https://a.b.rules.example/x", ["rules.example"])
       and not lookup_mod.on_allowed_site("https://rules.example.evil.example/", ["rules.example"])
       and not lookup_mod.on_allowed_site("ftp://rules.example/", ["rules.example"]))
+
+print("Chat type files (install/chat-types.sh)")
+example, problems = chat_types.load_chat_type(ROOT / "open-webui" / "chat-types" / "example.json")
+check("the example chat type is valid", not problems, problems)
+preset = chat_types.build_preset(example, "local", [], {"id": "k1", "name": "K", "description": "d"})
+meta = preset["meta"]
+check("its preset: base model, only the filter and the lookup", preset["base_model_id"] == "local"
+      and meta["filterIds"] == ["protected_chat"] and meta["toolIds"] == ["protected_lookup"], json.dumps(meta)[:300])
+check("its preset: web search, images, code, terminal, memory off; files, vision, citations on",
+      not any(meta["capabilities"][k] for k in ("web_search", "image_generation", "code_interpreter", "terminal", "memory"))
+      and all(meta["capabilities"][k] for k in ("file_upload", "vision", "citations")))
+check("its preset: built-in tools that reach out are off",
+      not any(meta["builtinTools"][k] for k in ("web_search", "code_interpreter", "memory", "chats", "notes",
+                                                  "automations", "notifications", "subagents", "tools", "skills")))
+check("its preset: allowed sites and patterns in the metadata, Knowledge attached",
+      meta["protected_chat"]["allowed_sites"] == example["allowed_sites"] and meta["knowledge"][0]["type"] == "collection")
