@@ -14,7 +14,6 @@ Never prints a setting's value. Usage: <gateway python> search_gateway_migrate.p
 import importlib.util
 import json
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -80,70 +79,75 @@ def migrate_settings(eng, webui_db: Path):
 
 
 def migrate_state(eng, data_dir: Path):
-    """Move usage counts, cache and search log into the gateway database."""
-    db_path = eng.settings().get("cache_db", str(data_dir / "cache.db"))
+    def first(suffix):
+        for prefix in OLD_NAMES:
+            p = data_dir / f"{prefix}_{suffix}"
+            if p.exists():
+                return p
+        return None
 
-    # Check if the gateway already has usage counts; if so, skip.
-    try:
-        conn = sqlite3.connect(db_path)
-        count = conn.execute("SELECT COUNT(*) FROM usage").fetchone()[0]
-        conn.close()
-        if count > 0:
-            print("usage counts already present, skipping state migration")
-            return
-    except (sqlite3.OperationalError, FileNotFoundError):
-        pass
-
-    # Find old state files in the data directory next to Open WebUI's database.
-    old_files = []
-    for prefix in OLD_NAMES:
-        for suffix in (".json", ".jsonl"):
-            f = data_dir / f"{prefix}{suffix}"
-            if f.exists():
-                old_files.append(f)
-
-    if not old_files:
-        print("no old state files found, nothing to migrate")
+    usage_file, cache_file = first("usage.json"), first("cache.json")
+    logs = [p for prefix in OLD_NAMES for p in (data_dir / f"{prefix}_log.jsonl.1", data_dir / f"{prefix}_log.jsonl") if p.exists()]
+    if not (usage_file or cache_file or logs):
+        print("  same     state (nothing left next to Open WebUI's database)")
         return
-
-    # Import the engine's state module to load old records.
-    state_mod = importlib.util.import_module("search_gateway.state")
-    for f in old_files:
-        try:
-            state_mod.migrate_file(str(f), db_path)
-        except Exception as e:
-            print(f"  warn     failed to migrate {f.name}: {e}")
-        finally:
-            if f.exists():
-                f.unlink()
-                print(f"migrated and removed {f.name}")
+    con = eng._db()
+    try:
+        has_usage = con.execute("SELECT 1 FROM doc WHERE name = 'usage'").fetchone() is not None
+        con.execute("BEGIN IMMEDIATE")
+        moved = []
+        if usage_file and not has_usage:
+            try:
+                usage = json.loads(usage_file.read_text())
+            except ValueError:
+                usage = None
+            if isinstance(usage, dict):
+                con.execute("INSERT INTO doc (name, data) VALUES ('usage', ?)", (json.dumps(usage),))
+                moved.append("usage counts")
+        if cache_file:
+            try:
+                cache = json.loads(cache_file.read_text())
+            except ValueError:
+                cache = {}
+            n = 0
+            for key, entry in (cache.items() if isinstance(cache, dict) else []):
+                if isinstance(entry, dict) and isinstance(entry.get("t"), (int, float)):
+                    con.execute("INSERT OR IGNORE INTO cache (key, t, provider, results) VALUES (?, ?, ?, ?)",
+                                (key, entry["t"], str(entry.get("provider") or ""), json.dumps(entry.get("results") or [])))
+                    n += 1
+            moved.append(f"{n} cached searches")
+        n = 0
+        for path in logs:
+            for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+                try:
+                    entry = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(entry, dict) and isinstance(entry.get("t"), (int, float)):
+                    con.execute("INSERT INTO log (t, entry) VALUES (?, ?)", (entry["t"], json.dumps(entry, ensure_ascii=False)))
+                    n += 1
+        if logs:
+            moved.append(f"{n} logged searches")
+        con.execute("COMMIT")
+    finally:
+        if con.in_transaction:
+            con.execute("ROLLBACK")
+        con.close()
+    # In the database now (or older copies of what it has): the old files and their lock files go.
+    for prefix in OLD_NAMES:
+        for suffix in ("usage.json", "cache.json", "log.jsonl", "log.jsonl.1"):
+            for p in (data_dir / f"{prefix}_{suffix}", data_dir / f"{prefix}_{suffix}.lock"):
+                if p.exists():
+                    p.unlink()
+    print(f"  moved    {', '.join(moved) or 'nothing usable'} -> {eng.STATE_DB} (old files deleted)"
+          + ("; usage counts kept as they were (the database had them already)" if has_usage and usage_file else ""))
 
 
 def main() -> int:
-    webui_db = Path(sys.argv[1]) if len(sys.argv) > 1 else None
-    if webui_db is None:
-        # Look for Open WebUI's database in common locations.
-        candidates = [
-            Path(os.environ.get("OPEN_WEBUI_DATA", "~/.local/share/open-webui")),
-            Path.home() / "open-webui" / "data",
-        ]
-        for c in candidates:
-            candidate = c.expanduser()
-            if candidate.exists():
-                db = candidate / "app.db"
-                if db.exists():
-                    webui_db = db
-                    break
-
-    if webui_db is None or not webui_db.exists():
-        print("error: Open WebUI database not found; pass path as argument", file=sys.stderr)
-        return 1
-
+    webui_db = Path(os.path.expanduser(sys.argv[1] if len(sys.argv) > 1 else "~/.open-webui/webui.db"))
     eng = engine()
-    data_dir = webui_db.parent
-
     migrate_settings(eng, webui_db)
-    migrate_state(eng, data_dir)
+    migrate_state(eng, webui_db.parent)
     return 0
 
 
