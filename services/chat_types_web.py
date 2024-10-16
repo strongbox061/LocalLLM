@@ -145,6 +145,10 @@ def _clean(data: dict) -> dict:
 
 def _start(kind: str, ct_id: str, args: list, after=None) -> tuple:
     """Start a background job. Returns (ok, message)."""
+    with _job_lock:
+        if _job["running"]:
+            return False, f"Busy: {_job['kind']} of {_job['id']} is still running."
+        _job.update(running=True, kind=kind, id=ct_id, started=int(time.time()), ended=0, exit=None, output="")
     cmd = BUILDER + args
     try:
         proc = subprocess.Popen(
@@ -154,8 +158,10 @@ def _start(kind: str, ct_id: str, args: list, after=None) -> tuple:
         )
         if after:
             after(proc)
-        return True, f"Started {kind} for {ct_id}"
+        return True, "started"
     except OSError as exc:
+        with _job_lock:
+            _job.update(running=False)
         return False, str(exc)
 
 
