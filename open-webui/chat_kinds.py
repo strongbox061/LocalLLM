@@ -16,7 +16,7 @@ is overwritten on the next run; a preset whose file is gone is reported, not del
   --only <id>        only that chat type (with or without --refresh-sources)
   --remove <id>      delete the preset chat-<id> and its Knowledge base (not the file)
 
-Usage: python chat_types.py <Open WebUI URL> <webui.db> <.webui_secret_key> <model.json> <chat types dir> [options]
+Usage: python chat_kinds.py <Open WebUI URL> <webui.db> <.webui_secret_key> <model.json> <chat types dir> [options]
 """
 
 import datetime
