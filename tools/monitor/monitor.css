@@ -235,6 +235,16 @@ select:hover {
   background: var(--pie-free);
 }
 
+.error-banner {
+  background: var(--bad-bg);
+  color: var(--bad-fg);
+  border: 1px solid var(--pie-used);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+
 .machines {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(520px, 1fr));
@@ -428,16 +438,6 @@ select:hover {
   transition: stroke-dasharray 0.35s ease;
 }
 
-.error-banner {
-  background: var(--bad-bg);
-  color: var(--bad-fg);
-  border: 1px solid var(--pie-used);
-  border-radius: 8px;
-  padding: 10px 14px;
-  margin-bottom: 16px;
-  font-weight: 500;
-}
-
 .notice {
   background: var(--card-soft);
   border: 1px dashed var(--line);
@@ -579,6 +579,23 @@ select:hover {
 .proc-val {
   font-weight: 700;
   color: var(--pie-used);
+}
+
+.proc-bar-wrap {
+  width: 90px;
+  height: 7px;
+  background: var(--pie-free);
+  border-radius: 999px;
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 8px;
+}
+
+.proc-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--pie-used);
 }
 
 

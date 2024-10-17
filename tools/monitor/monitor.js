@@ -371,7 +371,7 @@ function renderMachineCard(machineKey, title, machine, isHelper, setup) {
 
   return h("article", { class: "machine" },
     head,
-    ...cards,
+    h("div", { class: "pies" }, cards)
   );
 }
 
