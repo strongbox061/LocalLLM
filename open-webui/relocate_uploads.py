@@ -19,6 +19,12 @@ def main(argv):
         print(__doc__.strip(), file=sys.stderr)
         return 2
     db, uploads = argv[1], os.path.abspath(argv[2])
+    if not os.path.isfile(db):
+        print(f"ERROR: database not found: {db}", file=sys.stderr)
+        return 1
+    if not os.path.isdir(uploads):
+        print(f"ERROR: uploads folder not found: {uploads}", file=sys.stderr)
+        return 1
     con = sqlite3.connect(db)
     try:
         rows = con.execute("SELECT id, path FROM file WHERE path IS NOT NULL AND path != ''").fetchall()
