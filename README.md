@@ -27,7 +27,9 @@ the free space first), and no copy is kept anywhere else.
 
 To use another model (or another GGUF build, if the uploader renames or removes the file):
 
-1. Add a profile in `models/`: copy the default one and change its values. Leave `MMPROJ_*` empty without image input, and `MOE_LAYERS`/`N_CPU_MOE` empty without experts.
+1. Add a profile in `models/`: copy the default one and change its values. `REASONING` is `qwen-template` (the chat
+   template's `enable_thinking`), `reasoning-effort` (the lowest `REASONING_OFF_EFFORT`, default `low`) or `none`.
+   Leave `MMPROJ_*` empty without image input, and `MOE_LAYERS`/`N_CPU_MOE` empty without experts.
 2. Set `MODEL_PROFILE="<file name without .env>"` in `~/.config/localllm/local.env`.
 3. Run `install/llama.sh` (downloads it), `install/pi.sh` (Pi's context window), `stop/llama.sh && start/llama.sh`,
    and `stop/open-webui.sh && start/open-webui.sh` (Open WebUI's compaction limit).
