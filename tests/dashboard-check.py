@@ -95,24 +95,9 @@ def log_entries():
     """Return sample search-log entries for testing the log filter."""
     now = datetime.datetime.now(datetime.timezone.utc)
     return [
-        {
-            "timestamp": (now - datetime.timedelta(hours=2)).isoformat(),
-            "app": "Pi",
-            "query": "what is python",
-            "cached": False,
-        },
-        {
-            "timestamp": (now - datetime.timedelta(hours=5)).isoformat(),
-            "app": "Open WebUI",
-            "query": "explain quantum computing",
-            "cached": True,
-        },
-        {
-            "timestamp": (now - datetime.timedelta(days=10)).isoformat(),
-            "app": "Pi",
-            "query": "old query that should be dropped",
-            "cached": False,
-        },
+        {"t": (now - datetime.timedelta(hours=2)).timestamp(), "app": "Pi", "service": "tavily", "q": "what is python", "cached": False},
+        {"t": (now - datetime.timedelta(hours=5)).timestamp(), "app": "Open WebUI", "service": "tavily", "q": "explain quantum computing", "cached": True},
+        {"t": (now - datetime.timedelta(days=10)).timestamp(), "app": "Pi", "service": "brave", "q": "old query that should be dropped", "cached": False},
     ]
 
 
@@ -209,10 +194,9 @@ def main():
     # 2. search log filtering
     entries = log_entries()
     now = datetime.datetime.now(datetime.timezone.utc)
-    search_log_days = 7
-    cutoff = now - datetime.timedelta(days=search_log_days)
+    cutoff = now - datetime.timedelta(days=7)
 
-    filtered = [e for e in entries if datetime.datetime.fromisoformat(e["timestamp"]).replace(tzinfo=datetime.timezone.utc) >= cutoff]
+    filtered = [e for e in entries if datetime.datetime.fromtimestamp(e["t"], tz=datetime.timezone.utc) >= cutoff]
     check("log drops old entries", len(filtered) == 2, f"got {len(filtered)} of {len(entries)}")
 
     # 3. cached vs live
@@ -223,6 +207,10 @@ def main():
     # 4. app identification
     apps = {e["app"] for e in filtered}
     check("log records app name", "Pi" in apps and "Open WebUI" in apps)
+
+    # 5. service tracking
+    services = {e.get("service") for e in filtered}
+    check("log records service", "tavily" in services),
 
     # 5. HTTP server serves /usage.json
     state_db = _build_state_db(usage, set_cache({}), log_entries())
