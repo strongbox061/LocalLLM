@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
-# backup-local.sh — copy the machine's own LocalLLM settings (~/.config/localllm, plus EXTRA_BACKUP_FILES) into backup/
+# tools/backup.sh — copy the machine's own LocalLLM settings (~/.config/localllm, plus EXTRA_BACKUP_FILES) into backup/
 # (kept out of git: it holds secrets), with this repo itself as backup/repo.bundle, and records the versions
 # running now in ~/.config/localllm/versions.env (README, "Versions").
-# archive-backup.sh and upload-backup.sh call it before packing backup/ into an encrypted archive.
 set -euo pipefail
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/lib/common.sh"
 
 BACKUP_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)/backup"
-PI_AGENT_DIR=~/.config/localllm
-PI_FILES=(
+LOCALLLM_DIR=~/.config/localllm
+LOCALLLM_FILES=(
     settings.json
     models.json
     sandbox.json
@@ -84,9 +83,9 @@ EOF
   log_info "Wrote versions to $file"
 }
 
-log "Pi ($PI_AGENT_DIR)"
-for f in "${PI_FILES[@]}"; do
-    copy_file "$PI_AGENT_DIR/$f" "$BACKUP_DIR/pi/$f"
+log "LocalLLM config ($LOCALLLM_DIR)"
+for f in "${LOCALLLM_FILES[@]}"; do
+    copy_file "$LOCALLLM_DIR/$f" "$BACKUP_DIR/pi/$f"
 done
 
 # Snapshot SQLite databases if present
