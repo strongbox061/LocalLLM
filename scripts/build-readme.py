@@ -168,18 +168,13 @@ def highlight_code(code: str, lang: str) -> str:
 class ReadmeConverter:
     """Convert a Markdown README into an interactive HTML document."""
 
-    def __init__(self, input_path: str = 'README.md', output_path: str = 'README.html'):
-        self.input_path = Path(input_path)
-        self.output_path = Path(output_path)
-        self.toc_tree: list[dict[str, Any]] = []
-        self.current_section: dict[str, Any] | None = None
-
-    def read_input(self) -> str:
-        """Read the input Markdown file."""
-        if not self.input_path.exists():
-            print(f"Error: {self.input_path} not found", file=sys.stderr)
-            sys.exit(1)
-        return self.input_path.read_text(encoding='utf-8')
+    def __init__(self, md_text: str) -> None:
+        self.md_text = md_text
+        self.lines = md_text.splitlines()
+        self.headings: list[dict[str, Any]] = []
+        self.slug_by_title: dict[str, str] = {}
+        self.inline_anchors: dict[str, str] = {}
+        self._scan_headings()
 
     def _make_anchor(self, title: str) -> str:
         """Create an HTML anchor element for a heading."""
