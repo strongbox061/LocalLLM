@@ -15,16 +15,12 @@ set -uo pipefail
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
 
-IGNORE_FILE="$RESTORABILITY_IGNORE_FILE"
-LOCAL_IGNORED=()
-[[ -f "$IGNORE_FILE" ]] && mapfile -t LOCAL_IGNORED < <(grep -v -E '^\s*(#|$)' "$IGNORE_FILE")
-
 FAIL=0
 ok()   { printf '  ok    %s\n' "$*"; }
 bad()  { printf '  FAIL  %s\n' "$*"; FAIL=1; }
-note()   { printf '  note  %s\n' "$*"; }
+note() { printf '  note  %s\n' "$*"; }
 
-# check_list <label> <listing command output> <covered names...> -- <ignored names...>
+# check_dir <label> <listing command output> <covered names...> -- <ignored names...>
 # Every name in the listing must be covered (brought back) or ignored (caches, other projects).
 check_list() {
     local label="$1" listing="$2"; shift 2
@@ -41,6 +37,10 @@ check_list() {
     done <<< "$listing"
     if [[ ${#uncovered[@]} -eq 0 ]]; then ok "$label"; else bad "$label: not covered: ${uncovered[*]}"; fi
 }
+
+IGNORE_FILE="$RESTORABILITY_IGNORE_FILE"
+LOCAL_IGNORED=()
+[[ -f "$IGNORE_FILE" ]] && mapfile -t LOCAL_IGNORED < <(grep -v -E '^\s*(#|$)' "$IGNORE_FILE")
 
 # --- ~/.config/localllm ---
 echo "Checking ~/.config/localllm..."
