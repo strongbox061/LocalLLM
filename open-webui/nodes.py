@@ -82,26 +82,40 @@ MARK = "localllm hires fix"   # the title of the workflow's upscale node: how a 
 # the chat's language; Stable Diffusion reads English and only about the first 75 words well, so: short English tags,
 # the subject first.
 IMAGE_PROMPT_TEMPLATE = """### Task:
-Convert the following chat message into a short image prompt in English. Use concise comma-separated tags with the
-subject first. Keep it under 75 words. Output only the prompt, no explanations.
+Write the prompt for a Stable Diffusion 1.5 image generator, for the picture the user asks for in the chat below.
 
 ### Guidelines:
-- Start with the main subject
-- Add key visual details (colors, lighting, style)
-- Omit conversational filler
-- No quotes or markdown in output
+- Always write in English, whatever language the chat is in.
+- Write comma-separated tags and short phrases, not sentences: at most 50 words in all.
+- Start with the main subject and what it is doing, then the setting, then the style (photo, illustration,
+  watercolor, 3d render...), the lighting and the framing (portrait, full body, wide shot).
+- End with a few quality tags, such as: highly detailed, sharp focus, masterpiece.
+- Keep only what the user asked for; don't add people, objects or text they didn't mention.
+- Name well-known characters plainly and add a short description of how they look.
 
 ### Output:
-(one line of tags)
+Strictly return in JSON format:
+{
+    "prompt": "the tags"
+}
 
 ### Chat History:
-{chat_history}
-"""
+<chat_history>
+{{MESSAGES:END:6}}
+</chat_history>"""
 
 
 def is_replaceable(text):
-    """Return True if *text* looks like a previous localllm hires-fix workflow."""
-    return MARK in text
+    """Open WebUI's default ComfyUI workflow (KSampler node 3, negative prompt node 7), or one this script wrote."""
+    if not text:
+        return True
+    try:
+        wf = json.loads(text)
+        if wf.get("10", {}).get("_meta", {}).get("title") == MARK:
+            return True
+        return wf["3"]["class_type"] == "KSampler" and wf["7"]["class_type"] == "CLIPTextEncode" and len(wf) == 7
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return False
 
 
 def hires_workflow(checkpoint, embeddings):

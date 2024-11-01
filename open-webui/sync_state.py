@@ -9,6 +9,31 @@ Only the code changes. Name, description, Valves, on/off state and access stay a
 An item that does not exist yet is created; a new function stays switched off (install/chat-types.sh switches on the
 Protected Chat filter it needs), except the filters in GLOBAL_FILTERS (Old Pages), which are switched on for every
 model each run.
+
+It also sets document search (Admin Panel > Settings > Documents), for every chat: a multilingual embedding model
+(EMBEDDINGS below: multilingual-e5-small with the "query: "/"passage: " prefixes it was trained with, or bge-m3 on the
+two-PC setup's helper, LOCALLLM_EMBEDDING) and hybrid search (keyword matching next
+to the embeddings, for article numbers, names and case numbers). A new embedding model is downloaded once (~0.5 GB)
+and the Knowledge bases are indexed again with it.
+
+Logs in as the first admin user with a token valid for one minute, signed with Open WebUI's own key
+(.webui_secret_key), the same way Open WebUI signs the tokens of its automations.
+
+With the model profile's JSON (~/.config/localllm/model.json, from lib/model.sh) as a 4th argument, it also moves
+Open WebUI from the model's old aliases (e.g. a model-specific name used before "local") to the alias: the model's
+settings (system prompt, tools, slot), presets based on it, and the admin's chats. Run once per old alias; afterwards
+there is nothing left to move.
+
+Renamed tools (RENAMED_TOOLS) move to their new id first: the same Valves (API keys; never printed) and access, and
+models or presets naming the old id get the new one. Only when the old id still exists (e.g. after restoring an older
+backup).
+
+The "Search Gateway" tool is a thin client of the search gateway, which keeps the search settings itself
+(~/.config/localllm/search-gateway.json). Valves left from when the tool did the searching (API keys, order, limits)
+are removed from Open WebUI once that file exists; if it doesn't yet, they are written to it first (only you can
+read it), so nothing is lost whichever installer runs first.
+
+Usage: python sync.py <Open WebUI URL> <webui.db> <.webui_secret_key> [model.json]
 """
 
 import json
