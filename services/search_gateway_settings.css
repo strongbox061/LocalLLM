@@ -26,6 +26,12 @@
   box-sizing: border-box;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -104,8 +110,6 @@ a {
   color: var(--text);
   font: 13px ui-monospace, SFMono-Regular, Menlo, monospace;
 }
-
-
 
 .meta {
   font-size: 12px;
