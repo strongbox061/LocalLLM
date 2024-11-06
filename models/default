@@ -1,7 +1,8 @@
 # Default model configuration for LocalLLM
 # Specifies which GGML model to use by default
 
-model=qwen-7b-chat
+model=qwen2.5-14b-instruct
 quantization=gguf_q4_k_m
-context_size=2048
-threads=4
+context_size=4096
+threads=6
+gpu_layers=30
