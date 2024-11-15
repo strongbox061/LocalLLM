@@ -120,7 +120,7 @@ def lookup(tool, query, cfg=CFG, user=None, messages=None, files=None):
 
 print("The Protected Chat filter")
 f = filter_mod.Filter()
-body = {
+body = {"tool_ids": ["search_gateway", "server:mcp:x"], "terminal_id": "t1",
         "features": {"web_search": True, "image_generation": True, "code_interpreter": True, "memory": True, "voice": True},
         "metadata": {"tool_servers": [{"url": "x"}]}}
 md = {"tool_servers": [{"url": "x"}], "features": {"web_search": True}}
@@ -251,3 +251,96 @@ check("its preset: built-in tools that reach out are off",
                                                   "automations", "notifications", "subagents", "tools", "skills")))
 check("its preset: allowed sites and patterns in the metadata, Knowledge attached",
       meta["protected_chat"]["allowed_sites"] == example["allowed_sites"] and meta["knowledge"][0]["type"] == "collection")
+stored = json.loads(json.dumps(preset))  # what Open WebUI gives back
+check("built twice: no differences (a second run changes nothing)", chat_types.differences(preset, stored) == [],
+      chat_types.differences(preset, stored))
+stored["params"]["system"] = "edited by hand"
+stored["meta"]["toolIds"] = ["search_gateway"]
+check("a hand edit is seen and undone", set(chat_types.differences(preset, stored)) == {"system prompt", "toolIds"},
+      chat_types.differences(preset, stored))
+check("the lookup reads the preset it builds", lookup_mod.clean_sites(lookup_mod.chat_type_of(meta).get("allowed_sites"))
+      == example["allowed_sites"])
+with tempfile.TemporaryDirectory() as tmp:
+    bad = Path(tmp) / "Bad_Name.json"
+    bad.write_text(json.dumps({"name": "x", "system_prompt": "y", "allowed_sites": ["https://a.example/x"],
+                               "patterns": [{"regex": "("}], "sources": [{"name": "s", "urls": "not a list"}]}))
+    _, problems = chat_types.load_chat_type(bad)
+    check("a broken file is refused, with each problem named", len(problems) == 4, problems)
+check("source pages become plain text", chat_types.html_to_text(
+    "<html><script>x()</script><body><p>Norma 1.&nbsp;Texto</p><nav>menu</nav><p>Dos</p></body></html>")
+      == "Norma 1. Texto\n\nDos", repr(chat_types.html_to_text("<p>Norma 1.&nbsp;Texto</p><nav>menu</nav><p>Dos</p>")))
+
+print("The chat types page (services/chat_types_web.py), with a stand-in builder and a temporary folder")
+with tempfile.TemporaryDirectory() as tmp:
+    import os
+    import time as _time
+
+    os.environ["CHAT_TYPES_DIR"] = tmp
+    web = load("chat_types_web", ROOT / "services" / "chat_types_web.py")
+    web.BUILDER = ["echo", "builder"]
+
+    def wait_job():
+        for _ in range(100):
+            if not web.job()["running"]:
+                return web.job()
+            _time.sleep(0.05)
+        return web.job()
+
+    good = {"name": "Page test", "system_prompt": "Be brief.", "allowed_sites": ["https://Example.org/path"],
+            "patterns": [{"name": "member", "regex": r"M-\d+"}], "users": ["", "a@b.example"]}
+    status, out = web.save({"id": "page-test", "new": True, "data": good})
+    job = wait_job()
+    path = Path(tmp) / "page-test.json"
+    saved = json.loads(path.read_text()) if path.exists() else {}
+    check("a new chat type is written and built (only that one)", status == 200 and job["exit"] == 0
+          and "builder --only page-test" in job["output"], (status, out, job))
+    check("its file: mode 600, the site cleaned to a domain, empty entries dropped",
+          oct(path.stat().st_mode & 0o777) == "0o600" and saved.get("allowed_sites") == ["example.org"]
+          and saved.get("users") == ["a@b.example"], saved)
+    status, out = web.save({"id": "page-test", "new": True, "data": good})
+    check("a second chat type with the same id is refused", status == 400, out)
+    for label, body in (("an id with capitals or spaces", {"id": "Bad Id", "new": True, "data": good}),
+                        ("a broken regular expression", {"id": "page-test", "data": {**good, "patterns": [{"name": "x", "regex": "("}]}}),
+                        ("no allowed websites", {"id": "page-test", "data": {**good, "allowed_sites": []}})):
+        before = path.read_text()
+        status, out = web.save(body)
+        check(f"refused, file unchanged: {label}", status == 400 and out.get("problems") and path.read_text() == before, out)
+    path.write_text(json.dumps({"_note": "kept", **saved}))
+    status, _ = web.save({"id": "page-test", "data": {**good, "name": "Renamed"}})
+    wait_job()
+    saved = json.loads(path.read_text())
+    check("an edit keeps notes written by hand", status == 200 and saved.get("_note") == "kept" and saved["name"] == "Renamed", saved)
+    status, _ = web.delete({"id": "page-test"})
+    job = wait_job()
+    check("delete: removed from Open WebUI by the builder, file moved to .deleted/",
+          status == 200 and "builder --remove page-test" in job["output"] and not path.exists()
+          and len(list((Path(tmp) / ".deleted").glob("page-test-*.json"))) == 1, job)
+
+    class FakeHandler:
+        def __init__(self, client="127.0.0.1", host="127.0.0.1:8090", ctype="application/json", origin=None):
+            self.client_address = (client, 50000)
+            self.headers = {"Host": host, "Content-Type": ctype, **({"Origin": origin} if origin else {})}
+            self.sent = None
+
+        def _send(self, status, data):
+            self.sent = (status, data)
+
+        def _send_bytes(self, status, payload, ctype):
+            self.sent = (status, ctype)
+
+    def ask(method, path, **kw):
+        h = FakeHandler(**kw)
+        web.handle(h, path, method, b'{"id": "x"}', "/nonexistent.db", 8090)
+        return h.sent[0]
+
+    check("the page is served to this computer", ask("GET", "/chat-types") == 200)
+    check("its CSS and JS are served to this computer",
+          ask("GET", "/chat-types/chat_types_page.css") == 200 and ask("GET", "/chat-types/chat_types_page.js") == 200)
+    check("refused: another machine (even with SEARCH_GATEWAY_BIND)", ask("GET", "/chat-types/data", client="192.168.1.20") == 403)
+    check("refused: a foreign Host name (DNS rebinding)", ask("GET", "/chat-types/data", host="evil.example:8090") == 403)
+    check("refused: a plain form post (other websites can send those)", ask("POST", "/chat-types/delete", ctype="application/x-www-form-urlencoded") == 403)
+    check("refused: a post from another website's page", ask("POST", "/chat-types/delete", origin="http://evil.example") == 403)
+    check("other paths are left to the server", web.handle(FakeHandler(), "/search", "GET", b"", "", 8090) is False)
+
+print(f"protected-chat-check.py: {passed} passed, {failed} failed")
+sys.exit(1 if failed else 0)
