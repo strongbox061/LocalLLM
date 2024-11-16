@@ -63,6 +63,7 @@ class Flavor:
         stop = STOP
         self.gap_spaced = rf"(?:[\s-]+[^{stop}]{{0,80}}?)?[\s-]+"
         self.gap_tight = rf"[^{stop}]{{0,80}}?"
+        self.end_punct = r"[\s.!?。！？،؟]*$"
 
 
 def escape(text: str) -> str:
