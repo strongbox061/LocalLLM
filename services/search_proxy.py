@@ -109,26 +109,63 @@ def run(coro, timeout: float = REQUEST_TIMEOUT):
 async def _call(fn, *args):
     """A plain function run on the event loop, so it sees the engine's state as the searches do."""
     return fn(*args)
+# ---------------------------------------------------------------- the engine and its settings
 
 
-def _strip_bangs(query):
-    """Remove leading SearXNG bangs from query string."""
-    return LEAD_BANGS_RE.sub("", query).strip()
-
-
-def _get_bangs(query):
-    """Extract leading bangs from query."""
-    m = LEAD_BANGS_RE.search(query)
-    return m.group(0).strip() if m else ""
-
-
-def _read_file_safe(path):
-    """Read a file safely, return None on any error."""
+def _mtime(path: str) -> int:
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            return f.read()
-    except (OSError, UnicodeDecodeError):
-        return None
+        return os.stat(path).st_mtime_ns
+    except OSError:
+        return 0
+
+
+def read_settings() -> dict:
+    try:
+        with open(SETTINGS_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except FileNotFoundError:
+        return {}
+    except ValueError as e:
+        raise RuntimeError(f"{SETTINGS_FILE} is not valid JSON ({e}); fix it or save the settings page again")
+
+
+def write_settings(data: dict):
+    """Writes the settings file atomically, readable only by you."""
+    os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(SETTINGS_FILE), prefix=".search-gateway.", suffix=".json")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False, sort_keys=True)
+            f.write("\n")
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, SETTINGS_FILE)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+
+
+def _tool():
+    """The engine's Tools object with your settings; rebuilt when the engine file or the settings change. What the
+    old object learned (services without usage reporting, last checks, pauses, each answer's counts, searches still
+    running) carries over."""
+    key = (_mtime(ENGINE_FILE), _mtime(SETTINGS_FILE))
+    if key == _loaded["key"]:
+        return _loaded["tool"]
+    with _build_lock:
+        if key == _loaded["key"]:
+            return _loaded["tool"]
+        module = _loaded["module"]
+        if module is None or key[0] != _loaded["key"][0]:
+            spec = importlib.util.spec_from_file_location("search_gateway_engine", ENGINE_FILE)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            _loaded["module"] = module
+        tool = module.Tools(read_settings())
+        _loaded["key"] = key
+        _loaded["tool"] = tool
+        return tool
 
 
 def _serve_static(handler, path, content_type):
