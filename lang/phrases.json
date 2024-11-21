@@ -117,6 +117,23 @@
       "current_info": ["última versão", "mais recent*", "recentemente", "atualmente", "agora mesmo", "neste momento", "hoje", "esta semana", "este mês", "este ano", "atualizado", "preço atual", "preços atuais", "preço de", "preços de", "quanto custa", "taxa de câmbio", "cotação", "ofertas"],
       "months": ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"],
       "bot_check": ["verificando se você é humano", "verifique se você é humano", "confirme que você é humano", "verificando seu navegador", "acesso negado", "tráfego incomum", "um momento...", "só um momento"]
+    },
+    "nl": {
+      "name": "Dutch",
+      "please": ["alsjeblieft", "alstublieft", "graag", "aub"],
+      "latest": ["nieuwste", "laatste versie", "meest recente", "recent*", "onlangs", "actueel", "actuele", "huidige versie", "wat is er nieuw", "wijzigingslog", "releasenotes", "nieuwe functies"],
+      "error": ["fout", "fouten", "foutmelding", "uitzondering", "mislukt", "faalt", "gecrasht", "crasht", "werkt niet", "kapot", "repareer", "los op", "herstel"],
+      "action_start": ["zoek", "zoeken", "vind", "open", "lees", "ga naar", "bezoek", "download", "bewerk", "bekijk"],
+      "question_start": ["wat", "waarom", "hoe", "waar", "wanneer", "wie", "welke", "welk", "hoeveel", "kun je uitleggen", "kunt u uitleggen"],
+      "local_current": ["huidige map", "huidige directory", "huidig bestand", "huidige bestand", "huidige branch", "werkmap"],
+      "named_engine": ["zoek op {engine}", "zoek met {engine}", "zoek in {engine}", "zoeken op {engine}", "zoek via {engine}"],
+      "named_source": {"verbs": ["lees", "lezen", "open", "vind", "bekijk"], "nouns": ["pagina", "artikel", "documentatie", "docs", "readme", "homepage", "website"], "phrases": ["volgens de", "volgens het", "modelkaart"]},
+      "lookup": ["zoek het op", "zoek dit op", "zoek dat op", "niet uit je geheugen", "niet uit het geheugen", "zoek online", "zoek op internet"],
+      "offer": ["wil je", "wilt u", "zal ik", "laat me weten", "laat het me weten", "als je wilt"],
+      "from_memory": ["algemene kennis", "uit het geheugen", "uit mijn geheugen", "weet ik al", "ik weet al", "zonder webonderzoek"],
+      "current_info": ["nieuwste", "meest recente", "onlangs", "momenteel", "op dit moment", "nu meteen", "vandaag", "deze week", "deze maand", "dit jaar", "actueel", "actuele", "prijs van", "prijzen van", "hoeveel kost", "wisselkoers", "aanbiedingen"],
+      "months": ["januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus", "september", "oktober", "november", "december"],
+      "bot_check": ["controleren of u een mens bent", "controleer of je een mens bent", "uw browser wordt gecontroleerd", "toegang geweigerd", "ongebruikelijk verkeer", "een ogenblik...", "even geduld"]
     }
   }
 }
