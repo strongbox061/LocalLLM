@@ -143,26 +143,31 @@ def _clean(data: dict) -> dict:
     return out
 
 
-def _start(kind: str, ct_id: str, args: list, after=None) -> tuple:
-    """Start a background job. Returns (ok, message)."""
+def _start(kind: str, ct_id: str, args: list, after=None) -> tuple[bool, str]:
     with _job_lock:
         if _job["running"]:
             return False, f"Busy: {_job['kind']} of {_job['id']} is still running."
         _job.update(running=True, kind=kind, id=ct_id, started=int(time.time()), ended=0, exit=None, output="")
-    cmd = BUILDER + args
-    try:
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        if after:
-            after(proc)
-        return True, "started"
-    except OSError as exc:
+
+    def run():
+        try:
+            p = subprocess.Popen(BUILDER + args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                                 cwd=str(REPO), env={**os.environ, "PYTHONUNBUFFERED": "1"})
+            for line in p.stdout:
+                with _job_lock:
+                    _job["output"] += line
+            code = p.wait()
+            if code == 0 and after:
+                after()
+        except Exception as e:
+            code = -1
+            with _job_lock:
+                _job["output"] += f"ERROR: {type(e).__name__}: {e}\n"
         with _job_lock:
-            _job.update(running=False)
-        return False, str(exc)
+            _job.update(running=False, exit=code, ended=int(time.time()))
+
+    threading.Thread(target=run, daemon=True).start()
+    return True, "started"
 
 
 def save(body: dict) -> tuple:
