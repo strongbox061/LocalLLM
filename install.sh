@@ -42,6 +42,7 @@ if [[ "${free_gb:-0}" -lt 30 ]]; then
 fi
 
 log "System packages"
+# setup does not depend on a particular desktop environment pulling them in.
 PACKAGES=(
     base-devel cmake git cuda uv nodejs npm python diffutils sqlite openssl openssh curl gnupg rclone shellcheck bubblewrap libnotify dmidecode
     ffmpeg nss nspr at-spi2-core libcups libdrm libxkbcommon mesa pango cairo alsa-lib libxcomposite libxdamage libxfixes libxrandr
@@ -102,9 +103,6 @@ log "OCR for scanned PDFs (Tesseract, OCRmyPDF)"
 log "Search gateway (web search for Pi and Open WebUI)"
 "$REPO_DIR/install/search-gateway.sh"
 
-log "OCR for scanned PDFs (Tesseract, OCRmyPDF)"
-"$REPO_DIR/install/ocr.sh" $UPDATE
-
 log "Tailscale (the private network to the helper PC, for the two-PC setup)"
 "$REPO_DIR/install/tailscale.sh"
 
@@ -117,6 +115,7 @@ log "Off-site backup with rclone (the timer; README step 12 turns it on)"
 "$REPO_DIR/install/backup-timer.sh"
 
 log "Done"
+echo "SearXNG is running and starts at boot (Docker, restart: always)."
 echo "llama-server, Open WebUI and the search gateway are installed but not started: run ./start.sh"
 echo "Next, the README's steps after the scripts (\"Reinstalling from scratch\", steps 7-12): log out and in once,"
 echo "and the scheduled backup."
