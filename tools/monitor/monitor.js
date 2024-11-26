@@ -432,11 +432,21 @@ function renderModal() {
 function renderSetupBadges(setup) {
   const modeBadge = document.getElementById("modeBadge");
   const appsBadge = document.getElementById("appsBadge");
-  if (setup) {
-    modeBadge.textContent = "Mode: " + setup.mode;
-    modeBadge.className = "badge ok";
-    appsBadge.textContent = "Apps: " + setup.apps;
-    appsBadge.className = "badge ok";
+
+  if (setup.mode === "split") {
+    modeBadge.className = "badge split";
+    modeBadge.textContent = "Split mode (Main + Helper PC)";
+  } else {
+    modeBadge.className = "badge single";
+    modeBadge.textContent = "Single mode (Main PC only)";
+  }
+
+  if (setup.apps === "pi") {
+    appsBadge.className = "badge apps-pi";
+    appsBadge.textContent = "pi (Pi only · 1 full slot)";
+  } else {
+    appsBadge.className = "badge apps-both";
+    appsBadge.textContent = `${setup.apps} (Pi + Open WebUI)`;
   }
 }
 
