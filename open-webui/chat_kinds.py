@@ -217,15 +217,15 @@ def html_to_text(raw: str) -> str:
 
 
 def download(url: str) -> str:
-    """Download a URL and return its text content."""
-    req = Request(url, headers={"User-Agent": USER_AGENT})
+    with urlopen(Request(url, headers={"User-Agent": USER_AGENT}), timeout=120) as r:
+        raw, ctype = r.read(), r.headers.get("Content-Type", "")
+    m = re.search(r"charset=([\w-]+)", ctype) or re.search(rb"<meta[^>]+charset=[\"']?([\w-]+)", raw[:4096], re.I)
+    charset = (m.group(1).decode() if isinstance(m.group(1), bytes) else m.group(1)) if m else "utf-8"
     try:
-        with urlopen(req, timeout=30) as resp:
-            raw = resp.read().decode("utf-8", errors="replace")
-    except HTTPError as exc:
-        print(f"error downloading {url}: {exc}", file=sys.stderr)
-        return ""
-    return raw
+        text = raw.decode(charset)
+    except (LookupError, UnicodeDecodeError):
+        text = raw.decode("cp1252", errors="replace")
+    return html_to_text(text) if "html" in ctype or re.search(r"<html|<body", text[:2000], re.I) else text
 
 
 def pages(url: str) -> list:
