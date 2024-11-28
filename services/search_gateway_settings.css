@@ -26,12 +26,6 @@
   box-sizing: border-box;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  * {
-    transition: none !important;
-  }
-}
-
 body {
   margin: 0;
   background: var(--bg);
@@ -157,17 +151,6 @@ button:disabled {
   cursor: default;
 }
 
-button:hover:not(:disabled) {
-  opacity: 0.85;
-}
-
-.field input[type="text"]:focus,
-.field input[type="password"]:focus,
-.field input[type="number"]:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
 #msg.ok {
   color: var(--ok);
 }
@@ -176,5 +159,3 @@ button:hover:not(:disabled) {
   color: var(--bad);
   white-space: pre-line;
 }
-
-

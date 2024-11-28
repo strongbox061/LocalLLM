@@ -16,11 +16,11 @@ function render(data) {
   if (data.file) fileEl.textContent = data.file;
 
   for (const f of fields) {
-    const div = el("div", { class: "field changed", "data-name": (f.label || f.key).toLowerCase() + " " + (f.placeholder || "").toLowerCase() });
+    const div = el("div", { class: "field", "data-name": (f.label || f.key).toLowerCase() + " " + (f.placeholder || "").toLowerCase() });
     const input = el("input", { type: f.type === "number" ? "number" : "text", name: f.key, value: f.value ?? "", placeholder: f.placeholder || "" });
     input.addEventListener("input", () => {
       div.classList.toggle("changed", input.value !== "");
-      saveBtn.disabled = form.querySelectorAll(".field.changed").length === 0;
+      saveBtn.disabled = !form.querySelector(".field.changed");
     });
     div.append(el("label", null, f.label || f.key), input);
     form.append(div);
