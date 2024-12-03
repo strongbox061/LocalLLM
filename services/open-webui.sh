@@ -8,6 +8,8 @@ cd -- "$KEY_DIR" || { echo "ERROR: cannot enter $KEY_DIR" >&2; exit 1; }
 
 export DATA_DIR="$HOME/.open-webui"
 
+# What Open WebUI writes (its signing key, its database with your chats, uploads) is only yours, also files it makes
+# later; files from before this rule are fixed here (lib/common.sh make_private).
 umask 077
 # shellcheck source=../lib/common.sh
 source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../lib/common.sh"
@@ -19,14 +21,14 @@ export OPENAI_API_KEY="none"
 
 # Voice, also only for a brand-new install: Whisper "small" on the CPU for dictation,
 # (services/voice_router.py), which picks the voice from the language when the voice is "auto".
-export AUDIO_TTS_ENGINE=openai
-export AUDIO_TTS_OPENAI_API_BASE_URL="http://127.0.0.1:8881/v1"
-export AUDIO_TTS_OPENAI_API_KEY="not-needed"
-export AUDIO_TTS_VOICE=auto
 export WHISPER_MODEL=small
 # Always applied (not saved in Open WebUI's settings): skip silence and noise before transcribing, so a clip with
 # no speech comes back empty instead of as made-up text ("Thank you", repeated characters, a wrong language).
 export WHISPER_VAD_FILTER=true
+export AUDIO_TTS_ENGINE=openai
+export AUDIO_TTS_OPENAI_API_BASE_URL="http://127.0.0.1:8881/v1"
+export AUDIO_TTS_OPENAI_API_KEY="not-needed"
+export AUDIO_TTS_VOICE=auto
 
 # Stay under llama-server's slot (the model profile's CTX_PER_SLOT, less room for the answer): compact a chat at 7/8
 # of what is left, 50176 tokens with the default profile's 64K slot.
