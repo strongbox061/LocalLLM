@@ -11,9 +11,17 @@ change), **system checks** (the live setup as it runs, no model; after a section
   node --experimental-strip-types tests/guard-tests.mjs
   ```
 
-- **System checks** (`tests/system-checks.sh`): the running setup against the repo and the model profile — llama-server serves the profile's model file as the alias, with its slots and context (and refuses requests without the API key in split mode); Pi's `models.json`, compaction in `settings.json` and `model.json`; SearXNG, the search gateway and its usage dashboard; every service running (`./localllm.sh status`) and the last backup named. Read-only; needs the services running. About a minute.
++ **System checks** (`tests/system-checks.sh`): the running setup against the repo and the model profile:
+  llama-server serves the profile's model file as the alias, with its slots and context (and refuses requests without
+  the API key in split mode); Pi's `models.json`, compaction in `settings.json` and `model.json`; SearXNG, the search
+  gateway and its usage dashboard; every service running (`./localllm.sh status`) and the last backup named; OCR of a
+  generated scanned page; and the restorability check below. With `--helper` (split mode), over SSH: the helper
+  reaches llama-server (and is refused without the key), Open WebUI's model connection, document search model and
+  hybrid search, each chat type's preset (only the lookup tool and the filter, web search off), and the integrity of
+  Open WebUI's and the search gateway's databases. Read-only; needs the services running. About a minute.
   ```bash
-  tests/system-checks.sh
+  tests/system-checks.sh            # this PC
+  tests/system-checks.sh --helper   # and the helper PC
   ```
 - **Restorability check** (`tests/restorability-check.sh`): whether everything installed on this machine is brought back by the repo's scripts, the settings backup or a README step, whether `restore.sh` puts the backup back (into a temporary HOME), and whether the repo itself clones from `backup/repo.bundle`. No model, read-only; run it after adding anything to the setup.
   ```bash
