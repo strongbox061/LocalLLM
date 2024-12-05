@@ -2,30 +2,24 @@
 <!-- Search usage dashboard, served by services/search_gateway.py at /dashboard. Reads /usage.json every 30 s.
      Self-contained: no external scripts, styles or fonts, so it works offline. -->
 <html lang="en">
-
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Search usage</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Search usage</title>
 <link rel="stylesheet" href="/dashboard/search_gateway_dashboard.css">
 </head>
-
 <body>
-  <main>
-    <h1>Search usage <a href="/settings">Settings</a> <a href="/chat-types">Chat types</a></h1>
-    <div class="sub" id="sub">Loading…</div>
-    <div id="error"></div>
-
-    <div class="tiles" id="tiles"></div>
-
-    <h2>Services, in the order they are tried</h2>
-    <div class="services" id="services"></div>
-    <h2>Searches per day, last 30 days</h2>
-    <div class="card chart" id="perService"></div>
-    <div class="card chart" id="perApp"></div>
-  </main>
-
+<main>
+  <h1>Search usage <a href="/settings">Settings</a> <a href="/chat-types">Chat types</a></h1>
+  <div class="sub" id="sub">Loading…</div>
+  <div id="error"></div>
+  <div class="tiles" id="tiles"></div>
+  <h2>Services, in the order they are tried</h2>
+  <div class="services" id="services"></div>
+  <h2>Searches per day, last 30 days</h2>
+  <div class="card chart" id="perService"></div>
+  <div class="card chart" id="perApp"></div>
+</main>
 <script src="/dashboard/search_gateway_dashboard.js"></script>
 </body>
-
 </html>

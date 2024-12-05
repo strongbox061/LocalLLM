@@ -322,6 +322,11 @@ a {
   display: block;
 }
 
+.chart text {
+  fill: var(--muted);
+  font-size: 10px;
+}
+
 .legend {
   display: flex;
   flex-wrap: wrap;
