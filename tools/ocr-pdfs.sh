@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Every PDF in the folder gets a copy with text in <folder>/ocr/ (same name); the originals are never changed. Pages
 # that already have text are left as they are; a PDF already done (its copy is newer) is skipped.
-#   scripts/ocr-pdfs.sh <folder> [languages]     languages: Tesseract's codes, default spa+eng
+#   tools/ocr-pdfs.sh <folder> [languages]     languages: Tesseract's codes, default spa+eng
 set -euo pipefail
 
 DIR="$(cd -- "$1" && pwd)"
