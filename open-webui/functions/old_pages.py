@@ -55,7 +55,7 @@ class Filter:
                 "is reused as it is and follow-up questions still have the pages."
             ),
         )
-        min_chars: int = Field(default=1500, description="Pages shorter than this stay as they are.")
+        min_chars: int = Field(default=1500, ge=1, description="Pages shorter than this stay as they are.")
         debug: bool = Field(default=False, description="Print what the filter does to the Open WebUI terminal.")
 
     def __init__(self):
