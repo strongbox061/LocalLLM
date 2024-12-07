@@ -1,22 +1,9 @@
 #!/usr/bin/env bash
-# Starts the LocalLLM system monitor web page (CPU, GPU, RAM on main & helper PCs).
-# Ctrl+C stops it.
+# Starts the LocalLLM system monitor web page (CPU, GPU, RAM on main & helper PCs,
+# plus single/split and pi/pi,owui mode). Ctrl+C stops it.
 #
-#   ./monitor.sh [--port 8095] [--interval 5] [--once]
+#   ./tools/monitor/monitor.sh [--port 8095] [--interval 5] [--once]
 set -euo pipefail
-
-PORT=8095
-INTERVAL=5
-ONCE=false
-
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --port)    PORT="$2"; shift 2 ;;
-        --interval) INTERVAL="$2"; shift 2 ;;
-        --once)    ONCE=true; shift ;;
-        *)         echo "Unknown option: $1" >&2; exit 1 ;;
-    esac
-done
 
 # shellcheck source=../../lib/common.sh
 source "$(dirname -- "${BASH_SOURCE[0]}")/../../lib/common.sh"
