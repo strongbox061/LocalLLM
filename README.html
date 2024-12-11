@@ -271,10 +271,15 @@ body {
 
 /* Main content */
 .main {
-  flex: 1; margin-left: 260px; padding: 32px 48px; max-width: 900px;
+  margin-left: var(--sidebar-w);
+  flex: 1;
+  min-width: 0;
+  padding: 28px 40px 96px;
 }
-
-.content { padding-bottom: 60px; }
+.content {
+  max-width: 900px;
+  margin: 0 auto;
+}
 
 .hero {
   margin-bottom: 32px;
