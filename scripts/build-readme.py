@@ -162,59 +162,41 @@ def highlight_code(code: str, lang: str) -> str:
             if comment:
                 comment = f'<span class="tok-com">{comment}</span>'
             out_lines.append(body + comment)
-    return '\n'.join(out_lines)
+    return "\n".join(out_lines)
 
 
-class ReadmeConverter:
-    """Convert a Markdown README into an interactive HTML document."""
-
-    def __init__(self, md_text: str) -> None:
-        self.md_text = md_text
-        self.lines = md_text.splitlines()
-        self.headings: list[dict[str, Any]] = []
-        self.slug_by_title: dict[str, str] = {}
-        self.inline_anchors: dict[str, str] = {}
-        self._scan_headings()
-
-    def _make_anchor(self, title: str) -> str:
-        """Create an HTML anchor element for a heading."""
-        anc = slugify(title)
-        inner = strip_md_inline(title)
-        return f'<strong id="{anc}" class="inline-anchor">{inner}</strong>'
-
-    def _push_toc(self, level: int, title: str) -> dict[str, Any]:
-        """Push a new TOC entry and return it."""
-        slug = slugify(title)
-        entry = {
-            'id': slug,
-            'title': strip_md_inline(title),
-            'level': level,
-            'children': [],
-        }
-        if level == 2:
-            self.toc_tree.append(entry)
-            self.current_section = entry
-        elif level == 3 and self.current_section:
-            self.current_section['children'].append(entry)
-        return entry
-
-    def _render_heading(self, level: int, text: str) -> str:
-        """Render a Markdown heading as an HTML section."""
-        slug = slugify(text)
-        anchor = self._make_anchor(text)
-        toc_entry = self._push_toc(level, text)
-
-        if level == 2:
-            return (
-                f'<section class="doc-section level-2" id="{slug}" '
-                f'data-title="{html.escape(text, quote=True)}">'
-            )
-        elif level == 3:
-            return (
-                f'<section class="doc-section level-3" id="{slug}" '
-                f'data-title="{html.escape(text, quote=True)}">'
-            )
-        return f'<h{level} id="{slug}">{anchor}</h{level}>'
+    def _scan_headings(self) -> None:
+        in_code = False
+        used_slugs: dict[str, int] = {}
+        current_h2 = ""
+        for idx, line in enumerate(self.lines):
+            if re.match(r"^\s*```", line):
+                in_code = not in_code
+                continue
+            if in_code:
+                continue
+            m = re.match(r"^(#{1,6})\s+(.*)$", line)
+            if m:
+                level = len(m.group(1))
+                raw_title = m.group(2).strip()
+                clean_title = strip_md_inline(raw_title)
+                base_slug = slugify(clean_title)
+                count = used_slugs.get(base_slug, 0)
+                used_slugs[base_slug] = count + 1
+                slug = base_slug if count == 0 else f"{base_slug}-{count + 1}"
+                if level == 2:
+                    current_h2 = slug
+                self.headings.append(
+                    {
+                        "line": idx,
+                        "level": level,
+                        "title": clean_title,
+                        "raw": raw_title,
+                        "slug": slug,
+                        "parent": current_h2 if level == 3 else "",
+                    }
+                )
+                self.slug_by_title[clean_title.lower()] = slug
 
     def _render_table(self, lines: list[str]) -> str:
         """Render a Markdown table as an HTML table."""
