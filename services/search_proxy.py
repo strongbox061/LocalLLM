@@ -1,8 +1,7 @@
 """
-search_proxy.py: version 3.0.0
+search_gateway.py: version 3.0.0
 Runs from this repo as the user service search-gateway (services/search-gateway.service, installed by
 install/search-gateway.sh with its own Python environment, started by start/search-gateway.sh).
-Moved from scripts/ to services/ to group it with other service components.
 
 The one place every web search goes through: Pi's web_search (pi/extensions/search-gateway.ts), Open WebUI's
 "Search Gateway" tool (open-webui/tools/search_gateway.py, a thin client) and the Protected Lookup tool
@@ -79,8 +78,6 @@ REQUEST_TIMEOUT = 300  # seconds a search, page read or tool call may take in al
 
 # SearXNG bangs at the start of the query: "!gh ", "!!wp " ... ("what is !important" is left alone)
 LEAD_BANGS_RE = re.compile(r"^(?:!!?[\w.-]+\s+)+")
-
-
 TIME_RANGES = {"day", "week", "month", "year"}
 TOOL_METHODS = ("web_search", "plan_research", "read_page")
 # Settings shown as "set / not set", never sent back to the page.
@@ -109,6 +106,8 @@ def run(coro, timeout: float = REQUEST_TIMEOUT):
 async def _call(fn, *args):
     """A plain function run on the event loop, so it sees the engine's state as the searches do."""
     return fn(*args)
+
+
 # ---------------------------------------------------------------- the engine and its settings
 
 
