@@ -34,30 +34,37 @@ def _strip(content):
     return content
 
 
-class Filter(BaseModel):
-    """Timer filter for Open WebUI completions."""
+class Filter:
+    class Valves(BaseModel):
+        priority: int = Field(
+            default=0, description="Order among filters (lower runs first)."
+        )
+        debug: bool = Field(
+            default=False,
+            description="Print what the filter does to the Open WebUI terminal.",
+        )
 
-    enabled: bool = Field(default=True)
-    _start: dict = Field(default_factory=dict)  # chat id -> start time
+    def __init__(self):
+        self.valves = self.Valves()
+        self._start = {}  # chat id -> start time of the answer being written
+
+    def _log(self, text: str):
+        if self.valves.debug:
+            print(f"[answer-timer] {text}", flush=True)
 
     @staticmethod
     def _chat(metadata, body) -> str:
         md = metadata or {}
         return str(md.get("chat_id") or (body or {}).get("chat_id") or "default")
 
-    def set_start(self, chat: str = "default"):
-        """Record when the request started."""
-        self._start[chat] = time.time()
-
-    def get_elapsed(self, chat: str = "default") -> float:
-        """Return elapsed seconds since start, or 0 if not started."""
-        start = self._start.get(chat)
-        if start is None:
-            return 0.0
-        return time.time() - start
-
-    def format_timer_line(self, chat: str = "default") -> str:
-        """Build the timer display line."""
-        elapsed = self.get_elapsed(chat)
-        formatted = _fmt(elapsed)
-        return f"\n*⏱ Answered in {formatted}*\n"
+    async def inlet(self, body: dict, __metadata__: dict = None) -> dict:
+        # Remove earlier timer lines so the model never sees them.
+        for m in body.get("messages", []):
+            if m.get("role") == "assistant":
+                m["content"] = _strip(m.get("content"))
+        now = time.time()
+        self._start = {k: t for k, t in self._start.items() if now - t < 7200}
+        chat = self._chat(__metadata__, body)
+        self._start[chat] = now
+        self._log(f"inlet chat={chat}")
+        return body
