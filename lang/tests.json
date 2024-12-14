@@ -115,6 +115,22 @@
       "bot_check": ["Toegang geweigerd"],
       "none": ["Mijn zus heeft gisteren een rode fiets gekocht.", "De tuin is erg mooi in de lente."]
     },
+    "pl": {
+      "latest": ["Co nowego w najnowszej wersji Vite"],
+      "error": ["Kompilacja kończy się błędem"],
+      "action_start": ["Wyszukaj recenzje tej klawiatury"],
+      "question_start": ["Jak skonfigurować proxy w Vite"],
+      "local_current": ["Pokaż pliki w bieżącym katalogu"],
+      "named_engine": ["Wyszukaj w Mojeek pi coding agent"],
+      "named_source": ["Przeczytaj dokumentację Vite o proxy"],
+      "lookup": ["Wyszukaj to w internecie, nie z pamięci"],
+      "offer": ["Czy chcesz, żebym porównał inne wersje?"],
+      "from_memory": ["Odpowiedziałem z pamięci, bez wyszukiwania w sieci."],
+      "current_info": ["Ile kosztuje RTX 5090 w tej chwili"],
+      "months": ["listopada 2025"],
+      "bot_check": ["Odmowa dostępu"],
+      "none": ["Moja siostra kupiła wczoraj czerwony rower.", "Ogród jest bardzo ładny wiosną."]
+    },
     "ru": {
       "latest": ["Что нового в последней версии Vite"],
       "error": ["Мой билд падает с странной ошибкой"],
