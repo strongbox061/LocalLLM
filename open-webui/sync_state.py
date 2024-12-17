@@ -149,11 +149,10 @@ def document_search(base: str, auth: str, renew=None) -> int:
 
 
 def chats(base: str, auth: str) -> list[dict]:
-    """Return the list of chats from Open WebUI."""
-    result = call(base, auth, "GET", "/api/v1/chats")
-    if isinstance(result, dict):
-        return result.get("chats", [])
-    return []
+    """All of the token's user's chats (archived too), from the NDJSON export."""
+    req = Request(f"{base}/api/v1/chats/all", headers={"Authorization": f"Bearer {auth}"})
+    with urlopen(req, timeout=300) as r:
+        return [json.loads(line) for line in r.read().decode().splitlines() if line.strip()]
 
 
 def grants(model: dict) -> list[dict]:

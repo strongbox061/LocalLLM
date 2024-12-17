@@ -166,5 +166,5 @@
     };
   })();
 
-  log(`loaded: threshold=${SPEECH_THRESHOLD_DB}dB, autoGain=${AUTO_GAIN}`);
+  try { log(`loaded: threshold=${SPEECH_THRESHOLD_DB}dB, autoGain=${AUTO_GAIN}`); } catch {}
 })();

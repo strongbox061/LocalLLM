@@ -21,29 +21,13 @@ SOURCE = Path(__file__).resolve().parent / "loader.js"
 
 
 def targets() -> list[Path]:
-    """Return the paths where loader.js should be placed."""
-    webui_root = None
-    for candidate in [
-        Path(os.environ.get("OPEN_WEBUI_DIR", "")),
-        Path.home() / "open-webui",
-        Path(__file__).resolve().parent.parent,
-    ]:
-        if candidate and (candidate / "app" / "web").exists():
-            webui_root = candidate
-            break
-
-    if not webui_root:
-        print("Could not find Open WebUI root. Set OPEN_WEBUI_DIR or run from open-webui/.", file=sys.stderr)
-        return []
-
-    static_dir = webui_root / "static"
-    frontend_static = webui_root / "app" / "web" / "static"
-
-    paths = [static_dir / "loader.js"]
-    if frontend_static.exists():
-        paths.append(frontend_static / "loader.js")
-
-    return paths
+    spec = importlib.util.find_spec("open_webui")
+    if not spec or not spec.submodule_search_locations:
+        sys.exit("install_loader.py: Open WebUI isn't installed for this Python.")
+    pkg = Path(next(iter(spec.submodule_search_locations)))
+    front = Path(os.environ.get("FRONTEND_BUILD_DIR") or pkg / "frontend") / "static"
+    static = Path(os.environ.get("STATIC_DIR") or pkg / "static")
+    return [p / "loader.js" for p in (front, static) if p.is_dir()]
 
 
 def main() -> int:
