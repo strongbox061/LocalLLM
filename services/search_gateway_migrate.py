@@ -11,6 +11,7 @@ search_gateway_migrate.py: moves a setup from before the search gateway had its 
 
 Never prints a setting's value. Usage: <gateway python> search_gateway_migrate.py [webui.db]
 """
+
 import importlib.util
 import json
 import os
@@ -36,6 +37,7 @@ def old_valves(webui_db: Path) -> dict:
     """The old tool's Valves from Open WebUI's database, or {} (no database, no tool, or a thin client already)."""
     if not webui_db.exists():
         return {}
+    import sqlite3
     con = sqlite3.connect(f"file:{webui_db}?mode=ro", uri=True, timeout=10)
     try:
         for tool_id in OLD_TOOL_IDS:
