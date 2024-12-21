@@ -10,7 +10,18 @@ The page edits the same files as by hand (~/.config/localllm/chat-types/<id>.jso
   POST /chat-types/save          {"id", "data", "new"}: check, write the file, then build its preset
   POST /chat-types/refresh       {"id"}: download its sources into its Knowledge base
   POST /chat-types/delete        {"id"}: delete its preset and Knowledge base, and move the file to .deleted/
+  GET  /chat-types/job           the running or last job and its output
 
+Only from this computer: the client must be on 127.0.0.1/::1 and the Host header 127.0.0.1 or localhost (against DNS
+rebinding); a change must be a JSON POST whose Origin, when sent, is this page's (against other websites posting to
+it). One job at a time.
+
+Split mode (README, "Two-PC setup"): the chat type files stay on the main PC, Open WebUI runs on the helper PC.
+  - On the main PC, `./localllm.sh chat-types` serves this page (services/chat_types_server.py), with the status of
+    the presets, Knowledge bases and accounts read on the helper (STATUS_SOURCE) and install/chat-types.sh building
+    there.
+  - On the helper, the search gateway's copy of the page only points to the main PC (CHAT_TYPES_ON_MAIN=1, set by
+    windows/common.ps1): a file saved there would be overwritten by the next deploy.
 """
 
 import importlib.util
@@ -25,9 +36,7 @@ import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-CHAT_TYPES_DIR = Path(os.path.expanduser(
-    os.environ.get("CHAT_TYPES_DIR", "~/.config/localllm/chat-types")
-))
+CHAT_TYPES_DIR = Path(os.path.expanduser(os.environ.get("CHAT_TYPES_DIR", "~/.config/localllm/chat-types")))
 EXAMPLE = REPO / "open-webui" / "chat-types" / "example.json"
 PAGE = Path(__file__).resolve().parent / "chat_types_page.html"
 CSS_FILE = Path(__file__).resolve().parent / "chat_types_page.css"
@@ -76,7 +85,7 @@ MARKER_RE = re.compile(r"\[chat type: ([a-z0-9-]+)\]")
 
 def db_status(db_path: str) -> dict:
     """What Open WebUI has of the chat types: their presets' last update, their Knowledge bases (name, files), the
-    accounts. Only reads."""
+    accounts. Only reads. Also run on the helper PC (windows/tasks.ps1 chat-types-status)."""
     presets = {mid[len("chat-"):]: updated for mid, updated in
                _db_rows(db_path, "SELECT id, updated_at FROM model WHERE id LIKE 'chat-%'")}
     knowledge = {}
@@ -170,46 +179,42 @@ def _start(kind: str, ct_id: str, args: list, after=None) -> tuple[bool, str]:
     return True, "started"
 
 
-def save(body: dict) -> tuple:
-    """Save a chat type file and rebuild its preset. Returns (status_code, response)."""
-    ct_id = body.get("id", "")
-    if not ct_id:
-        return 400, {"error": "missing id"}
-
-    data = body.get("data", {})
-    cleaned = _clean(data)
-
-    # Validate required fields
-    if not cleaned.get("name"):
-        return 400, {"error": "name is required"}
-
-    # Ensure directory exists
+def save(body: dict) -> tuple[int, dict]:
+    ct_id = str(body.get("id") or "").strip()
+    if not builder.ID_RE.match(ct_id):
+        return 400, {"problems": ["The id must be lower case letters, digits and dashes (up to 41), e.g. research-notes."]}
+    path = CHAT_TYPES_DIR / f"{ct_id}.json"
+    if body.get("new") and path.exists():
+        return 400, {"problems": [f"A chat type {ct_id} exists already: pick another id."]}
+    if not body.get("new") and not path.exists():
+        return 400, {"problems": [f"No chat type {ct_id} any more (deleted meanwhile?)."]}
+    data = _clean(body.get("data") or {})
+    with tempfile.TemporaryDirectory() as tmp:
+        probe = Path(tmp) / f"{ct_id}.json"
+        probe.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        _, problems = builder.load_chat_type(probe)
+    if problems:
+        return 400, {"problems": problems}
+    if job()["running"]:
+        return 409, {"problems": ["Another job is running: wait until it ends, then save again."]}
+    # Notes (keys starting with _) written by hand stay.
+    try:
+        old = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except (OSError, ValueError):
+        old = {}
+    notes = {k: v for k, v in old.items() if k.startswith("_")} if isinstance(old, dict) else {}
     CHAT_TYPES_DIR.mkdir(parents=True, exist_ok=True)
-
-    # Write the file
-    target = CHAT_TYPES_DIR / f"{ct_id}.json"
-    with open(target, "w") as f:
-        json.dump(cleaned, f, indent=2)
-
-    # Build the preset in background
-    def _after(proc):
-        subprocess.Popen(BUILDER + ["--build", ct_id])
-
-    ok, msg = _start("save", ct_id, [str(target)], after=_after)
-    if not ok:
-        return 500, {"error": msg}
-
-    return 200, {"ok": True, "id": ct_id}
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps({**notes, **data}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, path)
+    started, why = _start("save", ct_id, ["--only", ct_id])
+    return 200, {"saved": True, "job": started, "message": why}
 
 
-def refresh(body: dict) -> tuple:
-    """Refresh sources for a chat type. Returns (status_code, response)."""
-    ct_id = body.get("id", "")
-    if not ct_id:
-        return 400, {"error": "missing id"}
-
-    ok, msg = _start("refresh", ct_id, ["--refresh", ct_id])
-    if not ok:
-        return 500, {"error": msg}
-
-    return 200, {"ok": True, "id": ct_id}
+def refresh(body: dict) -> tuple[int, dict]:
+    ct_id = str(body.get("id") or "")
+    if not builder.ID_RE.match(ct_id) or not (CHAT_TYPES_DIR / f"{ct_id}.json").is_file():
+        return 400, {"problems": ["No such chat type."]}
+    started, why = _start("download sources", ct_id, ["--refresh-sources", "--only", ct_id])
+    return (200 if started else 409), {"job": started, "message": why}
