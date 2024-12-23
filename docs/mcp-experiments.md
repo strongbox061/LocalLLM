@@ -33,6 +33,12 @@ curl -X POST http://localhost:8765/initialize \
 | `web_fetch` | HTTP fetch with caching | Working |
 | `code_index` | SQLite-backed code symbol lookup | In progress |
 
+## Challenges & Lessons
+
+- Tool call parsing is fragile when descriptions are too verbose; prefer short, imperative names
+- JSON-RPC 2.0 error codes need consistent mapping (e.g., -32601 for unknown method)
+- The server must handle connection drops gracefully — restarts without state loss
+
 ## Observations
 
 - Qwen2.5-14B-Instruct handles MCP tool schemas well with proper context window (32k)
@@ -45,3 +51,4 @@ curl -X POST http://localhost:8765/initialize \
 - Add `git_diff` tool for repository-aware changes
 - Benchmark latency vs. direct function calling (no MCP overhead)
 - Document tool schema conventions for team use
+- Experiment with streaming tool results back through the MCP transport
