@@ -10,6 +10,7 @@ usage counts, cache and log). Checks:
   - the page and /usage.json load from a real server on a free port;
   - the search log: one entry per search, the app (Pi or Open WebUI), cached searches, no search words unless
     log_search_words is on, and entries older than SEARCH_LOG_DAYS dropped.
+The engine imports aiohttp and pydantic (the gateway's own Python has them); small stand-ins are used without them.
 """
 
 import asyncio
@@ -46,23 +47,15 @@ def load_module(name, path):
     return mod
 
 
-class _Session:
-    """Minimal stand-in for aiohttp.ClientSession. No actual requests are made."""
-
-    def __init__(self):
-        self._closed = False
-
-    async def get(self, url, **kwargs):
-        raise NotImplementedError("requests are not made in these checks")
-
-    async def post(self, url, **kwargs):
-        raise NotImplementedError("requests are not made in these checks")
+class _Session:  # aiohttp.ClientSession stand-in: no request is ever made in these checks
+    def __init__(self, *a, **k):
+        pass
 
     async def __aenter__(self):
         return self
 
-    async def __aexit__(self, *exc):
-        self._closed = True
+    async def __aexit__(self, *a):
+        return False
 
 
 def make_tool(**valves):
