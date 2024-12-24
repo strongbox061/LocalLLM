@@ -462,7 +462,6 @@ select:hover {
   font-variant-numeric: tabular-nums;
 }
 
-
 .notice {
   background: var(--card-soft);
   border: 1px dashed var(--line);
@@ -504,6 +503,7 @@ select:hover {
   max-height: min(82vh, 720px);
   display: flex;
   flex-direction: column;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
   overflow: hidden;
 }
 
@@ -597,5 +597,3 @@ select:hover {
   height: 100%;
   background: var(--pie-used);
 }
-
-
