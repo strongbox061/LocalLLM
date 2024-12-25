@@ -41,21 +41,20 @@ async function load(selectId) {
 
 function drawList() {
   const list = $("list");
-  list.innerHTML = "";
-  if (!state || !state.length) {
-    list.appendChild(el("p", { class: "empty" }, "No chat types yet."));
-    return;
-  }
-  for (const item of state) {
-    const div = el("div", {
-      class: `item${current && current.id === item.id ? " on" : ""}`,
-      onclick: () => open(item.id),
-    });
-    div.appendChild(el("b", null, item.name));
-    if (item.description) {
-      div.appendChild(el("span", null, " — ", item.description));
+  list.replaceChildren();
+  if (!state.types.length) list.append(el("div", { class: "sub" }, "No chat types yet."));
+  for (const t of state.types) {
+    const pills = [];
+    if (t.problems.length) pills.push(el("span", { class: "pill bad" }, "file has problems"));
+    else if (t.preset.exists) pills.push(el("span", { class: "pill ok" }, "in Open WebUI"));
+    else pills.push(el("span", { class: "pill warn" }, "not built yet"));
+    if ((t.data.sources || []).length) {
+      const n = t.knowledge ? t.knowledge.files : 0;
+      pills.push(el("span", { class: `pill ${n >= t.data.sources.length ? "ok" : "warn"}` },
+        `sources ${n}/${t.data.sources.length}`));
     }
-    list.appendChild(div);
+    list.append(el("button", { class: `item${current === t.id && !isNew ? " on" : ""}`, onclick: () => open(t.id) },
+      el("b", {}, t.data.name || t.id), el("span", {}, t.id), el("div", { class: "status" }, pills)));
   }
 }
 
