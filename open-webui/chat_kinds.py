@@ -229,12 +229,16 @@ def download(url: str) -> str:
 
 
 def pages(url: str) -> list:
-    """Fetch a URL and return a list of text pages extracted from it."""
-    raw = download(url)
-    if not raw:
-        return []
-
-    # Simple extraction: split on headings or long blank sequences
-    text = html_to_text(raw)
-    parts = re.split(r"\n{3,}", text)
-    return [p.strip() for p in parts if len(p.strip()) > 20]
+    """A url's text; a url with "{n}" or "{n:03}" is a numbered series: parts 1, 2, 3... until the first missing one."""
+    if "{n" not in url:
+        return [download(url)]
+    out = []
+    for n in range(1, MAX_PARTS + 1):
+        try:
+            out.append(download(url.format(n=n)))
+        except HTTPError as e:
+            if e.code == 404 and out:
+                return out
+            raise
+        time.sleep(0.5)  # be gentle with the official site
+    raise RuntimeError(f"more than {MAX_PARTS} parts in {url}")
