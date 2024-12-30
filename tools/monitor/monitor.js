@@ -427,7 +427,63 @@ function renderModal() {
       : `Total VRAM occupied: ${fmtMem(gpu0.mem_used_mib)} / ${fmtMem(gpu0.mem_total_mib)} · ${updatedText}`;
   }
 
-/* ---- Render ---- */
+  if (list.length === 0) {
+    body.replaceChildren(h("div", { class: "notice" }, `No active ${kindLabel} processes reported.`));
+    return;
+  }
+
+  const rows = list.map(p => {
+    let valText = "–";
+    let barPct = 0;
+    if (mode === "pct") {
+      valText = fmtPct(p.percent);
+      barPct = Math.min(100, Math.max(0, Number(p.percent) || 0));
+    } else if (mode === "mem") {
+      const mib = Number(p.mem_mib) || 0;
+      const share = totalCap > 0 ? (mib / totalCap) * 100 : 0;
+      valText = `${fmtMem(mib)} (${share.toFixed(1)}%)`;
+      barPct = Math.min(100, Math.max(0, share));
+    } else {
+      const hasUtil = p.util_percent !== null && p.util_percent !== undefined;
+      const mib = Number(p.mem_mib) || 0;
+      valText = hasUtil ? `${fmtPct(p.util_percent)} · ${fmtMem(mib)}` : fmtMem(mib);
+      barPct = hasUtil
+        ? Math.min(100, Math.max(0, Number(p.util_percent)))
+        : Math.min(100, Math.max(0, totalCap > 0 ? (mib / totalCap) * 100 : 0));
+    }
+
+    const meta = [
+      p.pid !== null && p.pid !== undefined ? `PID ${p.pid}` : null,
+      p.raw_name && p.raw_name !== p.name ? p.raw_name : null,
+    ].filter(Boolean).join(" · ");
+
+    return h("tr", null,
+      h("td", null,
+        h("div", { class: "proc-name" }, p.name || p.raw_name || "Unknown"),
+        meta ? h("div", { class: "proc-raw" }, meta) : null
+      ),
+      h("td", { class: "num" },
+        h("span", { class: "proc-val" }, valText),
+        h("span", { class: "proc-bar-wrap", "aria-hidden": "true" },
+          h("span", { class: "proc-bar-fill", style: `width:${barPct.toFixed(1)}%` })
+        )
+      )
+    );
+  });
+
+  const colHeader = mode === "pct" ? "CPU Usage" : (mode === "gpu_load" ? "GPU / VRAM" : "Memory");
+  body.replaceChildren(
+    h("table", { class: "proc-table" },
+      h("thead", null,
+        h("tr", null,
+          h("th", null, "Program / Model"),
+          h("th", { class: "num" }, colHeader)
+        )
+      ),
+      h("tbody", null, rows)
+    )
+  );
+}
 
 function renderSetupBadges(setup) {
   const modeBadge = document.getElementById("modeBadge");
