@@ -10,7 +10,7 @@ from the answer alone. With --summary, prints one tab-separated summary line ins
     tests/trace.py --follow <sessions dir> --since <marker file> --pid <pi's pid>
 
 prints each tool call and a short result line as Pi writes them (run-pi-tests.sh uses it for its live output), and
-prints a final report when the session ends.
+stops when that Pi process has exited.
 """
 
 import argparse
@@ -104,7 +104,6 @@ def summary(path: str, args) -> str:
 
 
 def alive(pid: int) -> bool:
-    """Check if a process with the given PID is still running."""
     try:
         os.kill(pid, 0)
         return True
@@ -113,102 +112,61 @@ def alive(pid: int) -> bool:
 
 
 def follow(sessions: str, marker: str, pid: int) -> int:
-    """Follow a sessions directory and print tool calls as they appear.
-
-    Returns the number of sessions processed.
-    """
-    if not alive(pid):
-        print(f'Process {pid} is no longer running', file=sys.stderr)
-        return 0
-
-    marker_data = {}
-    if os.path.exists(marker):
-        with open(marker, 'r') as fh:
+    """Live view of one run: waits for its session file, then prints calls and results as they are written."""
+    since = os.path.getmtime(marker)
+    path = None
+    while path is None:
+        found = [f for f in glob.glob(os.path.join(sessions, "*", "*.jsonl")) if os.path.getmtime(f) >= since]
+        if found:
+            path = max(found, key=os.path.getmtime)
+        elif not alive(pid):
+            return 0
+        else:
+            time.sleep(0.5)
+    position, pending = 0, ""
+    while True:
+        running = alive(pid)
+        with open(path, encoding="utf-8") as f:
+            f.seek(position)
+            pending += f.read()
+            position = f.tell()
+        *lines, pending = pending.split("\n")
+        for line in lines:
             try:
-                marker_data = json.load(fh)
-            except json.JSONDecodeError:
-                pass
-
-    count = 0
-    seen_files = set(marker_data.get('files', []))
-
-    while alive(pid):
-        files = sorted(glob.glob(os.path.join(sessions, '*.jsonl')))
-        for fpath in files:
-            if fpath in seen_files:
+                message = json.loads(line).get("message") or {}
+            except ValueError:
                 continue
-            seen_files.add(fpath)
-
-            # Read new lines from the file
-            try:
-                with open(fpath, 'r') as fh:
-                    fh.seek(marker_data.get(fpath, 0))
-                    for line in fh:
-                        line = line.strip()
-                        if not line:
-                            continue
-                        try:
-                            obj = json.loads(line)
-                            messages = obj.get('messages', [])
-                            for msg in messages:
-                                if msg.get('role') == 'assistant':
-                                    tool_use = msg.get('tool_use', [])
-                                    for tc in tool_use:
-                                        name = tc.get('name', '')
-                                        args_str = json.dumps(tc.get('arguments', {}))
-                                        print(f'[TOOL] {name}({args_str})')
-                        except (json.JSONDecodeError, KeyError):
-                            pass
-
-                    marker_data[fpath] = fh.tell()
-            except IOError:
-                continue
-
-        # Update marker file
-        with open(marker, 'w') as fh:
-            json.dump(marker_data, fh)
-
-        count += 1
+            role, content = message.get("role"), message.get("content")
+            if role == "assistant" and isinstance(content, list):
+                for part in content:
+                    if part.get("type") == "toolCall":
+                        args = json.dumps(part.get("arguments"), ensure_ascii=False)
+                        print(f"    → {part.get('name')} {one_line(args, 160)}", flush=True)
+            elif role == "toolResult":
+                mark = "✗" if message.get("isError") else "✓"
+                print(f"      {mark} {one_line(text_of(content), 140)}", flush=True)
+        if not running:
+            return 0
         time.sleep(0.5)
-
-    return count
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='Trace a Pi session into Markdown or summary.')
-    parser.add_argument('session', nargs='?', help='Path to a JSONL session file')
-    parser.add_argument('--id', help='Run ID (for report metadata)')
-    parser.add_argument('--prompt', help='Prompt text used in the run')
-    parser.add_argument('--expect', help='Expected text for verdict check')
-    parser.add_argument('--seconds', type=int, help='Timeout in seconds')
-    parser.add_argument('--summary', action='store_true', help='Print TSV summary instead of Markdown')
-    parser.add_argument('--follow', help='Follow a sessions directory')
-    parser.add_argument('--since', help='Marker file for follow mode')
-    parser.add_argument('--pid', type=int, help='Pi process PID for follow mode')
-
+    if "--follow" in sys.argv:
+        live = argparse.ArgumentParser()
+        live.add_argument("--follow", required=True)
+        live.add_argument("--since", required=True)
+        live.add_argument("--pid", type=int, required=True)
+        a = live.parse_args()
+        return follow(a.follow, a.since, a.pid)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("session")
+    parser.add_argument("--id", default="")
+    parser.add_argument("--prompt", default="")
+    parser.add_argument("--expect", default="")
+    parser.add_argument("--seconds", default="")
+    parser.add_argument("--summary", action="store_true")
     args = parser.parse_args()
-
-    if args.follow:
-        if not args.since or not args.pid:
-            print('Error: --follow requires --since and --pid', file=sys.stderr)
-            return 1
-        count = follow(args.follow, args.since, args.pid)
-        print(f'Processed {count} scan cycles', file=sys.stderr)
-        return 0
-
-    if not args.session:
-        parser.print_help()
-        return 1
-
-    if not os.path.exists(args.session):
-        print(f'File not found: {args.session}', file=sys.stderr)
-        return 1
-
-    if args.summary:
-        print(summary(args.session, args))
-    else:
-        print(report(args.session, args))
-
+    print(summary(args.session, args) if args.summary else report(args.session, args))
     return 0
 
 
