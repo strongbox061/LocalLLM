@@ -1,14 +1,6 @@
-# Python
-__pycache__/
-
-# Model weights and checkpoints
-models/*.bin
-models/*.ckpt
-*.safetensors
-
-# Logs
-logs/
-
-# Backup archives (encrypted, kept out of git)
+# The settings backup holds secrets (API keys, Pi's auth.json, Open WebUI's secret key, chats).
+# It is kept out of git and saved as an encrypted archive instead: see archive-backup.sh.
 backup/
 LocalLLM-backup-*
+
+__pycache__/
