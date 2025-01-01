@@ -18,9 +18,7 @@ fi
 if command -v ocrmypdf >/dev/null && [[ "${1:-}" != "--update" ]]; then
     echo "OCRmyPDF is already installed ($(ocrmypdf --version))."
 elif command -v ocrmypdf >/dev/null; then
-    echo "Updating OCRmyPDF via pip3..."
-    pip3 install --user --upgrade ocrmypdf
+    uv tool upgrade ocrmypdf
 else
-    echo "Installing OCRmyPDF via pip3..."
-    pip3 install --user ocrmypdf
+    uv tool install ocrmypdf
 fi
