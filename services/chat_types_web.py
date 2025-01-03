@@ -218,3 +218,18 @@ def refresh(body: dict) -> tuple[int, dict]:
         return 400, {"problems": ["No such chat type."]}
     started, why = _start("download sources", ct_id, ["--refresh-sources", "--only", ct_id])
     return (200 if started else 409), {"job": started, "message": why}
+
+
+def delete(body: dict) -> tuple[int, dict]:
+    ct_id = str(body.get("id") or "")
+    path = CHAT_TYPES_DIR / f"{ct_id}.json"
+    if not builder.ID_RE.match(ct_id) or not path.is_file():
+        return 400, {"problems": ["No such chat type."]}
+
+    def move_file():  # kept, not erased: the settings backup saves .deleted/ too
+        trash = CHAT_TYPES_DIR / ".deleted"
+        trash.mkdir(exist_ok=True)
+        os.replace(path, trash / f"{ct_id}-{time.strftime('%Y%m%d-%H%M%S')}.json")
+
+    started, why = _start("delete", ct_id, ["--remove", ct_id], after=move_file)
+    return (200 if started else 409), {"job": started, "message": why}
