@@ -18,15 +18,24 @@ function render(data) {
   for (const f of fields) {
     const div = el("div", { class: "field", "data-name": (f.label || f.key).toLowerCase() + " " + (f.placeholder || "").toLowerCase() });
     const input = el("input", { type: f.type === "number" ? "number" : "text", name: f.key, value: f.value ?? "", placeholder: f.placeholder || "" });
+    if (f.type === "number") {
+      if (typeof f.min === "number") input.min = f.min;
+      if (typeof f.max === "number") input.max = f.max;
+    }
     input.addEventListener("input", () => {
       div.classList.toggle("changed", input.value !== "");
       saveBtn.disabled = !form.querySelector(".field.changed");
     });
-    div.append(el("label", null, f.label || f.key), input);
+    const labelEl = el("label", { for: "f-" + f.key }, f.label || f.key);
+    labelEl.setAttribute("id", "lbl-" + f.key);
+    input.setAttribute("aria-labelledby", "lbl-" + f.key);
+    div.append(labelEl, input);
     form.append(div);
   }
 
   saveBtn.disabled = true;
+  msg.textContent = "";
+  msg.className = "";
 }
 
 function applyFilter() {
