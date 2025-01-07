@@ -11,10 +11,19 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OPEN_WEBUI_DIR="${SCRIPT_DIR}/open-webui"
-CONFIG_DIR="${HOME}/.config/localllm"
-WEBUI_URL="${WEBUI_URL:-http://localhost:3000}"
+source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
+
+[[ -x "$WEBUI_PYTHON" ]] || die "Open WebUI is not installed: run install/open-webui.sh first."
+curl -fsS -m 3 -o /dev/null "$WEBUI_URL/health" 2>/dev/null || die "Open WebUI is not running: run start/open-webui.sh first."
+[[ -f "$WEBUI_KEY_FILE" ]] || die "No $WEBUI_KEY_FILE (Open WebUI creates it on its first start)."
+
+source "$REPO_DIR/lib/model.sh"
+load_model_profile || exit 1
+write_model_json >/dev/null
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -123,17 +132,8 @@ sync_document_search() {
 # ---------------------------------------------------------------------------
 
 main() {
-  local profile="${1:-Qwen-14B-Chat}"
-
-  log "Starting webui-config for profile: ${profile}"
-
-  deploy_tools
-  deploy_functions
-  migrate_alias "$profile"
-  cleanup_search_settings
-  sync_document_search
-
-  log "Done."
+  "$WEBUI_PYTHON" "$REPO_DIR/open-webui/sync.py" "$WEBUI_URL" "$WEBUI_DATA_DIR/webui.db" "$WEBUI_KEY_FILE" \
+      "$MODEL_JSON_FILE"
 }
 
 main "$@"
