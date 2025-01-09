@@ -89,6 +89,9 @@ class Filter:
             for call in (m.get("tool_calls") or []) if isinstance(m, dict) else []:
                 fn = call.get("function") or {}
                 if fn.get("name") in tools:
+                    call_id = call.get("id")
+                    if not call_id:
+                        continue
                     try:
                         args = json.loads(fn.get("arguments") or "{}")
                     except (TypeError, ValueError):
@@ -99,7 +102,7 @@ class Filter:
                     except (TypeError, ValueError):
                         part = 1
                     again = f" (part={part})" if part > 1 else ""
-                    calls[call.get("id")] = (fn["name"], str(args.get("url") or "the page"), again)
+                    calls[call_id] = (fn["name"], str(args.get("url") or "the page"), again)
 
         removed = saved = 0
         for m in messages[:prompt]:
