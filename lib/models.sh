@@ -33,7 +33,9 @@ load_model_profile() {
         return 1
     fi
     # Nothing left over from another profile.
-    MODEL_NAME="" MODEL_REPO="" MODEL_FILE="" CTX_PER_SLOT="" SLOTS="" MAX_TOKENS=""
+    MODEL_NAME="" MODEL_REPO="" MODEL_FILE="" MMPROJ_FILE="" MMPROJ_LOCAL="" CTX_PER_SLOT="" SLOTS="" MAX_TOKENS=""
+    CACHE_RAM_MIB="" MOE_LAYERS="" N_CPU_MOE="" REASONING="" REASONING_OFF_EFFORT="" REASONING_BUDGET=""
+    PRESERVE_THINKING="" SAMPLING=() OLD_ALIASES=() AT_ONCE=1 SUB_MAX=8
     # shellcheck source=/dev/null
     source "$file"
     MODEL_PROFILE="$name"
@@ -46,26 +48,48 @@ load_model_profile() {
     for v in CTX_PER_SLOT SLOTS MAX_TOKENS CACHE_RAM_MIB; do
         [[ "${!v}" =~ ^[1-9][0-9]*$ ]] || problems+=("$v must be a number")
     done
+    for v in MOE_LAYERS N_CPU_MOE REASONING_BUDGET; do
+        [[ -z "${!v}" || "${!v}" =~ ^[0-9]+$ ]] || problems+=("$v must be a number or empty")
+    done
+    [[ "$MAX_TOKENS" =~ ^[0-9]+$ && "$CTX_PER_SLOT" =~ ^[0-9]+$ && $MAX_TOKENS -lt $CTX_PER_SLOT ]] \
+        || problems+=("MAX_TOKENS must be less than CTX_PER_SLOT")
+    if [[ -n "$MMPROJ_FILE" && -z "$MMPROJ_LOCAL" ]] || [[ -z "$MMPROJ_FILE" && -n "$MMPROJ_LOCAL" ]]; then
+        problems+=("MMPROJ_FILE and MMPROJ_LOCAL go together")
+    fi
     case "$REASONING" in
         qwen-template | none) ;;
         reasoning-effort) REASONING_OFF_EFFORT="${REASONING_OFF_EFFORT:-low}" ;;
         *) problems+=("REASONING must be qwen-template, reasoning-effort or none") ;;
     esac
+    [[ -z "$PRESERVE_THINKING" || "$PRESERVE_THINKING" == true || "$PRESERVE_THINKING" == false ]] \
+        || problems+=("PRESERVE_THINKING must be true, false or empty")
+    [[ -z "${SUBAGENTS_AT_ONCE:-}" || "$SUBAGENTS_AT_ONCE" =~ ^[1-9][0-9]*$ ]] \
+        || problems+=("SUBAGENTS_AT_ONCE (local.env) must be a number from 1")
+    [[ -z "${SUBAGENTS_MAX:-}" || "$SUBAGENTS_MAX" =~ ^[1-9][0-9]*$ ]] \
+        || problems+=("SUBAGENTS_MAX (local.env) must be a number from 1")
     if [[ ${#problems[@]} -gt 0 ]]; then
         printf 'ERROR: model profile %s: %s\n' "$file" "${problems[@]}" >&2
         return 1
     fi
 
-    # Defaults for fields a profile might omit
-    MODEL_NAME="${MODEL_NAME:-$(basename "${MODEL_FILE%.bin}")}"
-    CTX_PER_SLOT="${CTX_PER_SLOT:-2048}"
-    SLOTS="${SLOTS:-1}"
-    MAX_TOKENS="${MAX_TOKENS:-512}"
-    REASONING="${REASONING:-off}"
-    REASONING_OFF_EFFORT="${REASONING_OFF_EFFORT:-fast}"
-    VISION="${VISION:-off}"
-    AT_ONCE="${AT_ONCE:-1}"
-    SUB_MAX="${SUB_MAX:-5}"
+    # This PC's values win over the profile's defaults.
+    [[ -n "$N_CPU_MOE" ]] && N_CPU_MOE="${LLAMA_N_CPU_MOE:-$N_CPU_MOE}"
+    CACHE_RAM_MIB="${LLAMA_CACHE_RAM_MIB:-$CACHE_RAM_MIB}"
+    # Pi-only mode (LOCALLLM_APPS=pi): Open WebUI is off, so give all of llama-server's context to Pi's single slot.
+    if [[ "${LOCALLLM_APPS:-pi,owui}" == pi && "$SLOTS" -gt 1 ]]; then
+        CTX_PER_SLOT=$((CTX_PER_SLOT * SLOTS))
+        SLOTS=1
+    fi
+    # Pi's subagents at once (local.env): 1 = one after another; never more than llama-server's slots.
+    AT_ONCE="${SUBAGENTS_AT_ONCE:-1}"
+    if (( AT_ONCE > SLOTS )); then
+        echo "WARNING: SUBAGENTS_AT_ONCE=$AT_ONCE, but the profile has $SLOTS slots: $SLOTS at once." >&2
+        AT_ONCE=$SLOTS
+    fi
+    # The most subagents one message may start (one after another, so not capped at the slots).
+    SUB_MAX="${SUBAGENTS_MAX:-8}"
+    MODEL_PATH="$MODELS_HOME/$MODEL_FILE"
+    MMPROJ_PATH="${MMPROJ_LOCAL:+$MODELS_HOME/$MMPROJ_LOCAL}"
     return 0
 }
 
