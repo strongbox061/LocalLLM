@@ -165,6 +165,15 @@ def highlight_code(code: str, lang: str) -> str:
     return "\n".join(out_lines)
 
 
+class ReadmeConverter:
+    def __init__(self, md_text: str) -> None:
+        self.md_text = md_text
+        self.lines = md_text.splitlines()
+        self.headings: list[dict[str, Any]] = []
+        self.slug_by_title: dict[str, str] = {}
+        self.inline_anchors: dict[str, str] = {}
+        self._scan_headings()
+
     def _scan_headings(self) -> None:
         in_code = False
         used_slugs: dict[str, int] = {}
