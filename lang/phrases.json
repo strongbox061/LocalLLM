@@ -134,6 +134,23 @@
       "current_info": ["nieuwste", "meest recente", "onlangs", "momenteel", "op dit moment", "nu meteen", "vandaag", "deze week", "deze maand", "dit jaar", "actueel", "actuele", "prijs van", "prijzen van", "hoeveel kost", "wisselkoers", "aanbiedingen"],
       "months": ["januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus", "september", "oktober", "november", "december"],
       "bot_check": ["controleren of u een mens bent", "controleer of je een mens bent", "uw browser wordt gecontroleerd", "toegang geweigerd", "ongebruikelijk verkeer", "een ogenblik...", "even geduld"]
+    },
+    "pl": {
+      "name": "Polish",
+      "please": ["proszę"],
+      "latest": ["najnowsz*", "najświeższ*", "ostatni* wersj*", "aktualn* wersj*", "aktualn*", "ostatnio", "niedawno", "co nowego", "nowości", "lista zmian", "informacje o wydaniu", "nowe funkcje"],
+      "error": ["błąd", "błęd*", "wyjątek", "wyjątk*", "nie działa", "awaria", "zawiesza się", "wysypuje się", "nie udało się", "napraw", "popraw"],
+      "action_start": ["wyszukaj", "szukaj", "poszukaj", "znajdź", "otwórz", "przeczytaj", "czytaj", "przejdź do", "odwiedź", "pobierz", "edytuj", "sprawdź"],
+      "question_start": ["co", "dlaczego", "czemu", "jak", "gdzie", "kiedy", "kto", "który", "która", "które", "ile", "czy", "możesz wyjaśnić"],
+      "local_current": ["bieżąc* katalog*", "bieżąc* folder*", "bieżąc* plik*", "bieżąc* gałę*", "bieżąca gałąź", "aktualn* katalog*", "katalog* robocz*"],
+      "named_engine": ["wyszukaj w {engine}", "szukaj w {engine}", "wyszukaj na {engine}", "szukaj na {engine}", "poszukaj w {engine}", "wyszukaj przez {engine}", "szukaj przez {engine}"],
+      "named_source": {"verbs": ["przeczytaj", "czytaj", "otwórz", "znajdź"], "nouns": ["stron*", "artykuł*", "dokumentacj*", "docs", "readme"], "phrases": ["według dokumentacj*", "według stron*", "według artykuł*", "zgodnie z dokumentacj*", "karta modelu"]},
+      "lookup": ["wyszukaj to", "poszukaj tego", "sprawdź to w internecie", "nie z pamięci", "nie odpowiadaj z pamięci", "szukaj w internecie", "wyszukaj w internecie"],
+      "offer": ["czy chcesz", "jeśli chcesz", "czy mam", "daj znać", "mogę też"],
+      "from_memory": ["wiedz* ogóln*", "z pamięci", "już wiem", "bez wyszukiwania w sieci"],
+      "current_info": ["najnowsz*", "ostatnio", "niedawno", "obecnie", "aktualnie", "w tej chwili", "dzisiaj", "dziś", "w tym tygodniu", "w tym miesiącu", "w tym roku", "aktualn* cen*", "ile kosztuj*", "kurs walut", "kurs wymiany", "promocje"],
+      "months": ["styczeń", "stycznia", "luty", "lutego", "marzec", "marca", "kwiecień", "kwietnia", "maj", "maja", "czerwiec", "czerwca", "lipiec", "lipca", "sierpień", "sierpnia", "wrzesień", "września", "październik", "października", "listopad", "listopada", "grudzień", "grudnia"],
+      "bot_check": ["sprawdzanie, czy jesteś człowiekiem", "weryfikacja, czy jesteś człowiekiem", "potwierdź, że jesteś człowiekiem", "sprawdzanie przeglądarki", "odmowa dostępu", "dostęp zabroniony", "nietypowy ruch", "chwileczkę..."]
     }
   }
 }
