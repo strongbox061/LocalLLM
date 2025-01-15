@@ -1,0 +1,11 @@
+# Kokoro text-to-speech server for Open WebUI voice reading
+# Managed by install/kokoro.sh and start/stop scripts
+name: kokoro
+
+services:
+  kokoro:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:v0.9.1
+    container_name: kokoro
+    ports:
+      - "127.0.0.1:8880:8880"
+    restart: "no"
