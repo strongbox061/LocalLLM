@@ -1,0 +1,10 @@
+[Unit]
+Description=Voice router: picks the Kokoro voice from the text's language
+
+[Service]
+ExecStart=/usr/bin/python3 /home/user/LocalLLM/services/voice_router.py
+Environment=VOICE_ROUTER_PORT=8881
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
