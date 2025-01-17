@@ -9,3 +9,4 @@ services:
     ports:
       - "127.0.0.1:8880:8880"
     restart: "no"
+    mem_limit: 3g
