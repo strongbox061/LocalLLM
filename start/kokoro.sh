@@ -4,31 +4,42 @@
 set -euo pipefail
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
-
 # In split mode it runs on the helper PC; when owui is not in LOCALLLM_APPS it stays off.
-apps_has owui || { info "owui not enabled, skipping Kokoro TTS"; exit 0; }
+apps_has owui \
+    || die "Kokoro is off (LOCALLLM_APPS=$LOCALLLM_APPS): ./localllm.sh apps pi,owui turns it back on."
+[[ "${WHERE_KOKORO-main}" == main ]] \
+    || die "Kokoro runs on the helper PC in split mode: ./localllm.sh start kokoro (or switch single first)."
 
 KOKORO_PORT="${KOKORO_PORT:-8088}"
 ROUTER_PORT="${ROUTER_PORT:-8089}"
 KOKORO_HOST="${KOKORO_HOST:-localhost}"
+KOKORO_URL="http://${KOKORO_HOST}:${KOKORO_PORT}"
+VOICE_ROUTER_URL="http://localhost:${ROUTER_PORT}"
 
-info "Starting Kokoro TTS server on ${KOKORO_HOST}:${KOKORO_PORT}..."
-python3 -m kokoro_tts --port "$KOKORO_PORT" --host "$KOKORO_HOST" &
-KOKORO_PID=$!
+log "Kokoro (text-to-speech)"
+if curl -fsS -m 2 -o /dev/null "$KOKORO_URL/health" 2>/dev/null; then
+    echo "Already running."
+else
+    log "Starting Kokoro TTS server on ${KOKORO_HOST}:${KOKORO_PORT}..."
+    python3 -m kokoro_tts --port "$KOKORO_PORT" --host "$KOKORO_HOST" &
+    KOKORO_PID=$!
+    wait_for_service "$KOKORO_HOST" "$KOKORO_PORT" || { error "Kokoro TTS failed to start"; kill "$KOKORO_PID" 2>/dev/null; exit 1; }
+fi
 
-info "Starting voice router on port ${ROUTER_PORT}..."
-python3 -m voice_router --port "$ROUTER_PORT" --backend "http://${KOKORO_HOST}:${KOKORO_PORT}" &
-ROUTER_PID=$!
+if curl -fsS -m 2 -o /dev/null "$VOICE_ROUTER_URL/health" 2>/dev/null; then
+    echo "Voice router already running."
+else
+    log "Starting voice router on port ${ROUTER_PORT}..."
+    python3 -m voice_router --port "$ROUTER_PORT" --backend "$KOKORO_URL" &
+    ROUTER_PID=$!
+    wait_for_service localhost "$ROUTER_PORT" || { error "Voice router failed to start"; kill "$KOKORO_PID" "$ROUTER_PID" 2>/dev/null; exit 1; }
+fi
 
-# Wait for both services to be ready
-wait_for_service "$KOKORO_HOST" "$KOKORO_PORT" || { error "Kokoro TTS failed to start"; kill "$KOKORO_PID" 2>/dev/null; exit 1; }
-wait_for_service localhost "$ROUTER_PORT" || { error "Voice router failed to start"; kill "$KOKORO_PID" "$ROUTER_PID" 2>/dev/null; exit 1; }
-
-info "Kokoro TTS and voice router are ready"
+echo "Kokoro: $KOKORO_URL (Open WebUI uses it through the voice router: $VOICE_ROUTER_URL)"
 
 # Trap to clean up on exit
 cleanup() {
-    info "Shutting down Kokoro TTS services..."
+    log "Shutting down Kokoro TTS services..."
     kill "$KOKORO_PID" "$ROUTER_PID" 2>/dev/null || true
     wait "$KOKORO_PID" "$ROUTER_PID" 2>/dev/null || true
 }
