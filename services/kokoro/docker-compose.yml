@@ -7,6 +7,6 @@ services:
     image: ghcr.io/remsky/kokoro-fastapi-cpu:v0.9.1
     container_name: kokoro
     ports:
-      - "127.0.0.1:8880:8880"
+      - "127.0.0.1:8880:8880"   # this machine only
     restart: "no"
     mem_limit: 3g
