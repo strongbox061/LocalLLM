@@ -47,26 +47,20 @@ def log(text: str):
 
 
 def pick_language(text: str) -> tuple[str, str]:
-    """Detect the language of *text* and return (lang, voice).
-
-    Very short text falls back to the previously detected language.
-    Unknown languages fall back to English.
-    """
+    """(language, how it was decided) for one piece of text."""
     global _last_lang
-
-    words = text.split()
-    if len(words) < MIN_WORDS or len(text) < MIN_LETTERS:
-        lang = _last_lang
-    else:
+    letters = len(re.findall(r"[^\W\d_]", text))
+    with _lock:
+        if len(text.split()) < MIN_WORDS or letters < MIN_LETTERS:
+            return _last_lang, "short, kept previous"
         try:
-            results = detect_langs(text)
-            lang = results[0].lang if results else DEFAULT_LANG
-            _last_lang = lang
+            ranked = [l for l in detect_langs(text) if l.lang in VOICES]
         except LangDetectException:
-            lang = _last_lang
-
-    voice = VOICES.get(lang, VOICES[DEFAULT_LANG])
-    return lang, voice
+            ranked = []
+        if not ranked:
+            return _last_lang, "undetected, kept previous"
+        _last_lang = ranked[0].lang
+        return _last_lang, f"detected {ranked[0].prob:.2f}"
 
 
 def forward(method: str, path: str, body: bytes | None, content_type: str | None):
