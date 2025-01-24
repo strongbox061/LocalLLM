@@ -75,32 +75,16 @@ main_script() {
 }
 
 FAILED=()
-run_main() {
-    local action="$1"
-    local target="${2:-all}"
-    local service="${3:-}"
 
-    if [[ "$target" == "helper" ]]; then
-        echo "[main] skipping helper target"
-        return 0
+run_main() {    # run_main start|stop <service>
+    local script
+    script="$(main_script "$2")"
+    if [[ ! -x "$REPO_DIR/$1/$script.sh" ]]; then
+        warn "$2 has no $1/$script.sh on the main PC."
+        FAILED+=("$2")
+        return 1
     fi
-
-    if [[ "$target" == "main" || -z "$target" ]]; then
-        local services_to_run=()
-        if [[ -n "$service" ]]; then
-            services_to_run=("$service")
-        else
-            services_to_run=("${MAIN_SERVICES[@]}")
-        fi
-
-        for svc in "${services_to_run[@]}"; do
-            echo "[main] $action $svc"
-            if ! main_script "$action" "$svc"; then
-                echo "[main] FAILED: $svc" >&2
-                FAILED+=("$svc")
-            fi
-        done
-    fi
+    "$REPO_DIR/$1/$script.sh" || { FAILED+=("$2"); return 1; }
 }
 
 HELPER_STATE=""   # "", ok or unreachable (checked once per run)
