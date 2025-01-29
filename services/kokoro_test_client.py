@@ -13,8 +13,12 @@ def synthesize(text: str, voice: str = "af", speed: float = 1.0) -> bytes:
         "voice": voice,
         "speed": speed,
     }
-    resp = requests.post(url, json=payload, timeout=30)
-    resp.raise_for_status()
+    try:
+        resp = requests.post(url, json=payload, timeout=30)
+        resp.raise_for_status()
+    except requests.exceptions.ConnectionError:
+        print(f"Error: Could not connect to Kokoro at {url}")
+        raise SystemExit(1)
     return resp.content
 
 
