@@ -53,7 +53,7 @@ def call(name, **args):
     global _n
     _n += 1
     cid = f"call_{_n}"
-    return cid, {"role": "assistant", "content": "", "reasoning_content": "thinking",
+    return cid, {"role": "assistant", "content": "",
                  "tool_calls": [{"id": cid, "type": "function", "function": {"name": name, "arguments": json.dumps(args)}}]}
 
 
