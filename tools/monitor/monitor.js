@@ -508,31 +508,16 @@ function renderSetupBadges(setup) {
 
 function render(data) {
   latestData = data;
-  const errorBox = document.getElementById("errorBox");
+  renderSetupBadges(data.setup || { mode: "single", apps: "pi,owui" });
+  document.getElementById("updated").textContent =
+    "Last updated: " + fmtTime(data.generated_at);
+
   const machines = document.getElementById("machines");
-  errorBox.replaceChildren();
-  machines.replaceChildren();
-
-  document.getElementById("updated").textContent = "Updated: " + fmtTime(data.ts);
-
-  // Render main PC
-  const mainCard = renderMachineCard("main", "Main PC", data, false);
-  machines.appendChild(mainCard);
-
-  // Render helper PC if available
-  if (data.helper) {
-    const helperCard = renderMachineCard("helper", "Helper PC", data.helper, true);
-    machines.appendChild(helperCard);
-  }
-
-  // Attach process button listeners
-  machines.querySelectorAll(".proc-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      openProcessModal(btn.dataset.machine, btn.closest(".machine").querySelector(".machine-title").textContent, "CPU");
-    });
-  });
-
-  renderSetupBadges(data.setup);
+  machines.replaceChildren(
+    renderMachineCard("main", "Main PC", data.main || {}, false, data.setup || {}),
+    renderMachineCard("helper", "Helper PC", data.helper || {}, true, data.setup || {})
+  );
+  if (openModalState) renderModal();
 }
 
 /* ---- Data loading ---- */
