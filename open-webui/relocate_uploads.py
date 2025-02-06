@@ -5,8 +5,9 @@ Open WebUI keeps each upload's full path in its database (file.path), e.g. /home
 on Linux or D:\\...\\uploads\\<id>_x.pdf on Windows. After ./localllm.sh switch moves the data, those paths name the
 other PC, and opening or re-reading an attachment fails. This rewrites each one to <uploads folder>/<its file name>,
 only when that file is there; it refuses (changes nothing) if any upload is missing. Run by the switch while Open
+WebUI is stopped.
 
-WebUI is stopped so the database is not in use. Pass the full path to the new uploads root as the first argument.
+Usage: python relocate_uploads.py <webui.db> <uploads folder>
 """
 
 import os
@@ -19,12 +20,6 @@ def main(argv):
         print(__doc__.strip(), file=sys.stderr)
         return 2
     db, uploads = argv[1], os.path.abspath(argv[2])
-    if not os.path.isfile(db):
-        print(f"ERROR: database not found: {db}", file=sys.stderr)
-        return 1
-    if not os.path.isdir(uploads):
-        print(f"ERROR: uploads folder not found: {uploads}", file=sys.stderr)
-        return 1
     con = sqlite3.connect(db)
     try:
         rows = con.execute("SELECT id, path FROM file WHERE path IS NOT NULL AND path != ''").fetchall()
@@ -48,4 +43,4 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    main(sys.argv)
+    sys.exit(main(sys.argv))
