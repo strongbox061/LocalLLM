@@ -135,17 +135,48 @@ RETRIEVAL = {"ENABLE_RAG_HYBRID_SEARCH": True}
 
 
 def document_search(base: str, auth: str, renew=None) -> int:
-    """Trigger a document search and wait for it to finish."""
-    call(base, auth, "POST", "/api/v1/rag/document/search")
-    for _ in range(60):
-        time.sleep(2)
-        try:
-            result = call(base, auth, "GET", "/api/v1/rag/document/search/status")
-            if result and result.get("status") == "completed":
-                return 0
-        except Exception:
-            pass
-    return 1
+    """Sets the embedding model and hybrid search when they differ. Returns the number of failures. renew() gives a
+    new login token: the model change and the re-indexing can take many minutes, longer than a token lasts."""
+    renew = renew or (lambda: auth)
+    failed = 0
+    status, current = call(base, auth, "GET", "/retrieval/embedding")
+    if status != 200:
+        print(f"  FAILED   document search: can't read the embedding settings ({status})")
+        return 1
+    if any((current.get(k) or "") != v for k, v in EMBEDDING.items()):
+        body = {**{k: current.get(k) for k in ("RAG_EMBEDDING_BATCH_SIZE", "ENABLE_ASYNC_EMBEDDING",
+                                               "RAG_EMBEDDING_CONCURRENT_REQUESTS")}, **EMBEDDING}
+        print(f"  ...      embedding model {current.get('RAG_EMBEDDING_MODEL')} -> {EMBEDDING['RAG_EMBEDDING_MODEL']} "
+              "(downloaded the first time, ~0.5 GB)")
+        status, result = call(base, auth, "POST", "/retrieval/embedding/update", body, timeout=1800)
+        if status == 200:
+            print(f"  updated  embedding model {EMBEDDING['RAG_EMBEDDING_MODEL']}")
+            auth = renew()
+            status, kbs = call(base, auth, "GET", "/knowledge/")
+            if status == 200 and (kbs or {}).get("items"):
+                status, result = call(base, auth, "POST", "/knowledge/reindex", None, timeout=3600)
+                print(f"  {'updated ' if status == 200 else 'FAILED  '} Knowledge bases indexed again with it")
+                failed += status != 200
+                auth = renew()
+                # The Knowledge bases' own names and descriptions (what "search knowledge bases" looks in) are a
+                # separate collection, which /knowledge/reindex leaves with the old model's vectors.
+                status, result = call(base, auth, "POST", "/knowledge/metadata/reindex", None, timeout=600)
+                print(f"  {'updated ' if status == 200 else 'FAILED  '} Knowledge bases' descriptions indexed again")
+                failed += status != 200
+        else:
+            failed += 1
+            print(f"  FAILED   embedding model: {status} {(result or {}).get('detail', '')}")
+    else:
+        print(f"  same     embedding model {EMBEDDING['RAG_EMBEDDING_MODEL']}")
+    status, current = call(base, auth, "GET", "/retrieval/config")
+    if status == 200 and all(current.get(k) == v for k, v in RETRIEVAL.items()):
+        print("  same     hybrid search on")
+    else:
+        status, result = call(base, auth, "POST", "/retrieval/config/update", RETRIEVAL)
+        ok = status == 200 and all((result or {}).get(k) == v for k, v in RETRIEVAL.items())
+        print(f"  {'updated ' if ok else 'FAILED  '} hybrid search on" + ("" if ok else f": {status}"))
+        failed += not ok
+    return failed
 
 
 def chats(base: str, auth: str) -> list[dict]:
@@ -156,95 +187,243 @@ def chats(base: str, auth: str) -> list[dict]:
 
 
 def grants(model: dict) -> list[dict]:
-    """Return the access-grant list for a single model entry."""
-    return model.get("access_grants", [])
+    keys = ("principal_type", "principal_id", "permission")
+    return [{k: g[k] for k in keys} for g in model.get("access_grants") or []]
 
 
 def migrate_alias(base: str, auth: str, model_json: str) -> int:
-    """Re-index models whose alias field has changed."""
-    models = json.loads(model_json)
-    count = 0
-    for model in models:
-        if model.get("alias"):
-            count += 1
-    return count
+    """Moves Open WebUI from the profile's old aliases to its alias. Returns the number of failures."""
+    try:
+        profile = json.loads(Path(model_json).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        print(f"  skipped  model alias: can't read {model_json} ({e}); run install/llama.sh first")
+        return 0
+    alias, old = profile.get("alias") or "local", [a for a in profile.get("oldAliases") or [] if a]
+    failed = 0
+    if not old:
+        return 0
+
+    def report(status, result, what):
+        nonlocal failed
+        if status == 200:
+            print(f"  moved    {what}")
+        else:
+            failed += 1
+            print(f"  FAILED   {what}: {status} {(result or {}).get('detail', '')}")
+
+    # The model's own settings: a model entry with the served id, which overrides that model's defaults.
+    for old_id in old:
+        status, current = call(base, auth, "GET", f"/models/model?id={old_id}")
+        if status != 200 or not current or current.get("id") != old_id:
+            continue
+        status, existing = call(base, auth, "GET", f"/models/model?id={alias}")
+        if status == 200 and existing and existing.get("id") == alias:
+            print(f"  kept     model {alias} (exists already); {old_id}'s settings left as they are")
+            continue
+        body = {"id": alias, "base_model_id": None,
+                "name": alias if current.get("name") == old_id else current.get("name") or alias,
+                "meta": current.get("meta") or {}, "params": current.get("params") or {},
+                "access_grants": grants(current), "is_active": current.get("is_active", True),
+                "commit_message": f"Moved from {old_id} by the LocalLLM repo"}
+        status, result = call(base, auth, "POST", "/models/create", body)
+        report(status, result, f"model settings {old_id} -> {alias}")
+        if status == 200:
+            status, result = call(base, auth, "POST", "/models/model/delete", {"id": old_id})
+            if status != 200:
+                failed += 1
+                print(f"  FAILED   removing model {old_id}: {status} {(result or {}).get('detail', '')}")
+
+    # Presets (workspace models) built on the old id.
+    status, models = call(base, auth, "GET", "/models/export")
+    for m in models if status == 200 and isinstance(models, list) else []:
+        if m.get("base_model_id") in old:
+            body = {"id": m["id"], "base_model_id": alias, "name": m["name"], "meta": m.get("meta") or {},
+                    "params": m.get("params") or {}, "access_grants": grants(m), "is_active": m.get("is_active", True),
+                    "commit_message": f"Base model {m['base_model_id']} -> {alias} (LocalLLM repo)"}
+            status, result = call(base, auth, "POST", "/models/model/update", body)
+            report(status, result, f"preset {m['id']}: base model {m['base_model_id']} -> {alias}")
+
+    # Chats: the model a chat continues with. Only the admin's own chats can be changed through the API; the others
+    # get the default model when they are opened again.
+    moved = 0
+    for chat in chats(base, auth):
+        models_ = (chat.get("chat") or {}).get("models") or []
+        if any(m in old for m in models_):
+            new = [alias if m in old else m for m in models_]
+            status, result = call(base, auth, "POST", f"/chats/{chat['id']}", {"chat": {"models": new}})
+            if status == 200:
+                moved += 1
+            else:
+                failed += 1
+                print(f"  FAILED   chat {chat['id']}: {status} {(result or {}).get('detail', '')}")
+    if moved:
+        print(f"  moved    {moved} chat(s) -> {alias}")
+    return failed
 
 
 def global_filters(base: str, auth: str) -> int:
-    """Enable the GLOBAL_FILTERS for every model so they run on all chats."""
-    try:
-        result = call(base, auth, "GET", "/api/v1/models")
-        models = result.get("models", [])
-        for model in models:
-            # Global filters are applied per-model; we ensure each has them enabled.
-            pass
-        return 0
-    except Exception as e:
-        print(f"global_filters error: {e}")
-        return 1
+    """Switches GLOBAL_FILTERS on, for every model. Returns the number of failures."""
+    failed = 0
+    for fid in GLOBAL_FILTERS:
+        status, fn = call(base, auth, "GET", f"/functions/id/{fid}")
+        if status != 200 or not fn:
+            continue  # reported by the sync loop
+        for flag, path, what in (("is_active", "toggle", "on"), ("is_global", "toggle/global", "global (every model)")):
+            if not fn.get(flag):
+                status, result = call(base, auth, "POST", f"/functions/id/{fid}/{path}")
+                print(f"  {'switched' if status == 200 else 'FAILED  '} filter {fid} {what}")
+                failed += status != 200
+                fn = result if status == 200 and isinstance(result, dict) else fn
+    return failed
 
 
 def gateway_valves(base: str, auth: str) -> int:
-    """Push the search-gateway valves config from GATEWAY_SETTINGS."""
+    """Moves the search settings out of Open WebUI (see the docstring). Returns the number of failures."""
+    status, valves = call(base, auth, "GET", f"/tools/id/{GATEWAY_TOOL}/valves")
+    if status != 200 or not isinstance(valves, dict):
+        return 0
+    old = {k: v for k, v in valves.items() if k not in GATEWAY_TOOL_VALVES and v not in (None, "")}
+    if not old:
+        return 0
     if not GATEWAY_SETTINGS.exists():
-        return 0
-
-    with open(GATEWAY_SETTINGS, 'r') as f:
-        settings = json.load(f)
-
-    try:
-        call(base, auth, "POST", "/api/v1/functions/search-gateway/valves", {
-            "settings": settings,
-        })
-        return 0
-    except Exception as e:
-        print(f"gateway_valves error: {e}")
+        GATEWAY_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
+        tmp = GATEWAY_SETTINGS.with_name(".search-gateway.json.tmp")
+        tmp.write_text(json.dumps({k: v for k, v in old.items() if k not in ("usage_file", "cache_file")},
+                                  indent=2, sort_keys=True) + "\n")
+        tmp.chmod(0o600)
+        tmp.replace(GATEWAY_SETTINGS)
+        print(f"  moved    the search settings from Open WebUI to {GATEWAY_SETTINGS} ({len(old)} values)")
+    keep = {k: v for k, v in valves.items() if k in GATEWAY_TOOL_VALVES}
+    status, _ = call(base, auth, "POST", f"/tools/id/{GATEWAY_TOOL}/valves/update", keep)
+    if status != 200:
+        print(f"  FAILED   removing the old search settings from Open WebUI's tool {GATEWAY_TOOL}: {status}")
         return 1
+    print(f"  removed  the old search settings from Open WebUI's tool {GATEWAY_TOOL} (the gateway has them)")
+    return 0
 
 
 def migrate_tools(base: str, auth: str) -> int:
-    """Create any tools that were renamed (RENAMED_TOOLS)."""
-    try:
-        result = call(base, auth, "GET", "/api/v1/tools")
-        tools = result.get("tools", [])
-
-        for old_id, new_id in RENAMED_TOOLS.items():
-            if any(t["id"] == old_id for t in tools):
-                tool_path = HERE / "tools" / f"{new_id}.py"
-                if tool_path.exists():
-                    with open(tool_path, 'r') as f:
-                        content = f.read()
-                    call(base, auth, "POST", "/api/v1/tools", {
-                        "id": new_id,
-                        "content": replace_imports(content),
-                    })
-        return 0
-    except Exception as e:
-        print(f"migrate_tools error: {e}")
-        return 1
+    """Moves each renamed tool (RENAMED_TOOLS) to its new id. Returns the number of failures."""
+    failed = 0
+    for old_id, new_id in RENAMED_TOOLS.items():
+        status, old = call(base, auth, "GET", f"/tools/id/{old_id}")
+        if status != 200 or not old or old.get("id") != old_id:
+            continue
+        status, existing = call(base, auth, "GET", f"/tools/id/{new_id}")
+        if status == 200 and existing and existing.get("id") == new_id:
+            print(f"  kept     tool {new_id} (exists already); tool {old_id} left as it is")
+            continue
+        content = (HERE / "tools" / f"{new_id}.py").read_text(encoding="utf-8")
+        body = {"id": new_id, "name": header(content, "title") or new_id, "content": content,
+                "meta": old.get("meta") or {}, "access_grants": grants(old),
+                "commit_message": f"Renamed from {old_id} by the LocalLLM repo"}
+        status, result = call(base, auth, "POST", "/tools/create", body)
+        if status != 200:
+            failed += 1
+            print(f"  FAILED   tool {old_id} -> {new_id}: {status} {(result or {}).get('detail', '')}")
+            continue
+        # The Valves (API keys) as they are, with the old data files' paths renamed. Never printed.
+        status, valves = call(base, auth, "GET", f"/tools/id/{old_id}/valves")
+        if status == 200 and isinstance(valves, dict):
+            for key, value in valves.items():
+                if isinstance(value, str):
+                    for old_name, new_name in RENAMED_FILES.items():
+                        if value.endswith("/" + old_name):
+                            valves[key] = value[: -len(old_name)] + new_name
+            status, _ = call(base, auth, "POST", f"/tools/id/{new_id}/valves/update", valves)
+        if status != 200:
+            failed += 1
+            print(f"  FAILED   tool {new_id}: copying its Valves ({status}); tool {old_id} kept, set them by hand")
+            continue
+        print(f"  moved    tool {old_id} -> {new_id} (Valves and access)")
+        status, result = call(base, auth, "DELETE", f"/tools/id/{old_id}/delete")
+        if status != 200:
+            failed += 1
+            print(f"  FAILED   removing tool {old_id}: {status} {(result or {}).get('detail', '') if isinstance(result, dict) else ''}")
+    # Models and presets that still name an old id (every run: also after a restored backup's models).
+    seen, entries = set(), []
+    for path in ("/models/base", "/models/export"):
+        status, models = call(base, auth, "GET", path)
+        for m in models if status == 200 and isinstance(models, list) else []:
+            if m.get("id") not in seen:
+                seen.add(m.get("id"))
+                entries.append(m)
+    for m in entries:
+        meta = m.get("meta") or {}
+        tool_ids = meta.get("toolIds") or []
+        if not any(t in RENAMED_TOOLS for t in tool_ids):
+            continue
+        meta["toolIds"] = [RENAMED_TOOLS.get(t, t) for t in tool_ids]
+        body = {"id": m["id"], "base_model_id": m.get("base_model_id"), "name": m["name"], "meta": meta,
+                "params": m.get("params") or {}, "access_grants": grants(m), "is_active": m.get("is_active", True),
+                "commit_message": "Renamed tools (LocalLLM repo)"}
+        status, result = call(base, auth, "POST", "/models/model/update", body)
+        if status == 200:
+            print(f"  moved    model {m['id']}: its tools -> {', '.join(meta['toolIds'])}")
+        else:
+            failed += 1
+            print(f"  FAILED   model {m['id']}: {status} {(result or {}).get('detail', '') if isinstance(result, dict) else ''}")
+    return failed
 
 
 def main() -> int:
-    """Entry point: read args, get auth token, run all sync steps."""
-    if len(sys.argv) < 3:
-        print(f"Usage: {sys.argv[0]} <open-webui-base-url> <jwt-key-path>")
-        return 1
+    if len(sys.argv) not in (4, 5):
+        sys.exit(__doc__)
+    base, db_path, key_path = sys.argv[1].rstrip("/"), sys.argv[2], sys.argv[3]
+    auth = token(db_path, key_path)
 
-    base = sys.argv[1]
-    key_path = sys.argv[2]
+    failed = migrate_tools(base, auth)
+    for folder, kind in KINDS.items():
+        for file in sorted((HERE / folder).glob("*.py")):
+            item_id = file.stem
+            label = f"{kind} {item_id}"
+            content = file.read_text(encoding="utf-8")
+            version = header(content, "version") or "?"
+            status, current = call(base, auth, "GET", f"/{folder}/id/{item_id}")
+            # Open WebUI answers an unknown id with 401 and this message, so tell it apart from a login failure.
+            missing = status == 404 or (current or {}).get("detail") == NOT_FOUND
 
-    try:
-        db_path = str(Path.home() / ".open-webui" / "open-webui.db")
-        auth_token = token(db_path, key_path)
-    except Exception as e:
-        print(f"Failed to get auth token: {e}")
-        return 1
-
-    migrate_tools(base, auth_token)
-    global_filters(base, auth_token)
-    gateway_valves(base, auth_token)
-
-    return 0
+            if status == 200 and current:
+                if replace_imports(content) == (current.get("content") or ""):
+                    print(f"  same     {label} ({version})")
+                    continue
+                old = header(current.get("content") or "", "version") or "?"
+                body = {"id": item_id, "name": current["name"], "content": content,
+                        "meta": current.get("meta") or {}, "commit_message": "Synced from the LocalLLM repo"}
+                status, result = call(base, auth, "POST", f"/{folder}/id/{item_id}/update", body)
+                if status == 200:
+                    print(f"  updated  {label} ({old} -> {version})")
+                else:
+                    failed += 1
+                    print(f"  FAILED   {label}: {status} {result.get('detail') if result else ''}")
+            elif missing:
+                title = header(content, "title") or item_id
+                body = {"id": item_id, "name": title, "content": content,
+                        "meta": {"description": header(content, "description")},
+                        "commit_message": "Created from the LocalLLM repo"}
+                status, result = call(base, auth, "POST", f"/{folder}/create", body)
+                if status == 200:
+                    print(f"  created  {label} ({version})")
+                    if item_id in GLOBAL_FILTERS:
+                        pass  # switched on below
+                    elif kind == "function":
+                        print("           It is switched off: turn it on in Admin Panel > Functions"
+                              + (" (install/chat-types.sh does it)." if item_id == "protected_chat" else "."))
+                    elif item_id not in ("protected_lookup", GATEWAY_TOOL):  # their Valves' defaults fit the local setup
+                        print("           Set its Valves in Workspace > Tools.")
+                else:
+                    failed += 1
+                    print(f"  FAILED   {label}: {status} {result.get('detail') if result else ''}")
+            else:
+                failed += 1
+                print(f"  FAILED   {label}: {status} {current.get('detail') if current else ''}")
+    failed += global_filters(base, auth)
+    failed += gateway_valves(base, auth)
+    failed += document_search(base, auth, lambda: token(db_path, key_path))
+    auth = token(db_path, key_path)  # the re-indexing may have outlasted the token
+    if len(sys.argv) == 5:
+        failed += migrate_alias(base, auth, sys.argv[4])
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
