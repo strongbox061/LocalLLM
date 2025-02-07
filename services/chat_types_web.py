@@ -233,3 +233,86 @@ def delete(body: dict) -> tuple[int, dict]:
 
     started, why = _start("delete", ct_id, ["--remove", ct_id], after=move_file)
     return (200 if started else 409), {"job": started, "message": why}
+
+
+# ---------------------------------------------------------------- HTTP
+
+ON_MAIN_PAGE = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chat types</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;color:#222;background:#fff}
+code{background:#f1f1f1;padding:1px 5px;border-radius:4px}@media(prefers-color-scheme:dark){body{color:#ddd;background:#1b1b1b}
+code{background:#333}}</style></head><body>
+<h1>Chat types are edited on the main PC</h1>
+<p>Open WebUI runs on this helper PC, but the chat type files live on the main PC, so they are edited there. On the
+main PC, run</p>
+<p><code>./localllm.sh chat-types</code></p>
+<p>and open the address it prints (<code>http://127.0.0.1:8090/chat-types</code>). Saving there builds the preset
+here. A file changed on this PC would be overwritten by the next deploy.</p>
+<p><a href="/dashboard">Search usage dashboard</a></p>
+</body></html>
+"""
+
+
+def _local(handler, port: int) -> bool:
+    client = handler.client_address[0] if handler.client_address else ""
+    host = (handler.headers.get("Host") or "").strip().lower()
+    host_name = host.rsplit(":", 1)[0] if not host.startswith("[") else host.split("]")[0] + "]"
+    return client in ("127.0.0.1", "::1", "::ffff:127.0.0.1") and host_name in LOCAL_HOSTS
+
+
+def _same_origin(handler) -> bool:
+    origin = (handler.headers.get("Origin") or "").strip().lower()
+    host = (handler.headers.get("Host") or "").strip().lower()
+    return not origin or origin == f"http://{host}"
+
+
+def handle(handler, path: str, method: str, body: bytes, db_path: str, port: int) -> bool:
+    """Answers the /chat-types paths; returns False for any other path."""
+    if path != "/chat-types" and not path.startswith("/chat-types/"):
+        return False
+    if not _local(handler, port):
+        handler._send(403, {"error": "The chat types page is only served to this computer (http://127.0.0.1)."})
+        return True
+    if ON_MAIN:
+        if method == "GET" and path == "/chat-types":
+            handler._send_bytes(200, ON_MAIN_PAGE.encode("utf-8"), "text/html; charset=utf-8")
+        else:
+            handler._send(409, {"error": "In split mode the chat types are edited on the main PC: ./localllm.sh chat-types"})
+        return True
+    if method == "GET":
+        assets = {
+            "/chat-types": (PAGE, "text/html; charset=utf-8"),
+            "/chat-types/chat_types_page.css": (CSS_FILE, "text/css; charset=utf-8"),
+            "/chat-types/chat_types_page.js": (JS_FILE, "application/javascript; charset=utf-8"),
+        }
+        if path in assets:
+            file_path, content_type = assets[path]
+            try:
+                handler._send_bytes(200, file_path.read_bytes(), content_type)
+            except OSError as e:
+                handler._send(500, {"error": f"page missing: {e}"})
+        elif path == "/chat-types/data":
+            handler._send(200, overview(db_path))
+        elif path == "/chat-types/job":
+            handler._send(200, job())
+        else:
+            handler._send(404, {"error": "unknown page"})
+        return True
+    actions = {"/chat-types/save": save, "/chat-types/refresh": refresh, "/chat-types/delete": delete}
+    if path not in actions:
+        handler._send(404, {"error": "unknown action"})
+        return True
+    if "application/json" not in (handler.headers.get("Content-Type") or "") or not _same_origin(handler):
+        handler._send(403, {"error": "Changes are only accepted from the chat types page itself."})
+        return True
+    try:
+        data = json.loads(body.decode("utf-8") or "{}")
+        if not isinstance(data, dict):
+            raise ValueError("not an object")
+    except ValueError as e:
+        handler._send(400, {"problems": [f"Bad request: {e}"]})
+        return True
+    status, result = actions[path](data)
+    handler._send(status, result)
+    return True
