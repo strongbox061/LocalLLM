@@ -569,6 +569,9 @@ select:hover {
 .proc-name {
   font-weight: 600;
   color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
 }
 
 .proc-raw {
@@ -596,4 +599,14 @@ select:hover {
   display: block;
   height: 100%;
   background: var(--pie-used);
+}
+
+@media (max-width: 520px) {
+  .proc-table {
+    font-size: 12px;
+  }
+
+  .proc-bar-wrap {
+    width: 60px;
+  }
 }
