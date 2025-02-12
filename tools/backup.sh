@@ -8,13 +8,14 @@ source "$(dirname -- "${BASH_SOURCE[0]}")/lib/common.sh"
 
 BACKUP_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)/backup"
 LOCALLLM_DIR=~/.config/localllm
-LOCALLLM_FILES=(
+PI_FILES=(
     settings.json
     models.json
     sandbox.json
     auth.json
     models-store.json
     tool-view-mode.json
+    mcp-onboarding.json
 )
 
 # copy_file <source> <destination>
@@ -83,10 +84,12 @@ EOF
   log_info "Wrote versions to $file"
 }
 
-log "LocalLLM config ($LOCALLLM_DIR)"
-for f in "${LOCALLLM_FILES[@]}"; do
-    copy_file "$LOCALLLM_DIR/$f" "$BACKUP_DIR/pi/$f"
+log "Pi ($PI_AGENT_DIR)"
+for f in "${PI_FILES[@]}"; do
+    copy_file "$PI_AGENT_DIR/$f" "$BACKUP_DIR/pi/$f"
 done
+
+copy_dir "$PI_AGENT_DIR/mcp-oauth-encrypted" "$BACKUP_DIR/pi/mcp-oauth-encrypted"
 
 # Snapshot SQLite databases if present
 if [[ -f ~/.config/localllm/chat_history.db ]]; then
