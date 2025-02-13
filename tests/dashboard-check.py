@@ -40,11 +40,10 @@ def check(name, ok, detail=""):
 
 
 def load_module(name, path):
-    """Import a module from an arbitrary filesystem path."""
     spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 class _Session:  # aiohttp.ClientSession stand-in: no request is ever made in these checks
@@ -56,6 +55,26 @@ class _Session:  # aiohttp.ClientSession stand-in: no request is ever made in th
 
     async def __aexit__(self, *a):
         return False
+
+
+if importlib.util.find_spec("aiohttp") is None:
+    sys.modules["aiohttp"] = types.SimpleNamespace(ClientSession=_Session, ClientTimeout=lambda **k: None)
+if importlib.util.find_spec("pydantic") is None:
+    class BaseModel:
+        def __init__(self, **values):
+            for k, v in values.items():
+                setattr(self, k, v)
+
+    sys.modules["pydantic"] = types.SimpleNamespace(BaseModel=BaseModel, Field=lambda default=None, **_: default)
+
+tmp = Path(tempfile.mkdtemp(prefix="dashboard-check-"))
+os.environ["SEARCH_GATEWAY_DB"] = str(tmp / "state.db")  # read when the engine is loaded
+os.environ["SEARCH_GATEWAY_SETTINGS"] = str(tmp / "settings.json")
+tool_mod = load_module("search_gateway_engine", ROOT / "services" / "search_gateway_engine.py")
+srv = load_module("search_gateway", ROOT / "services" / "search_gateway.py")
+threading.Thread(target=srv.LOOP.run_forever, daemon=True).start()
+today = datetime.date.today()
+month = tool_mod._month()
 
 
 def make_tool(**valves):
