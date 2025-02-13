@@ -35,15 +35,6 @@ code() { curl -s -o /dev/null -m 10 -w '%{http_code}' "$@"; }
 # localllm.sh brings lib/common.sh (the addresses, LOCALLLM_MODE, the key file) and lib/helper.sh (helper_ssh,
 # helper_task); lib/model.sh the profile's values.
 # shellcheck source=localllm.sh
-# shellcheck source=lib/model.sh
-source "$REPO/localllm.sh" 2>/dev/null || true
-source "$REPO/lib/model.sh" 2>/dev/null || true
-
-AUTH=()
-
-# localllm.sh brings lib/common.sh (the addresses, LOCALLLM_MODE, the key file) and lib/helper.sh (helper_ssh,
-# helper_task); lib/model.sh the profile's values.
-# shellcheck source=localllm.sh
 source "$REPO/localllm.sh"
 # shellcheck source=lib/model.sh
 source "$REPO/lib/model.sh"
@@ -90,15 +81,8 @@ else
     echo "  skip  OCR: ocrmypdf, ImageMagick or pdftotext isn't on this PC (installed where Open WebUI runs)"
 fi
 
-# --- OCR checks ---
-if command -v tesseract &>/dev/null; then
-    check "tesseract available" "tesseract --version 2>&1 | head -1"
-else
-    echo "SKIP: tesseract not installed"
-fi
-
 echo "Restorability (tests/restorability-check.sh)"
-rout="$(\"$REPO/tests/restorability-check.sh\" 2>&1)"
+rout="$("$REPO/tests/restorability-check.sh" 2>&1)"
 check "everything is covered and restore.sh brings the backup back" test $? -eq 0
 grep -E "^ *FAIL|not covered|missing" <<< "$rout" | sed 's/^/        /'
 
