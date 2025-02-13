@@ -43,11 +43,13 @@ LANG_CURRENT_INFO_RE = re.compile(r"(?:อัตราแลกเปลี่�
 # Text of a bot-check or access-denied page (short pages only).
 LANG_BOT_CHECK_RE = re.compile(r"(?:กำลังตรวจสอบเบราว์เซอร์|ยืนยันว่าคุณเป็นมนุษย์|การเข้าชมที่ผิดปกติ|การเข้าถึงถูกปฏิเสธ|ปฏิเสธการเข้าถึง|ブラウザをチェックしています|アクセスが拒否されました|ブラウザを確認しています|通常と異なるトラフィック|人間であることを確認|正在检查您的浏览器|正在檢查您的瀏覽器|異常なトラフィック|确认您是人类)", re.I)
 
+# Text that marks a bot-protection / challenge page (short pages only): names and codes here, the words in every
+# language in LANG_BOT_CHECK_RE.
+BOT_CHECK_NAMES_RE = re.compile(r"Anubis|cf-chl|Attention Required! \| Cloudflare|DDoS protection by", re.I)
+
+
 def looks_like_bot_check(text):
-    """Check if the page content looks like a bot verification page."""
-    if len(text) > 2000:
-        return False
-    return bool(LANG_BOT_CHECK_RE.search(text))
+    return bool(BOT_CHECK_NAMES_RE.search(text) or LANG_BOT_CHECK_RE.search(lang_norm(text)))
 
 # A year, optionally with the month before it ("November 2025", "nov. 2025", "noviembre de 2025").
 YEAR_WITH_MONTH_RE = re.compile(rf"\b(?:(?:{MONTHS})\.?\s+(?:de\s+)?)?((?:19|20)\d{{2}})\b", re.I)
