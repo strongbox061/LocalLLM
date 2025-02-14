@@ -53,7 +53,9 @@
       }
     );
   };
-  const unlockAll = () => document.querySelectorAll("audio").forEach(unlock);
+  const unlockAll = () => {
+    try { document.querySelectorAll("audio").forEach(unlock); } catch {}
+  };
   for (const type of ["pointerdown", "touchend", "click", "keydown"]) {
     window.addEventListener(type, unlockAll, { capture: true, passive: true });
   }
