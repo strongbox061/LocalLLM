@@ -2,7 +2,7 @@
 title: Search Gateway
 author: LocalLLM
 version: 1.1.0
-description: Web search and page reading through the local search gateway (services/search_gateway.py, the search-gateway service on 127.0.0.1:8090), which Pi uses too. The gateway holds the search services, their API keys and order (its /settings), and caches results in SQLite (its /cache). This tool connects to it for both query-based search and raw page fetching.
+description: Web search and page reading through the local search gateway (services/search_gateway.py, the search-gateway service on 127.0.0.1:8090), which Pi uses too. The gateway holds the search services, their API keys and order (its /settings page), the usage counts, the cache and the per-answer limits; this tool only passes each call on and shows the gateway's status lines and citations. Nothing about searches is kept in Open WebUI.
 """
 
 import aiohttp
@@ -66,32 +66,26 @@ class Tools:
                 await emitter(event)
         return str(data.get("result") or "")
 
-    async def _get(self, path: str, params: dict | None = None) -> dict:
-        """Send a GET request to the search gateway and return parsed JSON."""
-        url = f"{self.valves.gateway_url.rstrip('/')}/{path.lstrip('/')}"
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=self.valves.timeout_seconds)) as resp:
-                    resp.raise_for_status()
-                    return await resp.json()
-        except Exception as e:
-            return {"error": str(e)}
-
-    async def search(self, query: str) -> str:
-        """Run a web search through the gateway and return formatted results."""
-        result = await self._get("/search", {"q": query})
-        if "error" in result:
-            return UNAVAILABLE.format(why=result["error"])
-        snippets = result.get("results", [])
-        if not snippets:
-            return f"No results found for: {query}"
-        lines = []
-        for i, r in enumerate(snippets, 1):
-            title = r.get("title", "Untitled")
-            url = r.get("url", "")
-            snippet = r.get("snippet", "")
-            lines.append(f"{i}. {title}\n   {snippet}\n   {url}")
-        return "\n\n".join(lines)
+    async def web_search(
+        self,
+        query: str,
+        __messages__: list = None,
+        __metadata__: dict = None,
+        __event_emitter__=None,
+    ) -> str:
+        """
+        Search the web and get a list of results (title, URL, snippet).
+        Use a few specific keywords. Don't add years or months; recent results are chosen automatically.
+        Before searching again, check whether a result or page you already have answers the question.
+        There is a limit on searches per answer; when it is reached, answer with what you found.
+        Once research takes several searches, call plan_research before searching further.
+        :param query: The search keywords.
+        """
+        status = f"Searching: {query}"
+        if __event_emitter__:
+            await __event_emitter__({"type": "status", "data": {"description": status, "done": False}})
+        return await self._call("web_search", {"query": query}, __metadata__, __event_emitter__,
+                                self._last_user_text(__messages__), status)
 
     async def read_page(
         self,
