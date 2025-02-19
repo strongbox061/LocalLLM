@@ -68,3 +68,24 @@ class Filter:
         self._start[chat] = now
         self._log(f"inlet chat={chat}")
         return body
+
+    async def outlet(self, body: dict, __metadata__: dict = None) -> dict:
+        chat = self._chat(__metadata__, body)
+        start = self._start.pop(chat, None)
+        self._log(
+            f"outlet chat={chat} start_found={start is not None}"
+        )
+        if start is None:
+            return body
+        elapsed = _fmt(time.time() - start)
+        line = f"*⏱ Answered in {elapsed}*"
+        for m in reversed(body.get("messages", [])):
+            if m.get("role") == "assistant":
+                content = _strip(m.get("content"))
+                if isinstance(content, str):
+                    m["content"] = f"{content.rstrip()}\n\n{line}"
+                elif isinstance(content, list):
+                    content.append({"type": "text", "text": f"\n\n{line}"})
+                    m["content"] = content
+                break
+        return body
