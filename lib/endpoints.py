@@ -154,7 +154,7 @@ def write(directory, data):
 def main(argv):
     """CLI entry point: 'write <dir>' or 'print'."""
     if len(argv) < 2:
-        print("Usage: urls.py write <dir> | print", file=sys.stderr)
+        print("Usage: endpoints.py write <dir> | print", file=sys.stderr)
         sys.exit(1)
 
     action = argv[1]
@@ -164,7 +164,7 @@ def main(argv):
 
     if action == "write":
         if len(argv) < 3:
-            print("Usage: urls.py write <dir>", file=sys.stderr)
+            print("Usage: endpoints.py write <dir>", file=sys.stderr)
             sys.exit(1)
         directory = argv[2]
         write(directory, data)
