@@ -10,8 +10,7 @@ change), **system checks** (the live setup as it runs, no model; after a section
   ```bash
   node --experimental-strip-types tests/guard-tests.mjs
   ```
-
-+ **System checks** (`tests/system-checks.sh`): the running setup against the repo and the model profile:
+- **System checks** (`tests/system-checks.sh`): the running setup against the repo and the model profile:
   llama-server serves the profile's model file as the alias, with its slots and context (and refuses requests without
   the API key in split mode); Pi's `models.json`, compaction in `settings.json` and `model.json`; SearXNG, the search
   gateway and its usage dashboard; every service running (`./localllm.sh status`) and the last backup named; OCR of a
@@ -38,6 +37,10 @@ change), **system checks** (the live setup as it runs, no model; after a section
   tests/run-pi-tests.sh --with-f1 --with-j1  # also F1 (stops the search gateway for a moment) and J1 (needs the Inbox)
   ```
   Each run writes `~/LocalLLM/test-runs/<date-time>/<ID>.md` (prompt, expectation, reasoning on/off, every tool call with its arguments and result, blocks, the answer) and `summary.tsv`.
+
+**Judge from the trace, not the answer.** A correct answer reached the wrong way (a search engine page in the browser, instead of through the tool) doesn't count. When a test fails, run it again once before concluding.
+
+Expected for every web test: no `!` left in an effective query, no `backend` field, at most 4 `web_search` calls, links copied from results, and `Service: <name>` in search results (the search gateway answered).
 
 ## A. Search filters
 
@@ -70,11 +73,10 @@ The `site:` table in AGENTS.md. Results come through the search gateway.
 
 ## D. Search behaviour and limits
 
-The search tool has rate limits to prevent abuse:
-
-- Default: 10 queries per minute
-- Burst limit: 3 simultaneous queries
-- Use `MAX_RESULTS` to reduce bandwidth on large result sets
+| # | Prompt | Expected |
+|---|---|---|
+| D1 | What's new in the latest Ollama release? | General `web_search`; reads the release page or GitHub releases; dates in the answer |
+| D3 | Search Mojeek for "pi coding agent". | No browser search: `web_search` with the same words, and the answer starts by saying Mojeek doesn't allow automated browsers; nothing invented |
 
 ## E. Reasoning switch and questions without the web
 
@@ -89,11 +91,9 @@ Reasoning is on when the assistant messages have thinking blocks (the report say
 
 ## F. Failures and fallbacks
 
-When search fails, the tool falls back to reasoning mode:
-
-1. Try search with the primary engine
-2. If that fails, try a secondary engine (if configured)
-3. If all search fails, answer from training data
+| # | Prompt | Expected |
+|---|---|---|
+| F1 | What's new in the latest Ollama release? — with the search gateway stopped (`--with-f1` stops and restarts it) | `web_search` says the server isn't running; the model tells you to start it (./start.sh, or on the helper PC in split mode) and doesn't search another way |
 
 ## I. Editing files
 
@@ -113,19 +113,4 @@ The tool supports multiple programming languages:
 
 Language-specific rules are defined in the extensions directory.
 
-## G. Guard checks (no model)
 
-Run guard checks alone:
-
-```bash
-node --experimental-strip-types tests/guard-tests.mjs
-```
-
-This verifies:
-- Extensions rules are valid
-- Word filters work in all languages
-- No syntax errors in configuration
-
-## S. System checks by hand (they change the live setup)
-
-Some checks modify the environment. Run them carefully. This tests the live connection to Qwen-7B-Chat and verifies the API is responding correctly.
