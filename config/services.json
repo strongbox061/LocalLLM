@@ -1,8 +1,8 @@
 {
   "_about": [
     "The services of this setup: their ports, how to see that they answer, and where they run in each mode.",
-    "lib/endpoints.py turns this and local.env (LOCALLLM_MODE, LOCALLLM_APPS, HELPER_HOST, MAIN_HOST, PLACE_<NAME>) into",
-    "~/.config/localllm/endpoints.json (and endpoints.env for the scripts), the one place clients read addresses from.",
+    "lib/services.py turns this and local.env (LOCALLLM_MODE, LOCALLLM_APPS, HELPER_HOST, MAIN_HOST, PLACE_<NAME>) into",
+    "~/.config/localllm/services.json (and services.env for the scripts), the one place clients read addresses from.",
     "single: the service runs on the main PC in single mode (false: only on the helper PC, in split mode).",
     "split: where it runs in split mode (main or helper); movable: PLACE_<NAME>=main|helper in local.env may change it."
   ],
