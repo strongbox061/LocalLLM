@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# Serve LLaMA-7B / Vicuna-7B GGML models via llama.cpp (main binary)
-# Moved from llama-server.sh for consistency with repo naming conventions.
-# This PC only, in both modes; in split mode `tailscale serve` passes the helper PC's requests on (see below).
-
-set -euo pipefail
+# Starts llama-server with the active model profile (models/<name>.env, chosen by MODEL_PROFILE in
+# ~/.config/localllm/local.env) for Pi + Open WebUI, served under the alias "local".
+# SLOTS slots of CTX_PER_SLOT tokens each, so Pi and Open WebUI keep separate caches.
 
 # shellcheck source=../lib/model.sh
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/lib/model.sh"
+source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../lib/model.sh"
+load_model_profile || exit 1
+write_model_json
 
+LLAMA_SERVER="$HOME/LocalLLM/llama.cpp/build/bin/llama-server"
+
+# This PC only, in both modes; in split mode `tailscale serve` passes the helper PC's requests on (see below).
 HOST="127.0.0.1"
 PORT="8081"            # 8080 is SearXNG
 
@@ -18,26 +20,15 @@ PORT="8081"            # 8080 is SearXNG
 # - LLAMA_N_CPU_MOE (layers whose experts stay on the CPU) and LLAMA_CACHE_RAM_MIB (prompt cache) override the
 #   profile's defaults.
 # - LLAMA_THREADS: CPU threads, else the number of physical cores.
+VISION="${LLAMA_VISION:-on}"
+THREADS="${LLAMA_THREADS:-$(lscpu -p=SOCKET,CORE | grep -v '^#' | sort -u | wc -l)}"
 
-LLAMA_THREADS="${LLAMA_THREADS:-$(nproc)}"
-
-MODEL_PATH="${MODEL_PATH:-$HOME/.cache/llm/models}"
-MODEL_FILE=$(find_model_file "$MODEL_PATH")
-
-if [[ -z "${MODEL_FILE:-}" ]]; then
-  echo "ERROR: No GGML model found in $MODEL_PATH" >&2
-  echo "Run setup-llama.sh to download one, or set MODEL_FILE explicitly." >&2
-  exit 1
+llm_server_args
+# Split mode (LOCALLLM_MODE in local.env): the helper PC reaches llama-server over Tailscale (./localllm.sh forwards
+# the port with `tailscale serve`; llama-server itself stays on 127.0.0.1), so every request must carry the API key.
+if [[ "${LOCALLLM_MODE:-single}" == split ]]; then
+    KEY_FILE="$HOME/.config/localllm/llama-api-key"
+    [[ -s "$KEY_FILE" ]] || { echo "ERROR: split mode needs $KEY_FILE (./localllm.sh switch split makes it)" >&2; exit 1; }
+    LLM_ARGS+=(--api-key-file "$KEY_FILE")
 fi
-
-echo "Serving $(basename "$MODEL_FILE") on ${HOST}:${PORT}"
-echo "Threads: $LLAMA_THREADS"
-
-exec ./bin/llama/main \
-  -m "$MODEL_FILE" \
-  -t "$LLAMA_THREADS" \
-  --host "$HOST" \
-  --port "$PORT" \
-  --ctx-size 2048 \
-  --threads-batch "$LLAMA_THREADS" \
-  --log-disable
+exec "$LLAMA_SERVER" "${LLM_ARGS[@]}"
