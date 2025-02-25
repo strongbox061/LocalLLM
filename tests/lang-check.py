@@ -39,9 +39,6 @@ def check(name, ok, detail=""):
 
 
 def load_module(name, path):
-    if not path.exists():
-        print(f"ERROR: {path} not found", file=sys.stderr)
-        sys.exit(1)
     spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
