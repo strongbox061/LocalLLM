@@ -4,8 +4,12 @@ set -euo pipefail
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
 
-echo "Pulling Kokoro TTS image..."
-kokoro_compose pull
+image="$(kokoro_compose config --images)"
+if docker_cmd image inspect "$image" >/dev/null 2>&1; then
+    echo "Kokoro image already downloaded: $image"
+else
+    kokoro_compose pull
+fi
 
 [[ -x "$WEBUI_PYTHON" ]] || die "Open WebUI's Python is missing (the voice router uses it): run install/open-webui.sh first."
 
