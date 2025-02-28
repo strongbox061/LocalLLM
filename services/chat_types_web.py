@@ -137,7 +137,10 @@ def _clean(data: dict) -> dict:
     out = {}
     for key in FORM_KEYS:
         value = data.get(key)
-        if key in ("name", "description", "system_prompt"):
+        if key == "name":
+            name = str(value or "").strip()
+            out[key] = name[:80] if len(name) > 80 else name
+        elif key in ("description", "system_prompt"):
             out[key] = str(value or "").strip()
         elif key in ("allowed_sites", "allowed_terms", "reference_words", "starter_prompts", "users"):
             out[key] = [str(v).strip() for v in value or [] if str(v).strip()]
