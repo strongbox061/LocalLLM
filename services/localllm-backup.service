@@ -7,4 +7,5 @@ After=network-online.target
 
 [Service]
 Type=oneshot
+EnvironmentFile=@REPO_DIR%/local.env
 ExecStart=@REPO_DIR@/upload-backup.sh
