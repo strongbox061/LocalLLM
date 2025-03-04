@@ -1,8 +1,13 @@
+# Picks the Kokoro voice from the language of the text (services/voice_router.py), on 127.0.0.1:8881.
+# install/kokoro.sh fills in @PYTHON@ (Open WebUI's Python) and @REPO_DIR@ and installs it as
+# ~/.config/systemd/user/voice-router.service. Not enabled: start/kokoro.sh starts it with Kokoro.
+
 [Unit]
 Description=Voice router: picks the Kokoro voice from the text's language
 
 [Service]
 ExecStart=@PYTHON@ @REPO_DIR@/services/voice_router.py
+Environment=VOICE_ROUTER_HOST=127.0.0.1
 Environment=VOICE_ROUTER_PORT=8881
 Environment=VOICE_ROUTER_DEBUG=0
 Restart=on-failure
