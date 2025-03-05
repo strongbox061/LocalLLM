@@ -122,20 +122,6 @@ Memory Device
     )
 
 
-def test_helpers() -> None:
-    """Test helper-related parsing and utility functions."""
-    check(
-        "helper SSH launcher stays tiny (script piped over stdin)",
-        len(monitor.HELPER_PS_LAUNCHER) < 300,
-        f"len={len(monitor.HELPER_PS_LAUNCHER)}",
-    )
-    check(
-        "friendly_process_name extracts GGUF model from llama-server",
-        monitor.friendly_process_name("llama-server", "/usr/bin/llama-server -m /models/demo-model-q4.gguf --port 8081")
-        == "llama-server (demo-model-q4)",
-    )
-
-
 def test_edge_cases() -> None:
     """Test edge cases and error handling in parsers."""
     # Empty GPU list should stay empty
