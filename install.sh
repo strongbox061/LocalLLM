@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
+# Installs everything: llama.cpp + model, SearXNG, Pi + extensions, Open WebUI, OCR, Kokoro, zram and swap tuning,
 # Tailscale, your browser (if BROWSER_INSTALLER is set in local.env), and restores backup/.
 # Safe to run again: steps that are already done are skipped.
 #   ./install.sh            install what is missing
 #   ./install.sh --update   also update your browser (if configured), llama.cpp, Pi, its extensions and Open WebUI
-#
 # Docker is not installed here: install it yourself first (pacman -S docker docker-compose,
 # systemctl enable --now docker.service).
 set -euo pipefail
@@ -103,6 +103,9 @@ log "OCR for scanned PDFs (Tesseract, OCRmyPDF)"
 log "Search gateway (web search for Pi and Open WebUI)"
 "$REPO_DIR/install/search-gateway.sh"
 
+log "Kokoro (text-to-speech for Open WebUI)"
+"$REPO_DIR/install/kokoro.sh"
+
 log "Tailscale (the private network to the helper PC, for the two-PC setup)"
 "$REPO_DIR/install/tailscale.sh"
 
@@ -118,4 +121,5 @@ log "Done"
 echo "SearXNG is running and starts at boot (Docker, restart: always)."
 echo "llama-server, Open WebUI and the search gateway are installed but not started: run ./start.sh"
 echo "Next, the README's steps after the scripts (\"Reinstalling from scratch\", steps 7-12): log out and in once,"
+echo "./start.sh, the Context7 check (sign in only if it says so), a look at Open WebUI, the backup passphrase file,"
 echo "and the scheduled backup."

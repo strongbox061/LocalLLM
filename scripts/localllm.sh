@@ -62,16 +62,7 @@ where() {
 }
 
 main_script() {
-    case "$1" in
-        start)  "$SCRIPT_DIR/start.sh" "$@" ;;
-        stop)   "$SCRIPT_DIR/stop.sh" "$@" ;;
-        restart)
-            "$SCRIPT_DIR/stop.sh" "$@" || true
-            "$SCRIPT_DIR/start.sh" "$@"
-            ;;
-        status) "$SCRIPT_DIR/lib/check_status.sh" "$@" ;;
-        *)      echo "Unknown command: $1" >&2; exit 1 ;;
-    esac
+    case "$1" in voice-router) echo kokoro ;; *) echo "$1" ;; esac
 }
 
 FAILED=()
