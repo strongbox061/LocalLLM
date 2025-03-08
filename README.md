@@ -1,6 +1,6 @@
 # LocalLLM
 
-A local open-source LLM served by [llama.cpp](https://github.com/ggerganov/llama.cpp), so no external AI APIs are needed.
+A local open-source LLM served by [llama.cpp](https://github.com/ggml-org/llama.cpp), so no external AI APIs are needed.
 `llama-server` runs as the systemd service `localllm-llm` and is only reachable from this machine, through its
 OpenAI-compatible API at `http://127.0.0.1:8081/v1`. Whatever model is loaded, it is served as `local`: Pi, Open WebUI
 and its model settings always ask for that name, so changing the model touches none of them.
