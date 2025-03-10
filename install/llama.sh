@@ -35,13 +35,15 @@ unset -f append_path
 # --- llama.cpp ---
 if [[ ! -d "$LLAMA_DIR/.git" ]]; then
     mkdir -p "$LLM_HOME"
-    git clone https://github.com/ggerganov/llama.cpp.git "$LLAMA_DIR"
+    git clone https://github.com/ggml-org/llama.cpp "$LLAMA_DIR"
     # The commit of the last backup (versions.env), unless --update asks for the newest.
     if ! $UPDATE && [[ -n "${LLAMA_CPP_COMMIT:-}" ]]; then
         git -C "$LLAMA_DIR" checkout -q "$LLAMA_CPP_COMMIT"
         echo "llama.cpp: the recorded commit ${LLAMA_CPP_COMMIT:0:9}"
     fi
 elif $UPDATE; then
+    # Back on the default branch first (a fresh install may sit on the recorded commit).
+    git -C "$LLAMA_DIR" checkout -q "$(git -C "$LLAMA_DIR" symbolic-ref --short refs/remotes/origin/HEAD | sed 's|^origin/||')"
     git -C "$LLAMA_DIR" pull --ff-only
 fi
 
@@ -54,8 +56,12 @@ BUILT_ARCH="$(sed -nE 's/^CMAKE_CUDA_ARCHITECTURES:[A-Z]+=(.*)$/\1/p' "$LLAMA_DI
 if $UPDATE || [[ ! -x "$LLAMA_DIR/build/bin/llama-server" ]] || [[ "$BUILT_ARCH" != "$CUDA_ARCH" ]]; then
     cd "$LLAMA_DIR"
     echo "Building llama.cpp for CUDA architecture $CUDA_ARCH."
-    cmake -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES="$CUDA_ARCH" -DCMAKE_BUILD_TYPE=Release || die "Building llama.cpp failed."
-    cmake --build build -j"$(nproc)" --target llama-server llama-bench || die "Building llama.cpp failed."
+    # A fresh install builds the commit of the last backup (versions.env) with the newest CUDA and compiler from
+    # pacman, which an older llama.cpp may not build with.
+    BUILD_HINT="Building llama.cpp failed."
+    $UPDATE || [[ -z "${LLAMA_CPP_COMMIT:-}" ]] || BUILD_HINT+=" It is at the commit recorded by the last backup, which this system's CUDA or compiler may be too new for: run install/llama.sh --update (the newest llama.cpp), then ./install.sh again."
+    cmake -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES="$CUDA_ARCH" -DCMAKE_BUILD_TYPE=Release || die "$BUILD_HINT"
+    cmake --build build -j"$(nproc)" --target llama-server llama-bench || die "$BUILD_HINT"
     cd "$REPO_DIR"
 else
     echo "llama-server is already built."
@@ -65,6 +71,7 @@ fi
 HF=()
 hf_download() {    # hf_download <file in MODEL_REPO>, into MODELS_DIR
     if [[ ${#HF[@]} -eq 0 ]]; then
+        uv tool install "huggingface_hub[cli]" --with hf_transfer
 
         # Newer huggingface_hub versions only ship `hf`; older ones ship `huggingface-cli`.
         local hf_auth
