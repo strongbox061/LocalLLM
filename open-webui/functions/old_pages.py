@@ -55,7 +55,7 @@ class Filter:
                 "is reused as it is and follow-up questions still have the pages."
             ),
         )
-        min_chars: int = Field(default=1500, ge=1, description="Pages shorter than this stay as they are.")
+        min_chars: int = Field(default=1500, description="Pages shorter than this stay as they are.")
         debug: bool = Field(default=False, description="Print what the filter does to the Open WebUI terminal.")
 
     def __init__(self):
@@ -89,9 +89,6 @@ class Filter:
             for call in (m.get("tool_calls") or []) if isinstance(m, dict) else []:
                 fn = call.get("function") or {}
                 if fn.get("name") in tools:
-                    call_id = call.get("id")
-                    if not call_id:
-                        continue
                     try:
                         args = json.loads(fn.get("arguments") or "{}")
                     except (TypeError, ValueError):
@@ -102,7 +99,7 @@ class Filter:
                     except (TypeError, ValueError):
                         part = 1
                     again = f" (part={part})" if part > 1 else ""
-                    calls[call_id] = (fn["name"], str(args.get("url") or "the page"), again)
+                    calls[call.get("id")] = (fn["name"], str(args.get("url") or "the page"), again)
 
         removed = saved = 0
         for m in messages[:prompt]:
