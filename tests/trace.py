@@ -63,7 +63,7 @@ def load(path: str) -> dict:
             if error:
                 run["errors"] += 1
                 if text.startswith(("Not sent to", "You already", "Don't search", "You've used enough", "Search budget",
-                    "You have reached your daily limit for", "Rate limit exceeded", "Too many requests", "Quota exceeded")):
+                                    "Context7's limit", "You were given a URL")):
                     run["blocked"] += 1
             run["steps"].append(("result", message.get("toolName", "?"), ("ERROR: " if error else "") + text))
     return run
