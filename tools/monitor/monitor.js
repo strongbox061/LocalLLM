@@ -520,45 +520,44 @@ function render(data) {
   if (openModalState) renderModal();
 }
 
-/* ---- Data loading ---- */
-
 let timerId = null;
 
 async function load(forceRefresh = false) {
-  const errorBox = document.getElementById("errorBox");
+  const errBox = document.getElementById("errorBox");
   try {
-    const url = forceRefresh ? "/api/snapshot?t=" + Date.now() : "/api/snapshot";
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
-    const data = await resp.json();
+    const url = forceRefresh ? "/api/metrics?refresh=1" : "/api/metrics";
+    const res = await fetch(url, { cache: "no-store" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     render(data);
-  } catch (err) {
-    errorBox.innerHTML = '<div class="error-banner">Error: ' + err.message + '</div>';
+    errBox.replaceChildren();
+  } catch (e) {
+    errBox.replaceChildren(
+      h("div", { class: "error-banner" }, `Could not fetch metrics: ${e.message}`)
+    );
   }
 }
 
 function schedule() {
-  if (timerId) clearInterval(timerId);
-  const sel = document.getElementById("intervalSel");
-  timerId = setInterval(() => load(), parseInt(sel.value, 10) * 1000);
+  if (timerId !== null) {
+    clearInterval(timerId);
+    timerId = null;
+  }
+  const ms = Number(document.getElementById("intervalSel").value);
+  if (ms > 0) {
+    timerId = setInterval(() => load(false), ms);
+  }
 }
 
-/* ---- Event wiring ---- */
-
-document.getElementById("procBackdrop").addEventListener("click", e => {
-  if (e.target === document.getElementById("procBackdrop")) closeProcessModal();
-});
-
-document.getElementById("modalCloseBtn").addEventListener("click", closeProcessModal);
-
-document.addEventListener("keydown", e => {
-  if (e.key === "Escape") closeProcessModal();
-});
-
-document.getElementById("refreshBtn").addEventListener("click", () => load(true));
-
 document.getElementById("intervalSel").addEventListener("change", schedule);
+document.getElementById("refreshBtn").addEventListener("click", () => load(true));
+document.getElementById("modalCloseBtn").addEventListener("click", closeProcessModal);
+document.getElementById("procBackdrop").addEventListener("click", e => {
+  if (e.target === e.currentTarget) closeProcessModal();
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && openModalState) closeProcessModal();
+});
 
-/* ---- Boot ---- */
-
-load().then(schedule);
+load(true);
+schedule();
