@@ -160,10 +160,22 @@ def _tool():
             spec = importlib.util.spec_from_file_location("search_gateway_engine", ENGINE_FILE)
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
-            _loaded["module"] = module
-        tool = module.Tools(read_settings())
-        _loaded["key"] = key
-        _loaded["tool"] = tool
+            version = re.search(r"^\s*version:\s*(\S+)", module.__doc__ or "", re.M)
+            log(f"loaded the engine, version {version.group(1) if version else '?'}")
+        tool = module.Tools()
+        saved = read_settings()
+        fields = set(getattr(tool.Valves, "model_fields", {}) or {})
+        tool.valves = tool.Valves(**{k: v for k, v in saved.items() if k in fields})
+        old = _loaded["tool"]
+        if old is not None:
+            for name in ("_no_real", "_checked", "_parallel_pause_until", "_state", "_in_flight", "_pages"):
+                if hasattr(old, name):
+                    setattr(tool, name, getattr(old, name))
+        if DEBUG:
+            tool.valves.debug = True
+        if SEARXNG_OVERRIDE and tool.valves.searxng_url:
+            tool.valves.searxng_url = SEARXNG_OVERRIDE
+        _loaded.update(key=key, tool=tool, module=module)
         return tool
 
 
