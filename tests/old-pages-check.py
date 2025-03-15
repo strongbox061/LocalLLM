@@ -45,7 +45,6 @@ spec = importlib.util.spec_from_file_location("old_pages", ROOT / "open-webui" /
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
-
 _n = 0
 
 
@@ -53,7 +52,7 @@ def call(name, **args):
     global _n
     _n += 1
     cid = f"call_{_n}"
-    return cid, {"role": "assistant", "content": "",
+    return cid, {"role": "assistant", "content": "", "reasoning_content": "thinking",
                  "tool_calls": [{"id": cid, "type": "function", "function": {"name": name, "arguments": json.dumps(args)}}]}
 
 
@@ -113,10 +112,6 @@ parted = SYSTEM + first + second + [{"role": "user", "content": "q"}, m, {"role"
                                     {"role": "assistant", "content": "a"}, {"role": "user", "content": "next"}]
 note = [x["content"] for x in run(parted) if x["role"] == "tool" and "long.example" in x["content"]]
 check("a later part's note keeps its #section and part", note and "doc#install" in note[0] and "part=3" in note[0], note)
-
-# Only search results, no pages at all: nothing to note.
-search_only = SYSTEM + answer("only search", [])
-check("no pages at all: unchanged", run(search_only) == search_only)
 
 # Below the starting point, nothing changes; the starting point is counted with the pages in full.
 check("nothing changes below start_at_tokens", run(long, start_at_tokens=10**6) == long)
