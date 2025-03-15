@@ -1,5 +1,5 @@
-# Kokoro text-to-speech server for Open WebUI voice reading
-# Managed by install/kokoro.sh and start/stop scripts
+# Kokoro text-to-speech server (CPU only), used by Open WebUI to read answers aloud in English, Spanish and French.
+# Managed by install/kokoro.sh, start/kokoro.sh and stop/kokoro.sh. Not started at boot: start.sh starts it.
 name: kokoro
 
 services:
@@ -10,8 +10,3 @@ services:
       - "127.0.0.1:8880:8880"   # this machine only
     restart: "no"
     mem_limit: 3g
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8880/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
