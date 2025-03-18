@@ -10,73 +10,89 @@ set -uo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
 
 curl -fsS -m 3 -o /dev/null "$LLAMA_URL/health" 2>/dev/null || die "llama-server isn't running: ./start.sh first."
+command -v pi >/dev/null || die "Pi isn't installed: install/pi.sh."
 
 WORK="$(mktemp -d)"
-PROMPT="Use Context7: in Next.js 14, how does a page component read a dynamic route parameter such as [slug]? "
-START="$(date +%s)"
-
 trap 'rm -rf "$WORK"' EXIT
+export PI_CONTEXT7_ID_CACHE="$WORK/context7-ids.json"
 
-# Run Pi with Context7 tools only
-PI_AGENT_DIR="$WORK" pi \
-  --model "$LLAMA_MODEL" \
-  --context-size 8192 \
-  --prompt "$PROMPT" \
-  2>/dev/null || true
+PROMPT="Use Context7: in Next.js 14, how does a page component read a dynamic route parameter such as [slug]? \\
+Find the library ID with resolve-library-id, then look it up in the v14 docs with query-docs. Answer in two sentences."
+
+echo "Asking Pi (Context7 tools only; about a minute)..."
+START="$(date +%s)"
+(cd "$WORK" && timeout 600 pi -p "$PROMPT" --tools 'context7_*' </dev/null >"$WORK/answer.txt" 2>"$WORK/errors.txt")
+status=$?
+[[ $status -eq 0 ]] || echo "Pi exited with status $status: $(tail -3 "$WORK/errors.txt")"
 
 # The session of this run: the newest one whose working folder is $WORK.
 SESSION="$(python3 - "$PI_AGENT_DIR/sessions" "$WORK" "$START" <<'EOF'
 import json, os, sys
-
-sessions_dir = sys.argv[1]
-work_dir   = sys.argv[2]
-start_time = int(sys.argv[3])
-
-best_session = None
-best_mtime   = 0
-
-for name in os.listdir(sessions_dir):
-    path = os.path.join(sessions_dir, name)
-    if not os.path.isfile(path):
-        continue
-    try:
-        with open(path) as f:
-            meta = json.load(f)
-    except (json.JSONDecodeError, OSError):
-        continue
-    if meta.get("working_directory") != work_dir:
-        continue
-    mtime = os.path.getmtime(path)
-    if mtime >= start_time and mtime > best_mtime:
-        best_session = name
-        best_mtime   = mtime
-
-if best_session:
-    print(best_session)
-else:
-    sys.exit(1)
+root, cwd, start = sys.argv[1], sys.argv[2], float(sys.argv[3])
+best = None
+for d, _, files in os.walk(root):
+    for f in files:
+        p = os.path.join(d, f)
+        if not f.endswith(".jsonl") or os.path.getmtime(p) < start - 5:
+            continue
+        try:
+            first = json.loads(open(p).readline())
+        except Exception:
+            continue
+        if first.get("cwd") == cwd and (best is None or os.path.getmtime(p) > os.path.getmtime(best)):
+            best = p
+print(best or "")
 EOF
-)" || die "No session found for working dir $WORK after start=$START"
+)"
+[[ -n "$SESSION" ]] || die "No Pi session file for this run under $PI_AGENT_DIR/sessions."
 
-SESSION_FILE="$PI_AGENT_DIR/sessions/$SESSION"
-
-# A result counts when it isn't an error and didn't come from Pi's own guard ("Not sent to Context7 ...").
-result_count=0
-error_count=0
-
-while IFS= read -r line; do
-    if echo "$line" | grep -qi "not sent to context7"; then
+python3 - "$SESSION" <<'EOF'
+import json, sys
+calls, results = [], []
+for line in open(sys.argv[1]):
+    d = json.loads(line)
+    if d.get("type") != "message":
         continue
-    elif echo "$line" | grep -qi '"error"'; then
-        error_count=$((error_count + 1))
-    else
-        result_count=$((result_count + 1))
-    fi
-done < <(grep -o '"content":"[^"]*"' "$SESSION_FILE" 2>/dev/null || true)
+    m = d["message"]
+    if m.get("role") == "assistant":
+        for p in m.get("content") or []:
+            if p.get("type") == "toolCall":
+                calls.append((p.get("name"), p.get("arguments")))
+    elif m.get("role") == "toolResult":
+        text = " ".join(p.get("text", "") for p in m.get("content") or [] if p.get("type") == "text")
+        results.append((m.get("toolName"), bool(m.get("isError")), text))
 
-if [ "$result_count" -lt 2 ]; then
-    die "Context7 lookup failed: got $result_count results (expected at least 2)"
+for name, args in calls:
+    print(f"  call    {name} {json.dumps(args, ensure_ascii=False)[:110]}")
+# A result counts when it isn't an error and didn't come from Pi's own guard ("Not sent to Context7 ...").
+def failed(err, text):
+    return err or text.lower().startswith("not sent to context7")
+def good(name):
+    return [t for n, err, t in results if n == name and not failed(err, t)]
+resolved, docs = good("context7_resolve-library-id"), good("context7_query-docs")
+problems = [t[:160].replace("\n", " ") for n, err, t in results if n and n.startswith("context7_") and failed(err, t)]
+for t in problems:
+    print(f"  error   {t}")
+ok = True
+if resolved:
+    ids = sorted({w for t in resolved for w in t.split() if w.startswith("/") and w.count("/") >= 2})
+    print(f"  ok      resolve-library-id answered ({', '.join(ids[:3]) or 'IDs listed'})")
+else:
+    print("  FAIL    resolve-library-id gave no result"); ok = False
+if docs:
+    print(f"  ok      query-docs returned docs ({len(docs[0])} characters)")
+else:
+    print("  FAIL    query-docs gave no docs"); ok = False
+sys.exit(0 if ok else 1)
+EOF
+result=$?
+
+echo "  answer  $(tr '\n' ' ' <"$WORK/answer.txt" | cut -c1-300)"
+echo "  session ${SESSION/#$HOME/\~}"
+if [[ $result -eq 0 ]]; then
+    echo "Context7: ready (signed in, docs lookup works)."
+else
+    echo "Context7: not working. If an error above mentions a sign-in, run /mcp-auth context7 in an interactive Pi" \
+         "session; then run this check again."
 fi
-
-echo "Context7 check passed: $result_count results, $error_count errors"
-exit 0
+exit $result
