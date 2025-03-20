@@ -90,7 +90,11 @@ sys.exit(0 if ok else 1)
 EOF
 result=$?
 
-echo "  answer  $(tr '\n' ' ' <"$WORK/answer.txt" | cut -c1-300)"
+if [[ -s "$WORK/answer.txt" ]]; then
+    echo "  answer  $(tr '\n' ' ' <"$WORK/answer.txt" | cut -c1-300)"
+else
+    echo "  answer  (empty or missing)"
+fi
 echo "  session ${SESSION/#$HOME/\~}"
 if [[ $result -eq 0 ]]; then
     echo "Context7: ready (signed in, docs lookup works)."
