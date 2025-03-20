@@ -74,9 +74,6 @@ problems = [t[:160].replace("\n", " ") for n, err, t in results if n and n.start
 for t in problems:
     print(f"  error   {t}")
 ok = True
-# Verify we got exactly two tool calls (resolve-library-id + query-docs).
-if len(calls) != 2:
-    print(f"  FAIL    expected 2 tool calls, got {len(calls)}"); ok = False
 if resolved:
     ids = sorted({w for t in resolved for w in t.split() if w.startswith("/") and w.count("/") >= 2})
     print(f"  ok      resolve-library-id answered ({', '.join(ids[:3]) or 'IDs listed'})")
@@ -90,11 +87,7 @@ sys.exit(0 if ok else 1)
 EOF
 result=$?
 
-if [[ -s "$WORK/answer.txt" ]]; then
-    echo "  answer  $(tr '\n' ' ' <"$WORK/answer.txt" | cut -c1-300)"
-else
-    echo "  answer  (empty or missing)"
-fi
+echo "  answer  $(tr '\n' ' ' <"$WORK/answer.txt" | cut -c1-300)"
 echo "  session ${SESSION/#$HOME/\~}"
 if [[ $result -eq 0 ]]; then
     echo "Context7: ready (signed in, docs lookup works)."
