@@ -16,7 +16,7 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 export PI_CONTEXT7_ID_CACHE="$WORK/context7-ids.json"
 
-PROMPT="Use Context7: in Next.js 14, how does a page component read a dynamic route parameter such as [slug]? \\
+PROMPT="Use Context7: in Next.js 14, how does a page component read a dynamic route parameter such as [slug]? \
 Find the library ID with resolve-library-id, then look it up in the v14 docs with query-docs. Answer in two sentences."
 
 echo "Asking Pi (Context7 tools only; about a minute)..."
