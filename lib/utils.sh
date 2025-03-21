@@ -44,34 +44,27 @@ WEBUI_URL="http://127.0.0.1:3000"
 SEARXNG_URL="http://127.0.0.1:8080"
 SEARCH_GATEWAY_URL="http://127.0.0.1:8090"
 ENDPOINTS_ERROR=""
-# refresh_endpoints [force]: regenerates endpoints.json/.env when they are older than their sources (or always with --force).
+# refresh_endpoints [force]: regenerates endpoints.json/.env when they are older than their sources (or always with
+# "force"). Returns 1 and sets ENDPOINTS_ERROR when the settings don't fit together.
 refresh_endpoints() {
-    ENDPOINTS_ERROR=""
-    local force="$1"
-    [ -f "$SERVICES_FILE" ] || return 0
-    if [ "$force" != "--force" ] && [ -f "$ENDPOINTS_FILE" ]; then
-        # Use touch to track modification time; regenerate if needed.
-        local services_mtime endpoints_mtime
-        services_mtime=$(stat -c %Y "$SERVICES_FILE" 2>/dev/null || echo 0)
-        endpoints_mtime=$(stat -c %Y "$ENDPOINTS_FILE" 2>/dev/null || echo 0)
-        [ "$services_mtime" -gt "$endpoints_mtime" ] || return 0
+    local f stale="${1:-}" args=() v
+    for f in "$LOCAL_ENV_FILE" "$SERVICES_FILE" "$REPO_DIR/lib/endpoints.py"; do
+        [[ "$ENDPOINTS_ENV" -nt "$f" ]] || stale=1
+    done
+    [[ -f "$ENDPOINTS_FILE" ]] || stale=1
+    [[ -n "$stale" ]] || return 0
+    args=(LOCALLLM_MODE="${LOCALLLM_MODE:-}" LOCALLLM_APPS="${LOCALLLM_APPS:-}" HELPER_HOST="${HELPER_HOST:-}" MAIN_HOST="${MAIN_HOST:-}")
+    for v in $(compgen -v PLACE_); do args+=("$v=${!v}"); done
+    if ! ENDPOINTS_ERROR="$(env "${args[@]}" python3 "$REPO_DIR/lib/endpoints.py" write "$ENDPOINTS_DIR" 2>&1)"; then
+        ENDPOINTS_ERROR="${ENDPOINTS_ERROR#ERROR: }"
+        return 1
     fi
-    python3 "$REPO_DIR/lib/endpoints.py" > "$ENDPOINTS_FILE" 2>/dev/null
-    # Write endpoints.env from the JSON for sourcing in bash scripts.
-    python3 -c "
-import json, sys
-with open(sys.argv[1]) as f:
-    data = json.load(f)
-for k, v in data.items():
-    print(f'{k}={v}')
-" "$ENDPOINTS_FILE" > "$ENDPOINTS_ENV" 2>/dev/null
-    # Reset ENDPOINTS_ERROR if endpoints are valid.
-    [ -s "$ENDPOINTS_FILE" ] && ENDPOINTS_ERROR=""
+    ENDPOINTS_ERROR=""
 }
-
-# When local.env settings don't fit together, refresh_endpoints returns 1 and ENDPOINTS_ERROR says why.
-# Otherwise it sources endpoints.env (which sets LOCALLLM_MODE, LOCALLLM_APPS, and the service URLs).
-if ! refresh_endpoints; then
+if refresh_endpoints; then
+    # shellcheck source=/dev/null
+    source "$ENDPOINTS_ENV"
+else
     printf 'WARNING: %s\nUsing the single-mode addresses (127.0.0.1) for now.\n' "$ENDPOINTS_ERROR" >&2
 fi
 LOCALLLM_MODE="${LOCALLLM_MODE:-single}"
