@@ -10,32 +10,43 @@ function el(tag, attrs = {}, text = "") {
 }
 
 function render(data) {
+  document.getElementById("file").textContent = data.file;
+  fields = data.fields;
   form.replaceChildren();
-  fields = data.fields || [];
-  const fileEl = document.getElementById("file");
-  if (data.file) fileEl.textContent = data.file;
-
   for (const f of fields) {
-    const div = el("div", { class: "field", "data-name": (f.label || f.key).toLowerCase() + " " + (f.placeholder || "").toLowerCase() });
-    const input = el("input", { type: f.type === "number" ? "number" : "text", name: f.key, value: f.value ?? "", placeholder: f.placeholder || "" });
-    if (f.type === "number") {
-      if (typeof f.min === "number") input.min = f.min;
-      if (typeof f.max === "number") input.max = f.max;
+    const box = el("div", { class: "field" + (f.changed ? " changed" : ""), "data-name": f.name.toLowerCase() + " " + f.description.toLowerCase() });
+    box.append(el("label", { for: "f-" + f.name }, f.name), el("p", {}, f.description));
+    let input;
+    if (f.type === "bool") {
+      input = el("input", { type: "checkbox", id: "f-" + f.name });
+      input.checked = !!f.value;
+    } else if (f.secret) {
+      input = el("input", { type: "password", id: "f-" + f.name, autocomplete: "off",
+                            placeholder: f.set ? "set: leave empty to keep it, or type a new one" : "not set" });
+    } else {
+      input = el("input", { type: f.type === "str" ? "text" : "number", id: "f-" + f.name });
+      if (f.type === "float") input.step = "any";
+      input.value = f.value ?? "";
     }
-    input.addEventListener("input", () => {
-      div.classList.toggle("changed", input.value !== "");
-      saveBtn.disabled = !form.querySelector(".field.changed");
-    });
-    const labelEl = el("label", { for: "f-" + f.key }, f.label || f.key);
-    labelEl.setAttribute("id", "lbl-" + f.key);
-    input.setAttribute("aria-labelledby", "lbl-" + f.key);
-    div.append(labelEl, input);
-    form.append(div);
+    input.addEventListener("input", () => { saveBtn.disabled = false; msg.textContent = ""; });
+    box.append(input);
+    const meta = el("div", { class: "meta" });
+    if (f.secret) {
+      meta.append(el("span", { class: f.set ? "set" : "unset" }, f.set ? "● key set" : "○ no key"));
+      if (f.set) {
+        const clear = el("label");
+        const cb = el("input", { type: "checkbox", "data-clear": f.name });
+        cb.addEventListener("change", () => { saveBtn.disabled = false; });
+        clear.append(cb, document.createTextNode(" remove this key"));
+        meta.append(clear);
+      }
+    } else if (f.type !== "bool") {
+      meta.append(el("span", {}, "default: " + (f.default === "" ? "(empty)" : String(f.default))));
+    }
+    box.append(meta);
+    form.append(box);
   }
-
-  saveBtn.disabled = true;
-  msg.textContent = "";
-  msg.className = "";
+  applyFilter();
 }
 
 function applyFilter() {
