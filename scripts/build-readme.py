@@ -206,6 +206,12 @@ class ReadmeConverter:
                     }
                 )
                 self.slug_by_title[clean_title.lower()] = slug
+            else:
+                # Track bold paragraph lead-ins like "**Signing in to Context7.**" for cross-refs
+                mb = re.match(r"^\*\*([^*]{4,60}?)\.\*\*\s", line)
+                if mb:
+                    lead = mb.group(1).strip()
+                    self.inline_anchors[lead.lower()] = slugify(lead)
 
     def _render_table(self, lines: list[str]) -> str:
         """Render a Markdown table as an HTML table."""
