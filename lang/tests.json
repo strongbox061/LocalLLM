@@ -5,7 +5,7 @@
     "en": {
       "latest": ["What's new in the latest Vite release", "Show me the changelog for httpx"],
       "error": ["My build fails with a strange message", "The app crashed after the update"],
-      "action_start": ["Search for Vite proxy configuration", "Please search for Vite proxy configuration"],
+      "action_start": ["Search for kokoro tts benchmarks", "please open the pacman wiki page"],
       "question_start": ["What does rsync's partial flag do", "how do I cancel a fetch request"],
       "local_current": ["List the files in the current directory"],
       "named_source": ["Read the Vite docs and tell me about the proxy option", "Compare the context lengths according to their model cards"],
