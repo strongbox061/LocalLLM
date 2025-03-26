@@ -462,16 +462,6 @@ select:hover {
   font-variant-numeric: tabular-nums;
 }
 
-.notice {
-  background: var(--card-soft);
-  border: 1px dashed var(--line);
-  border-radius: 8px;
-  padding: 16px;
-  color: var(--muted);
-  font-size: 13px;
-  text-align: center;
-}
-
 .notice code {
   background: var(--muted-bg);
   color: var(--text);
