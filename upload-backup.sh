@@ -21,32 +21,26 @@ step="checks"
 command -v rclone >/dev/null || { echo "rclone is not installed: run install/backup-timer.sh" >&2; false; }
 [[ "$DEST" == ?*:* ]] \
     || { echo "No upload destination: set BACKUP_REMOTE=\"remote:folder\" in $LOCAL_ENV_FILE (see README)." >&2; false; }
+rclone listremotes | grep -qxF "${DEST%%:*}:" \
+    || { echo "No rclone remote '${DEST%%:*}': run 'rclone config' (see README)." >&2; false; }
 [[ "$BACKUP_KEEP_COUNT" =~ ^[1-9][0-9]*$ ]] \
     || { echo "How many archives to keep isn't set: BACKUP_KEEP_COUNT in $LOCAL_ENV_FILE (see README)." >&2; false; }
 [[ -n "$BACKUP_PASSPHRASE_FILE" && -f "$BACKUP_PASSPHRASE_FILE" ]] \
     || { echo "No passphrase file set in $LOCAL_ENV_FILE (BACKUP_PASSPHRASE_FILE), or it doesn't exist: an unattended" \
               "backup cannot ask for the passphrase (see README, \"Backing up and restoring settings\")." >&2; false; }
 
-# Create the encrypted archive via archive-backup.sh; it prints the filename on stdout.
-ARCHIVE="$("$REPO_DIR/archive-backup.sh" | tail -1)"
+step="Making the archive"
+# Show its output, through stderr: not `tee /dev/stderr`, which can't be opened under systemd (stderr is a socket).
+ARCHIVE="$("$REPO_DIR/archive-backup.sh" | tee >(cat >&2) | tail -1)"
+[[ -f "$ARCHIVE" ]]
 
-if [ -z "$ARCHIVE" ]; then
-    fail "archive-backup.sh produced no output"
-fi
+step="Uploading"
+log "Upload to $DEST"
+rclone copy "$ARCHIVE" "$DEST/"
 
-if [ ! -f "$ARCHIVE" ]; then
-    fail "archive file not found: $ARCHIVE"
-fi
+step="Removing old archives from the remote"
+# All but the newest BACKUP_KEEP_COUNT (the names sort by date; the one just uploaded is the newest).
+rclone lsf --files-only --include 'LocalLLM-backup-*.tar.gz.gpg' "$DEST/" | sort | head -n -"$BACKUP_KEEP_COUNT" \
+    | while IFS= read -r old; do rclone deletefile "$DEST/$old"; echo "  deleted $DEST/$old"; done
 
-# Upload to the remote.
-rclone copy "$ARCHIVE" "$DEST/" || fail "rclone upload failed for $ARCHIVE"
-
-# Remove old archives, keeping only the newest BACKUP_KEEP_COUNT.
-COUNT=$(rclone ls "$DEST" --files-only | wc -l)
-KEEP="${BACKUP_KEEP_COUNT:-3}"
-if [ "$COUNT" -gt "$KEEP" ]; then
-    TO_DELETE=$((COUNT - KEEP))
-    rclone ls "$DEST" --files-only --sort=-name | tail -n "$TO_DELETE" | awk '{print $2}' | while read -r old; do
-        rclone delete "$old" || true
-    done
-fi
+echo "Uploaded $(basename -- "$ARCHIVE") ($(du -h "$ARCHIVE" | cut -f1)) to $DEST"
