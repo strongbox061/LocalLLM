@@ -34,7 +34,7 @@ def lang_norm(text):
     t = unicodedata.normalize("NFD", str(text or "").lower())
     return unicodedata.normalize("NFC", _LANG_MARKS.sub("", t)).translate(_LANG_SAME)
 
-MONTHS = r"تشرين\s+الثاني|تشرین\s+الثانی|كانون\s+الثاني|کانون\s+الثانی|szeptember\w*|تشرين\s+الأول|تشرین\s+الاول|كانون\s+الأول|کانون\s+الاول|augusztus\w*|maaliskuu\w*|marraskuu\w*|pazdziernika|października|december\w*|heinakuu\w*|heinäkuu"
+MONTHS = r"تشرين\s+الثاني|تشرین\s+الثانی|كانون\s+الثاني|کانون\s+الثانی|szeptember\w*|تشرين\s+الأول|تشرین\s+الاول|كانون\s+الأول|کانون\s+الاول|augusztus\w*|maaliskuu\w*|marraskuu\w*|pazdziernika|października|december\w*|heinakuu\w*|heinäkuu\w*|helmikuu\w*|huhtikuu\w*|joulukuu\w*|november\w*|pazdziernik|październik|tammikuu\w*|toukokuu\w*|σεπτέμβρ\w*|σεπτεμβρ\w*|φεβρουαρ\w*|ফেব্রুয়ারি|ফেব্রুয়ারী|ফাল্গুন\w*|ফাল্গুণ\w*|জানুয়ারি\w*|জানুয়ারী\w*|মার্চ\w*|মার্চ\w*|এপ্রিল\w*|আগস্ট\w*|আগস্ট\w*|আগস্তু\w*|আই\w*|আইন\w*|আইনুয়ারি\w*|আইনুয়ারী\w*|আইনুয়ার্দি\w*|আয়ন\w*|আয়েন\w*|আয়েনুয়ারি\w*|আয়েনুয়ারী\w*|আয়নুয়ারি\w*|आगस्ट\w*|आगस्त\w*|आइ\w*|आइन्\w*|आइनुअरि\w*|आइनुअरी\w*|आयन\w*|आयन्\w*|आयनूअरि\w*|आयनूअरी\w*|आयनुअरि\w*|जनवरी\w*|जनवरी\w*|फ़रवरी\w*|मार्च\w*|मई\w*|जून\w*|जुलाई\w*|आगस्ट\w*|सितंबर\w*|सितम्बर\w*|अक्टूबर\w*|नवंबर\w*|नवम्बर\w*|दिसंबर\w*|दिसम्बर\w*|জানুয়ারী\w*|ফেব্রুয়ারি\w*|ফেব্রুয়ারী\w*|মার্চ\w*|এপ্রিল\w*|মে\w*|জুন\w*|জুলাই\w*|আগস্ট\w*|সেপ্টেম্বর\w*|অক্টোবর\w*|নভেম্বর\w*|ডিসেম্বর\w*|জানুয়ারি\w*|ফেব্রুয়ারি\w*|মার্চ\w*|এপ্রিল\w*|মে\w*|জুন\w*|জুলাই\w*|আগস্ট\w*|সেপ্টেম্বর\w*|অক্টোবর\w*|নভেম্বর\w*|ডিসেম্বর\w*"
 # --- end of lang-words ---
 
 # Wants current information: the search prefers recent pages.
