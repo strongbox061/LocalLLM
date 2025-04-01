@@ -20,6 +20,7 @@ export OPENAI_API_BASE_URL="http://127.0.0.1:8081/v1"
 export OPENAI_API_KEY="none"
 
 # Voice, also only for a brand-new install: Whisper "small" on the CPU for dictation,
+# the local Kokoro server (services/kokoro) for reading answers aloud, through the voice router
 # (services/voice_router.py), which picks the voice from the language when the voice is "auto".
 export WHISPER_MODEL=small
 # Always applied (not saved in Open WebUI's settings): skip silence and noise before transcribing, so a clip with
@@ -28,6 +29,7 @@ export WHISPER_VAD_FILTER=true
 export AUDIO_TTS_ENGINE=openai
 export AUDIO_TTS_OPENAI_API_BASE_URL="http://127.0.0.1:8881/v1"
 export AUDIO_TTS_OPENAI_API_KEY="not-needed"
+export AUDIO_TTS_MODEL=kokoro
 export AUDIO_TTS_VOICE=auto
 
 # Stay under llama-server's slot (the model profile's CTX_PER_SLOT, less room for the answer): compact a chat at 7/8
@@ -45,3 +47,11 @@ export ENABLE_FOLLOW_UP_GENERATION=false
 export ENABLE_AUTOCOMPLETE_GENERATION=false
 
 export WEB_LOADER_ENGINE=playwright
+
+# Voice fixes for every browser, served as Open WebUI's /static/loader.js (open-webui/loader.js; README, "Voice in
+# Open WebUI"). Voice mode still works without them, so a failure here doesn't stop Open WebUI.
+(umask 022 && "$HOME/.local/share/uv/tools/open-webui/bin/python" -I \
+    "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../open-webui/install_loader.py") \
+    || echo "WARNING: Open WebUI's voice fixes (loader.js) weren't installed." >&2
+
+exec "$HOME/.local/bin/open-webui" serve --host 127.0.0.1 --port 3000
