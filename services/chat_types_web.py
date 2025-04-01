@@ -61,6 +61,7 @@ _job = {"running": False, "kind": "", "id": "", "started": 0, "ended": 0, "exit"
 
 # ---------------------------------------------------------------- reading
 
+
 def _db_rows(db_path: str, sql: str, args=()) -> list:
     try:
         con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=10)
@@ -132,15 +133,13 @@ def job() -> dict:
 
 # ---------------------------------------------------------------- changing
 
+
 def _clean(data: dict) -> dict:
     """Only the form's keys, in the template's order, with list items trimmed and empty ones dropped."""
     out = {}
     for key in FORM_KEYS:
         value = data.get(key)
-        if key == "name":
-            name = str(value or "").strip()
-            out[key] = name[:80] if len(name) > 80 else name
-        elif key in ("description", "system_prompt"):
+        if key in ("name", "description", "system_prompt"):
             out[key] = str(value or "").strip()
         elif key in ("allowed_sites", "allowed_terms", "reference_words", "starter_prompts", "users"):
             out[key] = [str(v).strip() for v in value or [] if str(v).strip()]
@@ -255,6 +254,7 @@ here. A file changed on this PC would be overwritten by the next deploy.</p>
 <p><a href="/dashboard">Search usage dashboard</a></p>
 </body></html>
 """
+
 
 
 def _local(handler, port: int) -> bool:
