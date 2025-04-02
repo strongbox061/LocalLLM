@@ -69,16 +69,30 @@ class Filter:
         self._log(f"inlet chat={chat}")
         return body
 
-    async def outlet(self, body: dict, __metadata__: dict = None) -> dict:
+    async def outlet(
+        self, body: dict, __metadata__: dict = None, __event_emitter__=None
+    ) -> dict:
         chat = self._chat(__metadata__, body)
         start = self._start.pop(chat, None)
         self._log(
-            f"outlet chat={chat} start_found={start is not None}"
+            f"outlet chat={chat} start_found={start is not None} emitter={__event_emitter__ is not None}"
         )
         if start is None:
             return body
         elapsed = _fmt(time.time() - start)
         line = f"*⏱ Answered in {elapsed}*"
+        if __event_emitter__:
+            # Shown live in the chat: a status line above the reply, and the line added at its end.
+            await __event_emitter__(
+                {
+                    "type": "status",
+                    "data": {"description": f"Answered in {elapsed}", "done": True},
+                }
+            )
+            await __event_emitter__(
+                {"type": "message", "data": {"content": f"\n\n{line}"}}
+            )
+            return body  # the event already adds the line; don't add it twice
         for m in reversed(body.get("messages", [])):
             if m.get("role") == "assistant":
                 content = _strip(m.get("content"))
