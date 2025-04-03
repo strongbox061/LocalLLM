@@ -4,9 +4,9 @@ LocalLLM System Monitor — web dashboard for CPU, GPU, and RAM usage on the mai
 and helper PCs, plus the current setup mode (single/split) and apps (pi/pi,owui).
 
 Usage:
-    python3 tools/monitor/monitor.py [--host 127.0.0.1] [--port 8095] [--interval 5]
-    python3 tools/monitor/monitor.py --once        # print one JSON snapshot and exit
-    python3 tools/monitor/monitor.py --detect-hw   # detect main PC RAM brand/model via sudo dmidecode and cache it
+    python3 tools/monitor/app.py [--host 127.0.0.1] [--port 8095] [--interval 5]
+    python3 tools/monitor/app.py --once        # print one JSON snapshot and exit
+    python3 tools/monitor/app.py --detect-hw   # detect main PC RAM brand/model via sudo dmidecode and cache it
 """
 
 from __future__ import annotations
@@ -394,7 +394,7 @@ def friendly_process_name(raw_name: str, cmdline: str = "") -> str:
         return "ComfyUI"
     if "searxng" in low_cmd or "searx" in low_cmd:
         return "SearXNG"
-    if "monitor.py" in low_cmd:
+    if "app.py" in low_cmd:
         return "LocalLLM Monitor"
     if "chat_types_server.py" in low_cmd:
         return "Chat Types Server"
