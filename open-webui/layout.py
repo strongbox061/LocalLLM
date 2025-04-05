@@ -1,13 +1,14 @@
 """
 Sets Open WebUI's settings that depend on where it runs (README, "Two-PC setup"), through its own API, for the mode
 given: the chat model's address and API key, the small model for titles and tags, speech-to-text, how documents are
-processed, PDF handling, reranker, and image generation.
+read (Docling) and ranked (a reranker), and image generation (ComfyUI). Everything else stays as it is.
 
   single  (Open WebUI on the main PC): llama-server at 127.0.0.1 without a key, no task model (titles, tags and
           follow-ups off, so they don't disturb llama-server's cache), Whisper "small" on the CPU, Open WebUI's own
           PDF reader, no reranker, no image generation. The setup's values from before the two-PC setup.
   split   (Open WebUI on the helper PC): llama-server on the main PC with its API key, the helper's small model for
           titles, tags, follow-ups and image prompts, the helper's whisper service for speech-to-text
+          (large-v3-turbo on the GPU), Docling, ComfyUI (a two-pass workflow, see hires_workflow), and the reranker
           from windows/versions.json (none: it doesn't fit on the helper's GPU).
 
 Usage: python layout.py <single|split> [--base-url URL]
@@ -74,9 +75,8 @@ HIRES_STEPS = 15
 HIRES_DENOISE = 0.5
 SAMPLER = {"sampler_name": "dpmpp_2m", "scheduler": "karras", "cfg": 7}
 NEGATIVE = ("lowres, blurry, deformed, disfigured, bad anatomy, extra limbs, extra arms, extra legs, duplicate, "
-            "worst quality, low quality, jpeg artifacts, signature, watermark, username, blurry")
+            "cloned face, mutated hands, watermark, text, signature, jpeg artifacts, worst quality, low quality")
 MARK = "localllm hires fix"   # the title of the workflow's upscale node: how a later run knows the workflow is ours
-
 
 # The task model writes the picture's prompt from the chat. Open WebUI's own instruction asks for a long description in
 # the chat's language; Stable Diffusion reads English and only about the first 75 words well, so: short English tags,
