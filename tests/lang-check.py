@@ -82,7 +82,6 @@ for code, t in TESTS.items():
         out = tool._strip_unasked_years(f"vite release {s}", "vite release")
         check(f"tool {code}.months: \"{s}\" dropped", out == "vite release", out)
 
-
 # ---------------------------------------------------------------- collisions between languages
 # Each language's rule on its own (Python flavor of the same regexes); on a hit, the phrase that caused it is named.
 build = load_module("lang_build", ROOT / "lang" / "build.py")
@@ -97,8 +96,6 @@ def phrase_regex(rule, raw, anchor):
 
 def culprits(code, rule, text):
     entry = PHRASES["languages"][code][rule]
-    if not entry:
-        return ["(no phrases defined)"]
     anchor = PHRASES["rules"][rule].get("anchor", "any")
     raws = entry.get("phrases", []) if rule == "named_source" else entry
     found = [raw for raw in raws if phrase_regex(rule, raw, anchor).search(text)]
