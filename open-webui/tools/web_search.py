@@ -66,6 +66,19 @@ class Tools:
                 await emitter(event)
         return str(data.get("result") or "")
 
+    async def plan_research(
+        self,
+        plan: str,
+        __metadata__: dict = None,
+        __event_emitter__=None,
+    ) -> str:
+        """
+        Write or update your research plan. Required before searching further once research takes several searches.
+        List the facts still needed for the user's answer, most decisive first, in a few short lines. Leave out what you already know.
+        :param plan: The facts still needed, most decisive first.
+        """
+        return await self._call("plan_research", {"plan": plan}, __metadata__, __event_emitter__)
+
     async def web_search(
         self,
         query: str,
