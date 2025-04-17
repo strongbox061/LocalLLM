@@ -64,25 +64,14 @@ def pick_language(text: str) -> tuple[str, str]:
 
 
 def forward(method: str, path: str, body: bytes | None, content_type: str | None):
-    """Forward a request to Kokoro and return (status, headers_dict, response_body)."""
-    url = f"{KOKORO}{path}"
-    req = Request(url, data=body, method=method)
-    if content_type:
-        req.add_header("Content-Type", content_type)
-
+    """(status, content type, body) of the same request sent to Kokoro."""
+    headers = {"Content-Type": content_type} if content_type else {}
+    req = Request(f"{KOKORO}{path}", data=body, method=method, headers=headers)
     try:
-        resp = urlopen(req)
-        status = resp.status
-        headers = dict(resp.getheaders())
-        response_body = resp.read()
-    except HTTPError as exc:
-        status = exc.code
-        headers = dict(exc.headers) if exc.headers else {}
-        response_body = exc.read()
-    except URLError as exc:
-        return 502, {}, b"Kokoro unreachable: " + str(exc.reason).encode()
-
-    return status, headers, response_body
+        with urlopen(req, timeout=300) as r:
+            return r.status, r.headers.get("Content-Type", "application/octet-stream"), r.read()
+    except HTTPError as e:
+        return e.code, e.headers.get("Content-Type", "application/json"), e.read()
 
 
 class Handler(BaseHTTPRequestHandler):
