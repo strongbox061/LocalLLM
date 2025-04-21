@@ -145,7 +145,6 @@ a {
 .name {
   font-weight: 600;
   font-size: 15px;
-  overflow-wrap: break-word;
 }
 
 .pill {
@@ -329,12 +328,4 @@ a {
   vertical-align: -1px;
 }
 
-@media (max-width: 480px) {
-  .services {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  }
 
-  main {
-    padding: 16px 10px 32px;
-  }
-}
