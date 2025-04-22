@@ -31,21 +31,21 @@ def targets() -> list[Path]:
 
 
 def main() -> int:
-    """Copy loader.js to every target path."""
-    if not SOURCE.exists():
-        print(f"loader.js not found at {SOURCE}", file=sys.stderr)
+    data = SOURCE.read_bytes()
+    found = targets()
+    if not found:
+        print("install_loader.py: Open WebUI's static folders weren't found.", file=sys.stderr)
         return 1
-
-    target_paths = targets()
-    if not target_paths:
-        return 1
-
-    content = SOURCE.read_text(encoding="utf-8")
-    for target in target_paths:
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
-        print(f"Installed loader.js to {target}")
-
+    for t in found:
+        if t.is_file() and t.read_bytes() == data:
+            continue
+        # A new file in its place, not a write into it: uv hard-links installed files to its cache, which a write
+        # would change for every other install too.
+        tmp = t.with_name(t.name + ".new")
+        tmp.write_bytes(data)
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, t)
+        print(f"Open WebUI's voice fixes (loader.js) installed in {t}")
     return 0
 
 
