@@ -196,64 +196,22 @@ function open(id, fromTemplate = false) {
 }
 
 function showJob(j) {
-  const job = $("job");
-  $("job-title").textContent = j.title || "Running…";
-  $("job-out").textContent = j.output || "";
-  job.hidden = false;
-  if (j.done) {
-    clearTimeout(polling);
-    polling = null;
-    load();
-  }
+  $("job").hidden = false;
+  const verdict = j.running ? "running…" : j.exit === 0 ? "done" : `failed (exit ${j.exit})`;
+  $("job-title").textContent = `Last job: ${j.kind} ${j.id}: ${verdict}${j.ended ? " · " + when(j.ended) : ""}`;
+  $("job-out").textContent = j.output || "(no output yet)";
+  $("job-out").scrollTop = $("job-out").scrollHeight;
 }
 
-async function save(item) {
-  try {
-    const result = await api("/chat-types/" + item.id, item);
-    Object.assign(current, result);
-    drawList();
-    showJob({ title: "Saved", output: "Chat type updated.", done: true });
-  } catch (e) {
-    $("error").textContent = e.message;
-  }
+function poll() {
+  if (polling) return;
+  polling = setInterval(async () => {
+    const r = await api("/chat-types/job");
+    if (!r.ok) return;
+    showJob(r.data);
+    if (!r.data.running) { clearInterval(polling); polling = null; await load(); }
+  }, 1500);
 }
 
-async function remove(id) {
-  if (!confirm("Delete this chat type?")) return;
-  try {
-    await api("/chat-types/" + id, null);
-    current = null;
-    $("editor").innerHTML = '<div class="empty">Pick a chat type, or make a new one.</div>';
-    load();
-  } catch (e) {
-    $("error").textContent = e.message;
-  }
-}
-
-async function poll() {
-  if (!current || !current._job_id) return;
-  try {
-    const j = await api("/chat-types/job/" + current._job_id);
-    showJob(j);
-    if (!j.done) polling = setTimeout(poll, 1000);
-  } catch (_) {
-    polling = setTimeout(poll, 2000);
-  }
-}
-
-$("new").addEventListener("click", async () => {
-  try {
-    const item = await api("/chat-types/new");
-    isNew = true;
-    state.push(item);
-    open(item.id);
-  } catch (e) {
-    $("error").textContent = e.message;
-  }
-});
-
-document.addEventListener("DOMContentLoaded", () => {
-  load().catch((e) => {
-    $("error").textContent = "Failed to load: " + e.message;
-  });
-});
+$("new").onclick = () => open(null, true);
+load();
