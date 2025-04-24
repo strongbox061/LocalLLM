@@ -84,6 +84,40 @@ check_list "~/.config/localllm" "$(ls -A "$(dirname -- "$LOCAL_ENV_FILE")" 2>/de
 check_list "~/.local/share/localllm" "$(find "$(dirname -- "$SEARCH_GATEWAY_DB")" -mindepth 1 -maxdepth 1 -printf '%f\n' 2>/dev/null | grep -Ev '\.(moved|before)-[0-9-]+$')" \
     search-gateway.db search-gateway-venv \
     -- search-gateway.db-wal search-gateway.db-shm
+# (Dated copies the two-PC switch keeps on purpose, *.moved-<date> and *.before-<date>, are not part of the setup.)
+
+check_list "user services" "$(find "$HOME/.config/systemd/user" -mindepth 1 -maxdepth 1 \( -name '*.service' -o -name '*.timer' \) -printf '%f\n' 2>/dev/null)" \
+    open-webui.service search-gateway.service voice-router.service \
+    localllm-backup.service localllm-backup.timer localllm-helper-keepalive.service localllm-helper-keepalive.timer \
+    -- \
+    pipewire-session-manager.service
+
+if command -v nix >/dev/null; then
+    check_list "Nix profile" "$(nix profile list 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | sed -nE 's/^Name: +//p')" \
+        -- \
+        "${LOCAL_IGNORED[@]}"
+fi
+
+# Containers started from this repo or ~/LocalLLM; others belong to other projects.
+containers="$(docker_cmd ps -a --format '{{.Names}} {{.Label "com.docker.compose.project.working_dir"}}' 2>/dev/null \
+    | awk -v r="$REPO_DIR" -v l="$LLM_HOME" 'index($2, r) == 1 || index($2, l) == 1 { print $1 }')"
+check_list "Docker containers" "$containers" kokoro searxng-core searxng-valkey
+
+system_files=(
+    "$HOME/.config/environment.d/60-localllm-path.conf"
+    /etc/systemd/system/localllm-llm.service
+    /etc/systemd/zram-generator.conf
+    /etc/sysctl.d/99-localllm-zram.conf
+)
+if [[ -n "${BROWSER_POLICY_DIR:-}" ]]; then
+    system_files+=(
+        "${BROWSER_POLICY_DIR%/}/recommended/localllm-memory.json"
+        "${BROWSER_POLICY_DIR%/}/managed/localllm-autoplay.json"
+    )
+fi
+for f in "${system_files[@]}"; do
+    if [[ -f "$f" ]]; then ok "$f"; else bad "$f is missing: run the installer that writes it (install.sh)"; fi
+done
 
 # Exit with failure if anything was not covered
 if [ $FAIL -ne 0 ]; then
