@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Builds the word matchers of Pi's extensions and the Open WebUI tool from lang/phrases.json.
 
-    python3 lang/generate.py        write pi/extensions/lang-words.ts and the generated block of the tool
-    python3 lang/generate.py --check fail if either is out of date (nothing is written)
+    python3 lang/build.py           write pi/extensions/lang-words.ts and the generated block of the tool
+    python3 lang/build.py --check   fail if either is out of date (nothing is written)
 
 Phrase syntax (lang/phrases.json):
     word*       the word with any ending ("fehler*": Fehler, Fehlermeldung)
@@ -57,7 +57,7 @@ def norm(text: str) -> str:
 class Flavor:
     """The regex dialect: JavaScript (u flag) or Python re."""
 
-    def __init__(self, js: bool = False):
+    def __init__(self, js: bool):
         self.js = js
         # A vowel sign is a mark, not a letter, but part of the word: "बग" (bug) isn't in "बगीचा" (garden). Python's re
         # has no \p{M}; the marks norm() keeps in scripts written with spaces are in the Indic blocks.
