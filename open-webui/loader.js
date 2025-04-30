@@ -107,7 +107,7 @@
     return p.catch((err) => {
       const src = el.currentSrc || el.src;
       if (!err || err.name !== "NotAllowedError" || !src || src === SILENCE) throw err;
-      log("play() refused by the browser; playing the clip through a fresh audio object");
+      log(`play() refused by the browser (${err.name}); playing the clip through a fresh audio object`);
       return playThroughStandIn(el);
     });
   };
