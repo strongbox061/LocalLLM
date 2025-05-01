@@ -179,44 +179,49 @@ def _tool():
         return tool
 
 
-def _serve_static(handler, path, content_type):
-    """Send a static file response if it exists."""
-    content = _read_file_safe(path)
-    if content is None:
-        handler.send_error(404, "Not found")
-        return False
-    handler.send_response(200)
-    handler.send_header("Content-Type", content_type)
-    handler.send_header("Content-Length", str(len(content.encode("utf-8"))))
-    handler.end_headers()
-    handler.wfile.write(content.encode("utf-8"))
-    return True
+# ---------------------------------------------------------------- searching
 
 
-def _json_response(handler, code, data):
-    """Send a JSON response."""
-    body = json.dumps(data, default=str).encode("utf-8")
-    handler.send_response(code)
-    handler.send_header("Content-Type", "application/json")
-    handler.send_header("Content-Length", str(len(body)))
-    handler.end_headers()
-    handler.wfile.write(body)
+
+def _plain(text) -> str:
+    """Text without HTML tags or entities, on one line."""
+    return " ".join(html.unescape(re.sub(r"<[^>]+>", " ", str(text or ""))).split())
 
 
-def _call_engine(method, path, body=None):
-    """Call the engine module and return (ok, result_or_error)."""
-    if not os.path.exists(ENGINE_FILE):
-        return False, "Engine module not found"
-    try:
-        spec = importlib.util.spec_from_file_location("engine", ENGINE_FILE)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        func = getattr(mod, method, None)
-        if func is None:
-            return False, f"Engine method {method} not found"
-        return func(path, body)
-    except Exception as e:
-        return False, str(e)
+def _as_searxng(query: str, results: list, used: str, problems: list) -> dict:
+    out, seen = [], set()
+    for r in results:
+        url = r.get("url") or ""
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        item = {
+            "url": url,
+            "title": _plain(r.get("title")),
+            "content": _plain(r.get("snippet")),
+            "engine": used,
+            "engines": [used],
+            "category": "general",
+        }
+        if r.get("date"):
+            item["publishedDate"] = str(r["date"])
+        out.append(item)
+    return {
+        "query": query,
+        "number_of_results": len(out),
+        "results": out,
+        "answers": [],
+        "corrections": [],
+        "infoboxes": [],
+        "suggestions": [],
+        "unresponsive_engines": [[p.split(":")[0], p.split(":", 1)[-1].strip()] for p in problems] if not out else [],
+        "service": used,
+        "problems": list(problems),
+    }
+
+
+async def search(params: dict) -> dict:
+    query = " ".join(str(params.get("q", "")).split())
 
 
 class SearchHandler(BaseHTTPRequestHandler):
