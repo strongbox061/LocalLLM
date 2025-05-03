@@ -7,4 +7,4 @@ cd "$(dirname -- "${BASH_SOURCE[0]}")/.."
 source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
 
 searxng_compose down
-echo "SearXNG stopped."
+echo "SearXNG stopped. Start it again with start/searxng.sh"
