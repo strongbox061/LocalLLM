@@ -76,6 +76,8 @@ threading.Thread(target=srv.LOOP.run_forever, daemon=True).start()
 today = datetime.date.today()
 month = tool_mod._month()
 
+set_cache({"a|": {"t": 9e9, "provider": "tavily", "results": []}, "b|": {"t": 1.0, "provider": "tavily", "results": []}})
+
 
 def make_tool(**valves):
     """Build a minimal tool object that mimics the engine's valve-based config."""
@@ -99,33 +101,19 @@ usage = {
 
 
 def set_cache(entries: dict):
-    """Return a cache snapshot that the dashboard code reads."""
-    return entries.copy()
+    con = tool_mod._db()
+    con.execute("DELETE FROM cache")
+    for key, e in entries.items():
+        con.execute("INSERT INTO cache (key, t, provider, results) VALUES (?, ?, ?, ?)",
+                    (key, e["t"], e["provider"], json.dumps(e["results"])))
+    con.close()
 
 
 def log_entries():
-    """Return sample search-log entries for testing the log filter."""
-    now = datetime.datetime.now(datetime.timezone.utc)
-    return [
-        {"t": (now - datetime.timedelta(hours=2)).timestamp(), "app": "Pi", "service": "tavily", "q": "what is python", "cached": False},
-        {"t": (now - datetime.timedelta(hours=5)).timestamp(), "app": "Open WebUI", "service": "tavily", "q": "explain quantum computing", "cached": True},
-        {"t": (now - datetime.timedelta(days=10)).timestamp(), "app": "Pi", "service": "brave", "q": "old query that should be dropped", "cached": False},
-    ]
+    return tool_mod.read_log(0)
 
 
-# ---------------------------------------------------------------- the search log
-
-async def _fake(session, query, time_range):
-    """Simulate a successful search call without hitting the network."""
-    return {
-        "results": [{"title": "mock result", "url": "https://example.com"}],
-        "took_ms": 12,
-    }
-
-
-async def _broken(session, query, time_range):
-    """Simulate a failed search call."""
-    raise ConnectionError("search engine unavailable")
+tool = make_tool()
 
 
 import time  # noqa: E402
