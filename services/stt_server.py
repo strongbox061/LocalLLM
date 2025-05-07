@@ -35,6 +35,7 @@ from faster_whisper.audio import pad_or_trim
 from faster_whisper.vad import VadOptions, collect_chunks, get_speech_timestamps
 
 PORT = int(os.environ.get("WHISPER_PORT", "8882"))
+MODEL = os.environ.get("WHISPER_MODEL", "large-v3-turbo")
 MODEL_DIR = os.environ.get("WHISPER_MODEL_DIR") or None
 DEVICE = os.environ.get("WHISPER_DEVICE", "cuda")
 COMPUTE_TYPE = os.environ.get("WHISPER_COMPUTE_TYPE", "int8")
@@ -77,21 +78,23 @@ class EncoderReuse:
 
 
 def speech_only(audio):
-    """Trim silence from the start and end using VAD."""
-    sample_rate = 16000
-    vad_options = VadOptions(min_silence_duration_ms=500)
-    timestamps = get_speech_timestamps(audio, vad_options)
-    if not timestamps:
-        return audio
-    chunks = collect_chunks(audio, timestamps)
-    return np.concatenate(chunks) if len(chunks) > 1 else chunks[0]
+    """The clip without its silences (faster-whisper's own VAD filter, as transcribe(vad_filter=True) uses it)."""
+    chunks = get_speech_timestamps(audio, VadOptions())
+    return np.concatenate(collect_chunks(audio, chunks)[0]) if chunks else audio[:0]
 
 
-def pick_language(audio):
-    """Run a quick pass to detect the spoken language."""
-    result = _model.transcribe(audio, beam_size=1, language=None)
-    _, info = result
-    return info.language if info and hasattr(info, "language") else None
+def pick_language(audio) -> str | None:
+    """The most likely of LANGUAGES for the clip (None: let Whisper choose, when LANGUAGES is empty)."""
+    if not LANGUAGES:
+        return None
+    fe = _model.feature_extractor
+    features = fe(audio)
+    # transcribe()'s first window: up to 30 s of the clip's frames (all but the last), padded to 30 s.
+    window = pad_or_trim(features[:, : min(fe.nb_max_frames, features.shape[-1] - 1)])
+    output = _reuse.encode(window)
+    _reuse.keep(window, output)
+    probs = {token[2:-2]: p for token, p in _model.model.detect_language(output)[0]}
+    return max(LANGUAGES, key=lambda l: probs.get(l, 0.0))
 
 
 def transcribe(path: str, language: str | None) -> dict:
@@ -203,23 +206,14 @@ class Server(ThreadingHTTPServer):
 
 
 def main() -> int:
-    global _model
-    model_path = MODEL_DIR or "medium"
-    try:
-        _model = EncoderReuse(model_path, DEVICE, COMPUTE_TYPE)
-    except Exception as exc:
-        log(f"failed to load model: {exc}")
-        return 1
-
-    server = Server(("0.0.0.0", PORT), Handler)
-    log(f"listening on port {PORT}")
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        server.server_close()
-        log("stopped")
+    global _model, _reuse
+    t0 = time.monotonic()
+    log(f"loading {MODEL} on {DEVICE} ({COMPUTE_TYPE})...")
+    _model = WhisperModel(MODEL, device=DEVICE, compute_type=COMPUTE_TYPE, download_root=MODEL_DIR)
+    _reuse = EncoderReuse(_model)
+    log(f"loaded in {time.monotonic() - t0:.1f} s; languages: {', '.join(LANGUAGES) or 'any'}; listening on "
+        f"127.0.0.1:{PORT}")
+    Server(("127.0.0.1", PORT), Handler).serve_forever()
     return 0
 
 
