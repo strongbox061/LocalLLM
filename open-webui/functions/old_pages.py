@@ -10,7 +10,6 @@ import os
 
 from pydantic import BaseModel, Field
 
-
 NOTE = (
     "[Page text removed to save space: {url} ({chars} characters). What you used from it is in your answer above. "
     "If the user asks about something that isn't there, read this page again with {tool}{again}.]"
