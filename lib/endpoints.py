@@ -12,11 +12,10 @@ from ~/.config/localllm/local.env:
     HELPER_HOST      the helper PC's Tailscale name (split mode)
     MAIN_HOST        the main PC's Tailscale name, which the helper uses to reach llama-server and SearXNG; when
                      unset, read from `tailscale status` (split mode)
-    PLACE_<NAME>     main or helper: moves a movable service (e.g. PLACE_SEARCH=main) in split mode, with the one it
-                     shares a browser with; remove it to restore the default placement.
+    PLACE_<NAME>     main or helper: moves a movable service (e.g. PLACE_KOKORO=main) in split mode, with the one it
+                     runs together with (the voice router with Kokoro, Open WebUI with the search gateway)
 Exit status 1 with the reason on stderr when the settings don't fit together.
 """
-
 import json
 import os
 import shlex
@@ -87,6 +86,8 @@ def build(environ, services_file=SERVICES_FILE, self_name=tailscale_self_name):
         if override:
             if override not in ("main", "helper"):
                 raise SettingsError(f"PLACE_{env_name(name)} is '{override}': it must be main or helper.")
+            if not s.get("movable") and override != place:
+                raise SettingsError(f"{s['title']} always runs on the {place} PC: remove PLACE_{env_name(name)}.")
             place = override
         places[name] = place
     # "together" works both ways: a service moved on its own takes its partner along, unless the partner is placed too.
@@ -152,28 +153,20 @@ def write(directory, data):
 
 
 def main(argv):
-    """CLI entry point: 'write <dir>' or 'print'."""
-    if len(argv) < 2:
-        print("Usage: endpoints.py write <dir> | print", file=sys.stderr)
-        sys.exit(1)
-
-    action = argv[1]
-    environ = dict(os.environ)
-
-    data = build(environ)
-
-    if action == "write":
-        if len(argv) < 3:
-            print("Usage: endpoints.py write <dir>", file=sys.stderr)
-            sys.exit(1)
-        directory = argv[2]
-        write(directory, data)
-    elif action == "print":
+    if len(argv) < 2 or argv[1] not in ("write", "print") or (argv[1] == "write" and len(argv) != 3):
+        print(__doc__.strip(), file=sys.stderr)
+        return 2
+    try:
+        data = build(os.environ)
+    except SettingsError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 1
+    if argv[1] == "print":
         print(json.dumps(data, indent=2))
     else:
-        print(f"Unknown action: {action}", file=sys.stderr)
-        sys.exit(1)
+        write(argv[2], data)
+    return 0
 
 
 if __name__ == "__main__":
-    main(sys.argv)
+    sys.exit(main(sys.argv))
