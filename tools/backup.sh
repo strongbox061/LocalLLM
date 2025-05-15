@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# tools/backup.sh — copy the machine's own LocalLLM settings (~/.config/localllm, plus EXTRA_BACKUP_FILES) into backup/
-# (kept out of git: it holds secrets), with this repo itself as backup/repo.bundle, and records the versions
-# running now in ~/.config/localllm/versions.env (README, "Versions").
+# machine's own LocalLLM settings (~/.config/localllm, plus EXTRA_BACKUP_FILES) into backup/ (kept out of git: it holds
+# secrets), with this repo itself as backup/repo.bundle, and records the versions running now in
+# ~/.config/localllm/versions.env (README, "Versions").
+# Safe while Open WebUI runs: its databases are copied as SQLite snapshots.
+# archive-backup.sh and upload-backup.sh call it before packing backup/ into an encrypted archive.
 set -euo pipefail
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/lib/common.sh"
 
-BACKUP_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)/backup"
-LOCALLLM_DIR=~/.config/localllm
 PI_FILES=(
     settings.json
     models.json
@@ -18,8 +18,7 @@ PI_FILES=(
     mcp-onboarding.json
 )
 
-# copy_file <source> <destination>
-copy_file() {
+copy_file() {   # copy_file <source> <destination>
     if [[ -f "$1" ]]; then
         mkdir -p "$(dirname -- "$2")"
         cp "$1" "$2"
@@ -58,38 +57,58 @@ snapshot_db() {
     echo "  saved   ${dst#"$REPO_DIR"/}"
 }
 
-# write_versions <file>: the versions running now, so a fresh install from this backup gets the same ones
-# (lib/common.sh reads them; the installers use them only for what they install new).
-write_versions() {
-  local file="$1"
-  mkdir -p "$(dirname -- "$file")"
-
-  local llama_version="unknown"
-  if command -v llama-server &>/dev/null; then
-    llama_version="$(llama-server --version 2>/dev/null || echo unknown)"
-  elif command -v main &>/dev/null; then
-    llama_version="$(main --version 2>/dev/null || echo unknown)"
-  fi
-
-  local vicuna_version="unknown"
-  if [[ -f ~/.config/localllm/vicuna-7b.version ]]; then
-    vicuna_version="$(cat ~/.config/localllm/vicuna-7b.version)"
-  fi
-
-  cat > "$file" <<EOF
-LLAMA_CPP_VERSION=${llama_version}
-VICUNA_MODEL_VERSION=${vicuna_version}
-BACKUP_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-EOF
-  log_info "Wrote versions to $file"
-}
-
 log "Pi ($PI_AGENT_DIR)"
 for f in "${PI_FILES[@]}"; do
     copy_file "$PI_AGENT_DIR/$f" "$BACKUP_DIR/pi/$f"
 done
-
+# The encrypted Context7 sign-in (its key is in local.env, saved below).
 copy_dir "$PI_AGENT_DIR/mcp-oauth-encrypted" "$BACKUP_DIR/pi/mcp-oauth-encrypted"
+
+# write_versions <file>: the versions running now, so a fresh install from this backup gets the same ones
+# (lib/common.sh reads them; the installers use them only for what they install new).
+write_versions() {
+    local out="$1" v img
+    {
+        echo "# Versions running at the last backup ($(date +%F)). Written by backup.sh; don't edit."
+        v="$(command -v "$PI_AGENT_DIR" &>/dev/null && head -1 "$PI_AGENT_DIR/VERSION" 2>/dev/null || echo '')"
+        [[ -n "$v" ]] && echo "PI_VERSION=\"$v\""
+        v="$(python3 - "$PI_AGENT_DIR/npm" <<'PY'
+import json, os, sys
+root = sys.argv[1]
+try:
+    deps = json.load(open(os.path.join(root, "package.json"))).get("dependencies", {})
+except OSError:
+    deps = {}
+out = []
+for name in sorted(deps):
+    try:
+        out.append(name + "@" + json.load(open(os.path.join(root, "node_modules", name, "package.json")))["version"])
+    except (OSError, KeyError):
+        pass
+print(" ".join(out))
+PY
+)"
+        [[ -n "$v" ]] && echo "PI_PACKAGE_VERSIONS=\"$v\""
+        v="$(uv tool list 2>/dev/null | sed -nE 's/^open-webui v([0-9][^ ]*).*/\1/p')"
+        [[ -n "$v" ]] && echo "OPEN_WEBUI_VERSION=\"$v\""
+        v="$(git -C "$LLM_HOME/llama.cpp" rev-parse HEAD 2>/dev/null)"
+        [[ -n "$v" ]] && echo "LLAMA_CPP_COMMIT=\"$v\""
+        for pair in SEARXNG_IMAGE:searxng-core VALKEY_IMAGE:searxng-valkey; do
+            img="$(docker_cmd inspect --format '{{.Image}}' "${pair#*:}" 2>/dev/null)" || continue
+            v="$(docker_cmd image inspect --format '{{index .RepoDigests 0}}' "$img" 2>/dev/null)" || continue
+            [[ -n "$v" ]] && echo "${pair%%:*}=\"$v\""
+        done
+    } > "$out.tmp"
+    # A value that couldn't be read now (e.g. Docker needs sudo in the background) keeps the one recorded before.
+    if [[ -f "$out" ]]; then
+        local kept="" line
+        while IFS= read -r line; do
+            grep -q "^${line%%=*}=" "$out.tmp" || kept+="$line"$'\n'
+        done < <(grep -E '^[A-Z_]+=' "$out")
+        printf '%s' "$kept" >> "$out.tmp"
+    fi
+    mv "$out.tmp" "$out"
+}
 
 # Snapshot SQLite databases if present
 if [[ -f ~/.config/localllm/chat_history.db ]]; then
