@@ -146,6 +146,18 @@ def test_edge_cases() -> None:
     gpus = monitor._parse_nvidia_smi_csv("invalid, data\n")
     check("malformed nvidia-smi returns empty list", gpus == [], str(gpus))
 
+    # CPU with zero threads should not cause division issues
+    helper = monitor.normalize_helper_payload(
+        {"hostname": "TEST", "brand": "Test", "os": "Linux", "os_id": "linux",
+         "cpu": {"name": "Test", "threads": 0, "percent": 0.0, "normal_ghz": 0.0, "performant_ghz": 0.0},
+         "ram": {"name": "DDR4", "speed_mhz": 3200, "installed_mib": 8192.0, "used_mib": 0.0, "total_mib": 8192.0},
+         "gpus": [],
+         "processes": {"cpu": [], "ram": [], "gpu": []},
+         "gaming": False},
+        "localhost",
+    )
+    check("zero-thread CPU does not crash", helper["cpu"]["threads"] == 0, str(helper["cpu"]))
+
 
 def test_http_server() -> None:
     mc = monitor.MainCollector()
