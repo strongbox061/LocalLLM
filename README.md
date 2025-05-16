@@ -42,14 +42,41 @@ Before the alias `local`, the model was served under its own name and the servic
 provider, and `install/open-webui-config.sh` moves Open WebUI's settings for the model (system prompt, tools, slot),
 presets built on it and the admin's chats to `local` (the names in the profile's `OLD_ALIASES`).
 
-### Reinstalling from scratch
+## Reinstalling from scratch
 
-1. Stop the server and remove the data directory:
+Everything this setup runs comes back from this repo: its scripts, the encrypted settings backup, and the steps
+below (with a helper PC, see also "Rebuilding both PCs"). The backup archive holds the repo too (`backup/repo.bundle`,
+every branch and commit), so the archive and its passphrase are all you need. Steps marked **by hand** can't be scripted (a login, a
+password, a hardware driver, a browser setting the browser only takes from you); everything else is a script. Nothing outside this list is needed.
+
+**Before the scripts**
+
+You need about 28 GB of free disk space plus the model's size (Open WebUI 7.5 GB, the containers 5.4 GB, CUDA 5.3 GB,
+the rest and room for the build about 10 GB), and an internet connection. `install.sh` warns when less
+than 30 GB is free, and `install/llama.sh` checks the model's own size before downloading it. The downloads are
+public: a Hugging Face login is optional (`hf auth login`, only for faster model downloads).
+
+1. **By hand:** install Arch with a desktop whose session starts through systemd (KDE Plasma, GNOME and most others:
+   the scripts hand settings to it through `~/.config/environment.d`), with your user allowed to use `sudo` (the
+   installer's "add user to sudoers" choice, or the `wheel` group in `/etc/sudoers`).
+2. **By hand:** install the NVIDIA driver and reboot (`nvidia-smi` must work). This PC uses `sudo pacman -S nvidia-open`
+   (RTX 20 series and newer, with Arch's stock `linux` kernel; another kernel needs `nvidia-open-dkms`).
+3. **By hand:** Docker, which these scripts leave to you:
    ```bash
-   pkill -f llama.cpp
-   rm -rf llm-data/
+   sudo pacman -S docker docker-compose
+   sudo systemctl enable --now docker.service
+   sudo usermod -aG docker "$USER"   # recommended (log in again after): without it the scripts use sudo for Docker,
+                                     # and the scheduled backup, which can't ask for a password, can't read the
+                                     # containers' versions (it keeps the ones recorded before)
    ```
-2. Re-run `zram-setup-old.sh` to recreate swap, then restore configs from backup.
+4. **By hand:** `sudo pacman -S git`.
+5. **By hand:** get the latest backup archive, open it with the passphrase from your password manager, and clone the
+   repo from the bundle inside it, into the same folder as before if your `EXTRA_BACKUP_FILES` include files inside it
+   (they come back to the same paths): the commands are in "Opening a backup". A bare Arch has no rclone yet and maybe
+   no browser yet: `sudo pacman -S rclone`, then `rclone config` (**by hand**: your
+   storage's login, the remote named in `BACKUP_REMOTE`) and `rclone copy`, or download it with any browser.
+   This setup is only ever installed from a backup: on a new machine `install.sh` stops when `backup/` holds no
+   settings.
 
 ## Starting and stopping
 
