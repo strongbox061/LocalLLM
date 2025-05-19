@@ -94,7 +94,11 @@ log "SearXNG"
 log "Pi"
 "$REPO_DIR/install/pi.sh" $UPDATE
 
-log "Open WebUI"
+log "Pi extra packages (plugins, extensions)"
+"$REPO_DIR/install/pi-packages.sh" $UPDATE
+
+log "Pi extensions, AGENTS.md and skills from this repo"
+"$REPO_DIR/install/pi-config.sh"
 "$REPO_DIR/install/open-webui.sh" $UPDATE
 
 log "OCR for scanned PDFs (Tesseract, OCRmyPDF)"
