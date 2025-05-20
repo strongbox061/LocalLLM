@@ -300,25 +300,31 @@ body {
   font-weight: 600;
   padding: 2px 9px;
   border-radius: 999px;
-  background: var(--accent-dim);
-  color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border: 1px solid rgba(88, 166, 255, 0.3);
 }
-
 .quick-pills {
   display: flex;
-  gap: 8px;
   flex-wrap: wrap;
-  margin-top: 16px;
+  gap: 7px;
+  margin: 14px 0 18px;
 }
 .pill {
-  background: var(--bg-subtle);
+  font-size: 12.5px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: var(--bg-elev);
   border: 1px solid var(--border);
-  padding: 6px 14px;
-  border-radius: 16px;
-  font-size: 13px;
-  cursor: pointer;
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color .15s, background .15s, color .15s;
 }
-.pill:hover { background: var(--bg-hover); }
+.pill:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
 
 /* Doc sections */
 .doc-section { margin-bottom: 24px; }
