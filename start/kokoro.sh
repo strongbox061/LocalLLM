@@ -16,6 +16,9 @@ KOKORO_HOST="${KOKORO_HOST:-localhost}"
 KOKORO_URL="http://${KOKORO_HOST}:${KOKORO_PORT}"
 VOICE_ROUTER_URL="http://localhost:${ROUTER_PORT}"
 
+KOKORO_PID=0
+ROUTER_PID=0
+
 log "Kokoro (text-to-speech)"
 if curl -fsS -m 2 -o /dev/null "$KOKORO_URL/health" 2>/dev/null; then
     echo "Already running."
@@ -40,7 +43,8 @@ echo "Kokoro: $KOKORO_URL (Open WebUI uses it through the voice router: $VOICE_R
 # Trap to clean up on exit
 cleanup() {
     log "Shutting down Kokoro TTS services..."
-    kill "$KOKORO_PID" "$ROUTER_PID" 2>/dev/null || true
+    [[ $KOKORO_PID -gt 0 ]] && kill "$KOKORO_PID" 2>/dev/null || true
+    [[ $ROUTER_PID -gt 0 ]] && kill "$ROUTER_PID" 2>/dev/null || true
     wait "$KOKORO_PID" "$ROUTER_PID" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
