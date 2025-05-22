@@ -213,6 +213,22 @@ class ReadmeConverter:
                     lead = mb.group(1).strip()
                     self.inline_anchors[lead.lower()] = slugify(lead)
 
+    def resolve_ref(self, ref_text: str) -> str | None:
+        key = ref_text.strip().lower()
+        if key in self.slug_by_title:
+            return self.slug_by_title[key]
+        if key in self.inline_anchors:
+            return self.inline_anchors[key]
+        # Prefix match on heading titles (e.g., "Protected chats" -> "Protected chats in Open WebUI")
+        for title_lower, slug in self.slug_by_title.items():
+            if title_lower.startswith(key):
+                return slug
+        # Substring match fallback
+        for title_lower, slug in self.slug_by_title.items():
+            if key in title_lower:
+                return slug
+        return None
+
     def _render_table(self, lines: list[str]) -> str:
         """Render a Markdown table as an HTML table."""
         if len(lines) < 2:
