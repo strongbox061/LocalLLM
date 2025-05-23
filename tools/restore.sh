@@ -67,17 +67,6 @@ restore_dir() {    # restore_dir <backup directory> <target>
     echo "  restored $dst/"
 }
 
-# so this PC starts in single mode; ./localllm.sh switch split moves it to the helper again (README, "Rebuilding both
-# PCs").
-FROM_SPLIT=false
-
-# The two-PC setup: llama-server's API key, the helper PC's values, the SSH key to it and its fingerprint. The Host
-# block in ~/.ssh/config is written again by ./localllm.sh setup-helper (from HELPER_HOST/HELPER_USER in local.env).
-# Extra files (EXTRA_BACKUP_FILES in local.env): back to the same place in your home folder.
-GW_SRC="$BACKUP_DIR/search-gateway/search-gateway.db"
-DB_DST="$WEBUI_DATA_DIR/webui.db"
-DB_RESTORED=false
-
 [[ -d "$BACKUP_DIR" ]] && [[ -n "$(ls -A "$BACKUP_DIR")" ]] || { echo "Nothing in $BACKUP_DIR, nothing to restore."; exit 0; }
 
 log "Pi ($PI_AGENT_DIR)"
@@ -152,4 +141,29 @@ if [[ -d "$BACKUP_DIR/extra" ]]; then
         fi
         restore_file "$f" "$target"
     done < <(find "$BACKUP_DIR/extra" -type f -print0)
+fi
+
+log "Search gateway ($SEARCH_GATEWAY_DB)"
+GW_SRC="$BACKUP_DIR/search-gateway/search-gateway.db"
+if [[ -f "$GW_SRC" ]]; then
+    if [[ ! -f "$SEARCH_GATEWAY_DB" ]]; then
+        mkdir -p "$(dirname -- "$SEARCH_GATEWAY_DB")"
+        cp "$GW_SRC" "$SEARCH_GATEWAY_DB"
+        chmod 600 "$SEARCH_GATEWAY_DB"
+        echo "  restored $SEARCH_GATEWAY_DB"
+    elif cmp -s "$GW_SRC" "$SEARCH_GATEWAY_DB" && [[ ! -s "$SEARCH_GATEWAY_DB-wal" ]]; then
+        echo "  same    $SEARCH_GATEWAY_DB"
+    elif $MISSING_ONLY; then
+        echo "  kept    $SEARCH_GATEWAY_DB (already exists)"
+    else
+        systemctl --user is-active --quiet search-gateway 2>/dev/null \
+            && die "The search gateway is running. Run ./stop.sh, then restore again."
+        for suffix in "" -wal -shm; do
+            [[ -f "$SEARCH_GATEWAY_DB$suffix" ]] && mv "$SEARCH_GATEWAY_DB$suffix" "$SEARCH_GATEWAY_DB.bak.$STAMP$suffix"
+        done
+        echo "  old one $SEARCH_GATEWAY_DB.bak.$STAMP"
+        cp "$GW_SRC" "$SEARCH_GATEWAY_DB"
+        chmod 600 "$SEARCH_GATEWAY_DB"
+        echo "  restored $SEARCH_GATEWAY_DB"
+    fi
 fi
