@@ -4,9 +4,9 @@ LocalLLM System Monitor — web dashboard for CPU, GPU, and RAM usage on the mai
 and helper PCs, plus the current setup mode (single/split) and apps (pi/pi,owui).
 
 Usage:
-    python3 tools/monitor/app.py [--host 127.0.0.1] [--port 8095] [--interval 5]
-    python3 tools/monitor/app.py --once        # print one JSON snapshot and exit
-    python3 tools/monitor/app.py --detect-hw   # detect main PC RAM brand/model via sudo dmidecode and cache it
+    python3 tools/monitor/monitor.py [--host 127.0.0.1] [--port 8095] [--interval 5]
+    python3 tools/monitor/monitor.py --once        # print one JSON snapshot and exit
+    python3 tools/monitor/monitor.py --detect-hw   # detect main PC RAM brand/model via sudo dmidecode and cache it
 """
 
 from __future__ import annotations
