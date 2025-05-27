@@ -1,5 +1,5 @@
 """
-services/search_proxy_engine.py: the search gateway's engine (services/search_gateway.py runs it)
+services/gateway_engine.py: the search gateway's engine (services/search_gateway.py runs it)
 version: 1.0.0
 Searches through the services in your settings (~/.config/localllm/search-gateway.json, edited on the gateway's
 /settings page), counts their usage, caches results and logs searches in the gateway's own database
