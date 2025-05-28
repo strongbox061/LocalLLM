@@ -55,34 +55,31 @@ function applyFilter() {
 }
 
 async function load() {
-  try {
-    const res = await fetch("/settings/data");
-    if (!res.ok) throw new Error(res.status);
-    render(await res.json());
-  } catch (e) {
-    msg.textContent = "Failed to load settings: " + e.message;
-    msg.className = "bad";
-  }
+  const r = await fetch("/settings/data", { cache: "no-store" });
+  if (!r.ok) throw new Error(r.status);
+  render(await r.json());
 }
 
 async function save() {
-  const data = {};
+  const values = {};
   for (const f of fields) {
-    const input = form.querySelector(`input[name="${f.key}"]`);
-    if (input) data[f.key] = input.value;
+    const input = document.getElementById("f-" + f.name);
+    if (f.type === "bool") values[f.name] = input.checked;
+    else if (f.secret) { if (input.value !== "") values[f.name] = input.value; }
+    else if (f.type === "int" || f.type === "float") values[f.name] = input.value === "" ? f.default : Number(input.value);
+    else values[f.name] = input.value;
   }
+  saveBtn.disabled = true;
   try {
-    const res = await fetch("/settings/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data)
-    });
+    const res = await fetch("/settings/save", { method: "POST", headers: { "Content-Type": "application/json" },
+                                               body: JSON.stringify(values) });
     if (!res.ok) throw new Error(res.status);
     msg.textContent = "Saved";
     msg.className = "ok";
   } catch (e) {
     msg.textContent = "Save failed: " + e.message;
     msg.className = "bad";
+    saveBtn.disabled = false;
   }
 }
 
