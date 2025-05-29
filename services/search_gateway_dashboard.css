@@ -224,7 +224,7 @@ a {
 
 .info > button {
   all: unset;
-  cursor: default;
+  cursor: pointer;
   display: grid;
   place-items: center;
   width: 22px;
