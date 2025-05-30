@@ -19,6 +19,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
 from langdetect import DetectorFactory, detect_langs
 from langdetect.lang_detect_exception import LangDetectException
 
@@ -37,13 +38,13 @@ PORT = int(os.environ.get("VOICE_ROUTER_PORT", "8881"))
 KOKORO = os.environ.get("KOKORO_URL", "http://127.0.0.1:8880").rstrip("/")
 DEBUG = os.environ.get("VOICE_ROUTER_DEBUG", "0") == "1"
 
+DetectorFactory.seed = 0  # same text, same answer
 _lock = threading.Lock()
 _last_lang = DEFAULT_LANG
 
 
 def log(text: str):
-    """Print a timestamped message to stderr."""
-    print(f"[voice_router] {text}", file=sys.stderr, flush=True)
+    print(f"[voice-router] {text}", flush=True)
 
 
 def pick_language(text: str) -> tuple[str, str]:
