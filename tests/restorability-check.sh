@@ -81,10 +81,10 @@ check_list "~/.config/localllm" "$(ls -A "$(dirname -- "$LOCAL_ENV_FILE")" 2>/de
     ${passphrase_name:+"$passphrase_name"} ${browser_installer_name:+"$browser_installer_name"} \
     -- hardware.json
 # The search gateway's state database (backup.sh) and its Python environment (install/search-gateway.sh).
+# (Dated copies the two-PC switch keeps on purpose, *.moved-<date> and *.before-<date>, are not part of the setup.)
 check_list "~/.local/share/localllm" "$(find "$(dirname -- "$SEARCH_GATEWAY_DB")" -mindepth 1 -maxdepth 1 -printf '%f\n' 2>/dev/null | grep -Ev '\.(moved|before)-[0-9-]+$')" \
     search-gateway.db search-gateway-venv \
     -- search-gateway.db-wal search-gateway.db-shm
-# (Dated copies the two-PC switch keeps on purpose, *.moved-<date> and *.before-<date>, are not part of the setup.)
 
 check_list "user services" "$(find "$HOME/.config/systemd/user" -mindepth 1 -maxdepth 1 \( -name '*.service' -o -name '*.timer' \) -printf '%f\n' 2>/dev/null)" \
     open-webui.service search-gateway.service voice-router.service \
@@ -119,13 +119,6 @@ for f in "${system_files[@]}"; do
     if [[ -f "$f" ]]; then ok "$f"; else bad "$f is missing: run the installer that writes it (install.sh)"; fi
 done
 
-# Exit with failure if anything was not covered
-if [ $FAIL -ne 0 ]; then
-    echo ""
-    echo "RESTORABILITY CHECK FAILED: some items are not covered by backup or scripts."
-    exit 1
-fi
-
-echo ""
-echo "RESTORABILITY CHECK PASSED"
-exit 0
+echo
+if [[ $FAIL -eq 0 ]]; then echo "Restorability: all covered."; else echo "Restorability: gaps found (FAIL above)."; fi
+exit $FAIL
