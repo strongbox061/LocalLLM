@@ -80,24 +80,30 @@ set_cache({"a|": {"t": 9e9, "provider": "tavily", "results": []}, "b|": {"t": 1.
 
 
 def make_tool(**valves):
-    """Build a minimal tool object that mimics the engine's valve-based config."""
-    tool = types.SimpleNamespace()
-    tool.valves = valves
-    tool.headers = {"Content-Type": "application/json"}
+    tool = tool_mod.Tools()
+    base = dict(
+        service_order="tavily, serpapi/hasdata, brave", temporary_service_order="hasdata, tavily",
+        temporary_order_until=(today + datetime.timedelta(days=30)).isoformat(),
+        tavily_api_key="KEY-tavily-1", serpapi_api_key="KEY-serpapi-2", hasdata_api_key="KEY-hasdata-3",
+        you_mcp_url="", parallel_api_key="", exa_api_key="", brightdata_api_key="", browserbase_api_key="",
+        linkup_api_key="", firecrawl_api_key="", contextdev_api_key="", you_api_key="",
+    )
+    names = list(getattr(type(tool.valves), "model_fields", None) or
+                 [k for k in vars(type(tool.valves)) if not k.startswith("_")])
+    tool.valves = tool.Valves(**{**{k: getattr(tool.valves, k) for k in names}, **base, **valves})
     return tool
 
 
 # ---------------------------------------------------------------- /usage.json numbers
 
 usage = {
-    "engines": {
-        "search1": {"used": 45, "limit": 100, "key": "sk-abc"},
-        "search2": {"used": 98, "limit": 100, "key": "sk-def"},
-        "search3": {"used": 120, "limit": 100, "key": ""},
-        "search4": {"used": 10, "limit": 50, "key": None},
-    },
-    "reserve_threshold": 80,
+    "month": month,
+    "tavily": 100,                                   # of 950: available
+    "serpapi": 180.0, "serpapi_n": 180, "serpapi_u": 180.0,  # 250 free, 50 kept back: 20 searches left -> near reserve
+    "hasdata": 760.0, "hasdata_n": 152, "hasdata_u": 760.0,  # 1000 free, 5 per search, 250 kept back: used up
+    "real": {"tavily": {"used": 100, "limit": 1000, "t": 1700000000.0, "own": 100}},
 }
+tool_mod._doc_update("usage", lambda _: usage)
 
 
 def set_cache(entries: dict):
@@ -169,63 +175,27 @@ def main():
     """Run all dashboard checks."""
     print("=== dashboard-check.py ===")
 
-    # 1. usage.json numbers
-    engine_stats = []
-    for name, info in usage["engines"].items():
-        limit = info["limit"]
-        used = info["used"]
-        key = info.get("key")
-        if not key:
-            state = "no key"
-        elif used >= limit:
-            state = "used up"
-        elif used >= usage["reserve_threshold"]:
-            state = "near reserve"
-        else:
-            state = "available"
-        engine_stats.append((name, used, limit, state))
+    # 1. usage report
+    tool = make_tool()
+    report = srv.usage_report(tool)
+    rows = {s["id"]: s for s in report["services"]}
 
-    for name, used, limit, state in engine_stats:
-        ok = isinstance(used, int) and isinstance(limit, int) and state in (
-            "available", "near reserve", "used up", "no key"
-        )
-        check(f"engine {name}: {used}/{limit} → {state}", ok)
-
-    # 2. search log filtering
-    entries = log_entries()
-    now = datetime.datetime.now(datetime.timezone.utc)
-    cutoff = now - datetime.timedelta(days=7)
-
-    filtered = [e for e in entries if datetime.datetime.fromtimestamp(e["t"], tz=datetime.timezone.utc) >= cutoff]
-    check("log drops old entries", len(filtered) == 2, f"got {len(filtered)} of {len(entries)}")
-
-    # 3. cached vs live
-    cached = [e for e in filtered if e.get("cached")]
-    live = [e for e in filtered if not e.get("cached")]
-    check("log distinguishes cached from live", len(cached) == 1 and len(live) == 1)
-
-    # 4. app identification
-    apps = {e["app"] for e in filtered}
-    check("log records app name", "Pi" in apps and "Open WebUI" in apps)
-
-    # 5. service tracking
-    services = {e.get("service") for e in filtered}
-    check("log records service", "tavily" in services),
-
-    # 5. HTTP server serves /usage.json
-    state_db = _build_state_db(usage, set_cache({}), log_entries())
-    srv = run_server(state_db)
-    try:
-        host, port = srv.server_address
-        url = f"http://{host}:{port}/usage.json"
-        resp = urllib.request.urlopen(url)
-        body = json.loads(resp.read())
-        ok = "engines" in body and len(body["engines"]) == 4
-        check("HTTP /usage.json returns valid JSON", ok)
-    finally:
-        srv.shutdown()
-
-    print("=== done ===")
+    check("order: the temporary order applies", report["order"]["temporary"] and report["order"]["active"] == "hasdata, tavily")
+    check("order: services sorted by the active order", [s["id"] for s in report["services"]][:2] == ["hasdata", "tavily"],
+          [s["id"] for s in report["services"]])
+    t = rows["tavily"]
+    check("tavily: used/allowance/left", (t["used"], t["allowance"], t["left"]) == (100, 950, 850), t)
+    check("tavily: available, confirmed by the service", t["status"] == "available" and t["source"] == "service", t)
+    check("tavily: calendar-month cycle", t["cycle_start"] == f"{month}-01", t)
+    s = rows["serpapi"]
+    check("serpapi: near the reserve (20 searches left)", s["status"] == "near reserve" and s["searches_left"] == 20, s)
+    hd = rows["hasdata"]
+    check("hasdata: used up (the reserve is reached)", hd["status"] == "used up" and hd["left"] == 0, hd)
+    check("brave: no key", rows["brave"]["status"] == "no key", rows["brave"])
+    check("cache: entries and fresh ones", report["cache"]["entries"] == 2 and report["cache"]["fresh"] == 1, report["cache"])
+    check("history: 30 days", len(report["history"]["days"]) == 30 and report["history"]["days"][-1]["day"] == today.isoformat())
+    check("tool version read", report["tool_version"] == tool_mod.__doc__.split("version:")[1].split()[0], report["tool_version"])
+    check("no API key in /usage.json", "KEY-" not in json.dumps(report))
 
 
 if __name__ == "__main__":
