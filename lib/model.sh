@@ -1,19 +1,18 @@
 #!/usr/bin/env bash
 # The active model profile (models/<name>.env). Source it, don't run it; it doesn't need lib/common.sh, so the
 # llama-server service script can use it too.
-# shellcheck disable=SC2034
 #   load_model_profile          sets the profile's values (MODEL_*, CTX_PER_SLOT...), local.env's overrides applied
-#   llama_server_args           command-line flags for llama.cpp's main binary
+#   llm_server_args             fills LLM_ARGS with llama-server's flags for the loaded profile
 #   model_json / write_model_json   the profile as JSON for Pi's extensions (~/.config/localllm/model.json)
 # The variables here are used by the scripts that source this file.
 # shellcheck disable=SC2034
 
 MODEL_REPO_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-
+# What Pi, Open WebUI and the presets ask llama-server for, whatever model is loaded.
 MODEL_ALIAS="local"
-
 MODELS_HOME="$HOME/LocalLLM/models"
 MODEL_JSON_FILE="${LOCALLLM_MODEL_JSON:-$HOME/.config/localllm/model.json}"
+
 # This machine's own settings: MODEL_PROFILE and the LLAMA_* overrides.
 # shellcheck source=/dev/null
 [[ -f "$HOME/.config/localllm/local.env" ]] && source "$HOME/.config/localllm/local.env"
@@ -93,23 +92,39 @@ load_model_profile() {
     return 0
 }
 
+# llm_server_args: LLM_ARGS = llama-server's flags for the loaded profile. Uses HOST, PORT and THREADS, and VISION
+# (on/off, default on).
 llm_server_args() {
-  LLM_ARGS=(-m "$MODEL_FILE")
-  LLM_ARGS+=(-c "$CTX_PER_SLOT" --threads "$(nproc)" --threads-batch "$(nproc)")
-  [[ "$SLOTS" -gt 1 ]] && LLM_ARGS+=(--parallel "$SLOTS")
-  [[ "$MAX_TOKENS" -gt 0 ]] && LLM_ARGS+=(--max-tokens "$MAX_TOKENS")
+    LLM_ARGS=(-m "$MODEL_PATH")
+    if [[ -z "$MMPROJ_PATH" || "${VISION:-on}" == "off" ]]; then
+        LLM_ARGS+=(--no-mmproj)
+    elif [[ -f "$MMPROJ_PATH" ]]; then
+        # --no-mmproj-offload keeps the projector on the CPU, because the GPU is full.
+        LLM_ARGS+=(--mmproj "$MMPROJ_PATH" --no-mmproj-offload)
+    else
+        echo "WARNING: no vision projector at $MMPROJ_PATH, image input is off. Run install/llama.sh to get it." >&2
+        LLM_ARGS+=(--no-mmproj)
+    fi
+    LLM_ARGS+=(--alias "$MODEL_ALIAS" --host "$HOST" --port "$PORT" --jinja)
+    [[ "$PRESERVE_THINKING" == true ]] && LLM_ARGS+=(--chat-template-kwargs '{"preserve_thinking":true}')
+    LLM_ARGS+=(-c "$((CTX_PER_SLOT * SLOTS))" --parallel "$SLOTS" -ngl 99)
+    [[ -n "$N_CPU_MOE" ]] && LLM_ARGS+=(--n-cpu-moe "$N_CPU_MOE")
+    LLM_ARGS+=(--fit off -fa on -ctk q8_0 -ctv q8_0 --ctx-checkpoints 32 --cache-ram "$CACHE_RAM_MIB"
+        -b 2048 -ub 512 -t "$THREADS" --load-mode none -n "$MAX_TOKENS" "${SAMPLING[@]}")
+    if [[ "$REASONING" != none && -n "$REASONING_BUDGET" ]]; then
+        LLM_ARGS+=(--reasoning-budget "$REASONING_BUDGET"
+            --reasoning-budget-message "I've thought enough. I'll give my answer now.")
+    fi
+    LLM_ARGS+=(--metrics)
 }
 
+# model_json: the loaded profile as JSON, for Pi's extensions (thinking-switch.ts) and Open WebUI's migration.
 model_json() {
-  local q='"'
-  local vision="false"
-  [[ "$VISION" == "on" ]] && vision="true"
-  local old=""
-  [[ -n "${OLD_ALIASES:-}" ]] && old=$(echo "$OLD_ALIASES" | tr ',' '\n' | while read -r a; do
-    echo "\"${a//$q/}\","
-  done | tr '\n' ' ')
-
-  cat <<EOF
+    local q='"' old="" a
+    for a in "${OLD_ALIASES[@]}"; do old+="${old:+, }$q${a//$q/}$q"; done
+    local vision=false
+    [[ -n "$MMPROJ_LOCAL" ]] && vision=true
+    cat <<EOF
 {
   "profile": "${MODEL_PROFILE//$q/}",
   "name": "${MODEL_NAME//$q/}",
@@ -127,18 +142,12 @@ model_json() {
 EOF
 }
 
+# write_model_json: writes model.json when it changed.
 write_model_json() {
-  local new_json
-  new_json="$(model_json)"
-  local old_json=""
-  if [[ -f "$MODEL_JSON_FILE" ]]; then
-    old_json="$(cat "$MODEL_JSON_FILE")"
-  fi
-
-  if [[ "$new_json" != "$old_json" ]]; then
-    mkdir -p "$(dirname "$MODEL_JSON_FILE")"
-    echo "$new_json" > "$MODEL_JSON_FILE"
-    return 0
-  fi
-  return 1
+    local json
+    json="$(model_json)"
+    [[ -f "$MODEL_JSON_FILE" && "$json" == "$(cat "$MODEL_JSON_FILE")" ]] && return 0
+    mkdir -p "$(dirname -- "$MODEL_JSON_FILE")"
+    printf '%s\n' "$json" > "$MODEL_JSON_FILE"
+    echo "Wrote $MODEL_JSON_FILE (model profile $MODEL_PROFILE)"
 }
