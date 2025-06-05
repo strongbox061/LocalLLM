@@ -42,7 +42,7 @@ fi
 mkdir -p "$HOME/.config/systemd/user"
 cat > "$HOME/.config/systemd/user/$SERVICE_NAME.service" <<EOF
 [Unit]
-Description=LocalLLM Search Gateway Proxy
+Description=LocalLLM Search Gateway
 After=network.target
 
 [Service]
