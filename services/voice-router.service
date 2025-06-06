@@ -7,11 +7,10 @@ Description=Voice router: picks the Kokoro voice from the text's language
 
 [Service]
 ExecStart=@PYTHON@ @REPO_DIR@/services/voice_router.py
-Environment=VOICE_ROUTER_HOST=127.0.0.1
 Environment=VOICE_ROUTER_PORT=8881
 Environment=VOICE_ROUTER_DEBUG=0
 Restart=on-failure
-RestartSec=10
+RestartSec=5
 
 [Install]
 WantedBy=default.target
