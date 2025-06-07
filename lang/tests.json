@@ -163,6 +163,22 @@
       "bot_check": ["Доступ заборонено"],
       "none": ["Моя сестра вчора купила червоний велосипед.", "Навесні сад дуже гарний."]
     },
+    "sv": {
+      "latest": ["Vad är nytt i den senaste versionen av Vite"],
+      "error": ["Bygget misslyckades med ett konstigt meddelande"],
+      "action_start": ["Sök recensioner av det här tangentbordet"],
+      "question_start": ["Hur ställer jag in en proxy i Vite"],
+      "local_current": ["Visa filerna i den aktuella katalogen"],
+      "named_engine": ["Sök på Mojeek efter pi coding agent"],
+      "named_source": ["Läs dokumentationen för Vite om proxyn"],
+      "lookup": ["Kolla upp det, inte från minnet"],
+      "offer": ["Vill du att jag jämför fler versioner?"],
+      "from_memory": ["Jag svarade ur minnet, utan webbsökning."],
+      "current_info": ["Vad kostar en RTX 5090 just nu"],
+      "months": ["november 2025"],
+      "bot_check": ["Åtkomst nekad"],
+      "none": ["Min syster köpte en röd cykel i går.", "Trädgården är mycket vacker på våren."]
+    },
     "ar": {
       "latest": ["ما الجديد في أحدث إصدار من Vite"],
       "error": ["فشل البناء الخاص بي برسالة غريبة"],
