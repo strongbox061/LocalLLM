@@ -1,6 +1,6 @@
 """
-services/gateway_engine.py: the search gateway's engine (services/search_gateway.py runs it)
-version: 1.0.0
+search_gateway_engine.py: the search gateway's engine (services/search_gateway.py runs it)
+version: 1.1.2
 Searches through the services in your settings (~/.config/localllm/search-gateway.json, edited on the gateway's
 /settings page), counts their usage, caches results and logs searches in the gateway's own database
 (~/.local/share/localllm/search-gateway.db). Pi (web_search), Open WebUI ("Search Gateway" tool, a thin client) and
@@ -50,6 +50,7 @@ BOT_CHECK_NAMES_RE = re.compile(r"Anubis|cf-chl|Attention Required! \| Cloudflar
 
 def looks_like_bot_check(text):
     return bool(BOT_CHECK_NAMES_RE.search(text) or LANG_BOT_CHECK_RE.search(lang_norm(text)))
+
 
 # A year, optionally with the month before it ("November 2025", "nov. 2025", "noviembre de 2025").
 YEAR_WITH_MONTH_RE = re.compile(rf"\b(?:(?:{MONTHS})\.?\s+(?:de\s+)?)?((?:19|20)\d{{2}})\b", re.I)
