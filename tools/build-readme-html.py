@@ -2,7 +2,7 @@
 """Generate a self-contained, interactive HTML version of README.md.
 
 Usage:
-    python3 scripts/build-readme.py [input.md] [output.html]
+    python3 tools/build-readme-html.py [input.md] [output.html]
 
 Defaults to README.md -> README.html in the repository root.
 """
