@@ -81,13 +81,9 @@ run_main() {    # run_main start|stop <service>
 HELPER_STATE=""   # "", ok or unreachable (checked once per run)
 helper_ok() {
     if [[ -z "$HELPER_STATE" ]]; then
-        if ssh -o ConnectTimeout=5 "$HELPER_USER@$HELPER_HOST" "echo ok" &>/dev/null; then
-            HELPER_STATE="ok"
-        else
-            HELPER_STATE="unreachable"
-        fi
+        if helper_reachable; then HELPER_STATE=ok; else HELPER_STATE=unreachable; fi
     fi
-    [[ "$HELPER_STATE" == "ok" ]]
+    [[ "$HELPER_STATE" == ok ]]
 }
 
 run_helper() {
