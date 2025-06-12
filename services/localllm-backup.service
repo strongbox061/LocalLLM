@@ -1,4 +1,4 @@
-# Encrypted backup of backup/ to the rclone remote. Started by localllm-backup.timer.
+# Encrypted backup of backup/ to the rclone remote in local.env (upload-backup.sh). Started by localllm-backup.timer.
 # install/backup-timer.sh fills in @REPO_DIR@ and installs it as ~/.config/systemd/user/localllm-backup.service.
 
 [Unit]
@@ -7,5 +7,4 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-EnvironmentFile=@REPO_DIR%/local.env
 ExecStart=@REPO_DIR@/upload-backup.sh
