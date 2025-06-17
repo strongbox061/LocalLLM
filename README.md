@@ -78,6 +78,15 @@ public: a Hugging Face login is optional (`hf auth login`, only for faster model
    This setup is only ever installed from a backup: on a new machine `install.sh` stops when `backup/` holds no
    settings.
 
+**The scripts**
+
+6. `./install.sh`: installs everything and restores `backup/` (the table below), at the versions the backup recorded
+   (see "Versions"). It asks for your sudo password. pacman also asks "Proceed with installation? [Y/n]" for each
+   group of packages, and sometimes which of several packages should provide something ("Enter a number
+   (default=1)"): press Enter each time, the defaults are the right answer.
+7. **By hand:** log out and back in once, so the desktop picks up any new launchers/environment (such as Nix, if your
+   `BROWSER_INSTALLER` uses it) and
+
 ## Starting and stopping
 
 ### Memory
