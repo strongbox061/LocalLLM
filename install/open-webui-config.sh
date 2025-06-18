@@ -21,14 +21,6 @@ source "$REPO_DIR/lib/model.sh"
 load_model_profile || exit 1
 write_model_json >/dev/null
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 log() { echo "[webui-config] $*"; }
 
 api_post() {
@@ -36,34 +28,6 @@ api_post() {
   shift
   curl -s -X POST "${WEBUI_URL}/${endpoint}" \
     -H "Content-Type: application/json" "$@"
-}
-
-# ---------------------------------------------------------------------------
-# Deploy tools and functions from open-webui/
-# ---------------------------------------------------------------------------
-
-deploy_tools() {
-  log "Deploying tools from ${OPEN_WEBUI_DIR}/tools/"
-  for tool in "${OPEN_WEBUI_DIR}"/tools/*.py; do
-    [ -f "$tool" ] || continue
-    local name
-    name="$(basename "$tool" .py)"
-    log "  Tool: ${name}"
-    api_post "api/tools/${name}" \
-      -d "$(cat "$tool")"
-  done
-}
-
-deploy_functions() {
-  log "Deploying functions from ${OPEN_WEBUI_DIR}/functions/"
-  for func in "${OPEN_WEBUI_DIR}"/functions/*.py; do
-    [ -f "$func" ] || continue
-    local name
-    name="$(basename "$func" .py)"
-    log "  Function: ${name}"
-    api_post "api/functions/${name}" \
-      -d "$(cat "$func")"
-  done
 }
 
 # ---------------------------------------------------------------------------
