@@ -43,6 +43,8 @@ LLAMA_URL="http://127.0.0.1:8081"
 WEBUI_URL="http://127.0.0.1:3000"
 SEARXNG_URL="http://127.0.0.1:8080"
 SEARCH_GATEWAY_URL="http://127.0.0.1:8090"
+KOKORO_URL="http://127.0.0.1:8880"
+VOICE_ROUTER_URL="http://127.0.0.1:8881"
 ENDPOINTS_ERROR=""
 # refresh_endpoints [force]: regenerates endpoints.json/.env when they are older than their sources (or always with
 # "force"). Returns 1 and sets ENDPOINTS_ERROR when the settings don't fit together.
@@ -82,3 +84,49 @@ SEARCH_GATEWAY_DB="$HOME/.local/share/localllm/search-gateway.db"
 # GitHub token file for search gateway (README, "Library docs in Pi"). Without it GitHub allows
 # 10 searches a minute instead of 30.
 GITHUB_TOKEN_FILE="$HOME/.config/localllm/github-token"
+
+# --- Two-PC setup (README, "Two-PC setup") ---
+# In split mode llama-server asks for this key (services/llm-server.sh), since the helper PC reaches it over
+# Tailscale; Pi (install/pi-models.sh) and the helper's Open WebUI send it. Made once by ensure_llama_api_key.
+LLAMA_API_KEY_FILE="$HOME/.config/localllm/llama-api-key"
+# Values only the helper PC uses (its data folder, its optional parts), pushed to it by the deploy.
+HELPER_ENV_FILE="$HOME/.config/localllm/helper.env"
+# The SSH name of the helper PC (a Host block in ~/.ssh/config, written by ./localllm.sh setup-helper) and its key.
+HELPER_SSH="localllm-helper"
+HELPER_SSH_KEY="$HOME/.ssh/localllm-helper"
+# Where the deploy puts this repo's files on the helper PC, and its scripts there.
+HELPER_DIR='C:\ProgramData\LocalLLM'
+HELPER_REPO="$HELPER_DIR\\repo"
+
+ensure_llama_api_key() {
+    [[ -s "$LLAMA_API_KEY_FILE" ]] && return 0
+    mkdir -p "$(dirname -- "$LLAMA_API_KEY_FILE")"
+    (umask 077 && openssl rand -hex 32 > "$LLAMA_API_KEY_FILE")
+    echo "Made llama-server's API key: $LLAMA_API_KEY_FILE"
+}
+
+# What Pi sends llama-server as its API key: the key in split mode, "none" (no key asked) in single mode.
+llama_api_key_for_clients() {
+    if [[ "$LOCALLLM_MODE" == split && -s "$LLAMA_API_KEY_FILE" ]]; then cat "$LLAMA_API_KEY_FILE"; else echo none; fi
+}
+
+# helper_ssh <command...>: runs a PowerShell command on the helper PC (key login only, no questions). The exit status
+# is the command's; 255 when the helper can't be reached.
+# The config is named explicitly: ssh would otherwise read the account's own ~/.ssh/config even with another HOME (the
+# tests' temporary one), and reach the real helper.
+helper_ssh() {
+    ssh -F "$HOME/.ssh/config" -o BatchMode=yes -o ConnectTimeout=8 "$HELPER_SSH" "$@"
+}
+
+# helper_ps <script.ps1> [arguments...]: runs one of the repo's scripts on the helper PC. Windows' default execution
+# policy (Restricted) refuses any script, so it runs with -ExecutionPolicy Bypass for this one call.
+helper_ps() {
+    local script="$1"
+    shift
+    # "; exit": the SSH shell (PowerShell too) would otherwise end with its own status, not the script's.
+    helper_ssh "powershell -NoProfile -ExecutionPolicy Bypass -File '$script' $*; exit \$LASTEXITCODE"
+}
+
+helper_reachable() {
+    helper_ssh 'exit 0' >/dev/null 2>&1 || helper_ssh 'exit 0' >/dev/null 2>&1
+}
