@@ -184,15 +184,19 @@ def main(argv):
         print(f"Usage: {argv[0]} <single|split> [--base-url URL]", file=sys.stderr)
         sys.exit(1)
 
+    # --- Read settings.json (shared with sync.py) ---
+    settings_path = Path(__file__).resolve().parent / "settings.json"
+    try:
+        s = json.loads(settings_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        print(f"Error: {settings_path} not found", file=sys.stderr)
+        sys.exit(1)
+    except json.JSONDecodeError as e:
+        print(f"Error: {settings_path} is not valid JSON: {e}", file=sys.stderr)
+        sys.exit(1)
+
     mode = argv[1]
-    base_url = "http://127.0.0.1:8080"
-    i = 2
-    while i < len(argv):
-        if argv[i] == "--base-url" and i + 1 < len(argv):
-            base_url = argv[i + 1]
-            i += 2
-        else:
-            i += 1
+    base_url = s.get("llama_url", "http://127.0.0.1:8081").rstrip("/") + "/v1"
 
     print(f"Configuring Open WebUI in '{mode}' mode (base={base_url})")
 
