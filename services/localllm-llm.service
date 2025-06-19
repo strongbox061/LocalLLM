@@ -11,6 +11,7 @@ ExecStartPre=+@REPO_DIR@/services/gpu-limits.sh @USER@
 ExecStart=@REPO_DIR@/services/llm-server.sh
 Restart=on-failure
 RestartSec=5
+OOMScoreAdjust=-500
 
 [Install]
 WantedBy=multi-user.target
