@@ -248,42 +248,7 @@ def _clean_dmi_field(val: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def get_cpu_percent() -> float:
-    """Return current CPU usage percentage (0-100) via /proc/stat."""
-    with open("/proc/stat") as f:
-        line = f.readline()
-    values = line.split()[1:]
-    idle = int(values[3])
-    total = sum(int(v) for v in values)
-    return round((1 - idle / total) * 100, 1)
 
-
-def get_gpu_stats() -> list[dict]:
-    """Parse nvidia-smi output for GPU info."""
-    try:
-        result = subprocess.run(
-            ["nvidia-smi", "--query-gpu=index,name,temperature.gpu,utilization.gpu,memory.used,memory.total",
-             "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=10,
-        )
-        if result.returncode != 0:
-            return []
-
-        gpus = []
-        for line in result.stdout.strip().split("\n"):
-            parts = [p.strip() for p in line.split(",")]
-            if len(parts) >= 6:
-                gpus.append({
-                    "index": int(parts[0]),
-                    "name": parts[1],
-                    "temp": float(parts[2]),
-                    "util": float(parts[3]),
-                    "mem_used": float(parts[4]),
-                    "mem_total": float(parts[5]),
-                })
-        return gpus
-    except (subprocess.TimeoutExpired, OSError):
-        return []
 
 
 def get_ram_stats() -> dict:
