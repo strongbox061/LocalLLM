@@ -1,5 +1,5 @@
 """
-tts_router.py: picks the Kokoro voice from the language of the text, so answers are read aloud in the right
+audio_router.py: picks the Kokoro voice from the language of the text, so answers are read aloud in the right
 language without switching voices by hand.
 
 Open WebUI sends its text-to-speech requests here (127.0.0.1:8881) instead of straight to Kokoro (8880):
