@@ -53,9 +53,7 @@
       }
     );
   };
-  const unlockAll = () => {
-    try { document.querySelectorAll("audio").forEach(unlock); } catch {}
-  };
+  const unlockAll = () => document.querySelectorAll("audio").forEach(unlock);
   for (const type of ["pointerdown", "touchend", "click", "keydown"]) {
     window.addEventListener(type, unlockAll, { capture: true, passive: true });
   }
@@ -107,7 +105,7 @@
     return p.catch((err) => {
       const src = el.currentSrc || el.src;
       if (!err || err.name !== "NotAllowedError" || !src || src === SILENCE) throw err;
-      log(`play() refused by the browser (${err.name}); playing the clip through a fresh audio object`);
+      log("play() refused by the browser; playing the clip through a fresh audio object");
       return playThroughStandIn(el);
     });
   };
