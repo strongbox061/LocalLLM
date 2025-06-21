@@ -70,7 +70,7 @@ function rows(container, items, fields, addLabel) {
       input.value = value;
       return input;
     });
-    const row = el("div", { class: "row" }, inputs, el("button", { class: "small", type: "button", title: "Remove", onclick: () => row.remove() }, "\u00d7"));
+    const row = el("div", { class: "row" }, inputs, el("button", { class: "small", type: "button", title: "Remove", onclick: () => row.remove() }, "×"));
     box.append(row);
   };
   (items || []).forEach(add);
