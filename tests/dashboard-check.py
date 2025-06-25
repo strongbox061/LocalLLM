@@ -76,9 +76,6 @@ threading.Thread(target=srv.LOOP.run_forever, daemon=True).start()
 today = datetime.date.today()
 month = tool_mod._month()
 
-set_cache({"a|": {"t": 9e9, "provider": "tavily", "results": []}, "b|": {"t": 1.0, "provider": "tavily", "results": []}})
-
-
 def make_tool(**valves):
     tool = tool_mod.Tools()
     base = dict(
@@ -119,84 +116,74 @@ def log_entries():
     return tool_mod.read_log(0)
 
 
+set_cache({"a|": {"t": 9e9, "provider": "tavily", "results": []}, "b|": {"t": 1.0, "provider": "tavily", "results": []}})
 tool = make_tool()
+report = srv.usage_report(tool)
+rows = {s["id"]: s for s in report["services"]}
 
+check("order: the temporary order applies", report["order"]["temporary"] and report["order"]["active"] == "hasdata, tavily")
+check("order: services sorted by the active order", [s["id"] for s in report["services"]][:2] == ["hasdata", "tavily"],
+      [s["id"] for s in report["services"]])
+t = rows["tavily"]
+check("tavily: used/allowance/left", (t["used"], t["allowance"], t["left"]) == (100, 950, 850), t)
+check("tavily: available, confirmed by the service", t["status"] == "available" and t["source"] == "service", t)
+check("tavily: calendar-month cycle", t["cycle_start"] == f"{month}-01", t)
+s = rows["serpapi"]
+check("serpapi: near the reserve (20 searches left)", s["status"] == "near reserve" and s["searches_left"] == 20, s)
+hd = rows["hasdata"]
+check("hasdata: used up (the reserve is reached)", hd["status"] == "used up" and hd["left"] == 0, hd)
+check("brave: no key", rows["brave"]["status"] == "no key", rows["brave"])
+check("cache: entries and fresh ones", report["cache"]["entries"] == 2 and report["cache"]["fresh"] == 1, report["cache"])
+check("history: 30 days", len(report["history"]["days"]) == 30 and report["history"]["days"][-1]["day"] == today.isoformat())
+check("tool version read", report["tool_version"] == tool_mod.__doc__.split("version:")[1].split()[0], report["tool_version"])
+check("no API key in /usage.json", "KEY-" not in json.dumps(report))
+
+# ---------------------------------------------------------------- the search log
+
+cache_key = "find me"  # words sorted: "find me"
+set_cache({f"{cache_key}|": {"t": 9e9, "provider": "tavily", "results": [{"url": "https://x.example"}]}})
+turn = tool._turn({"message_id": "m1"})
+asyncio.run(tool._search_chain("me find", "", "", turn))
+turn_pi = tool._turn({"message_id": "pi-1"})
+turn_pi["app"] = "Pi"
+
+
+async def _fake(session, query, time_range):
+    return [{"url": "https://a.example", "title": "A"}, {"url": "https://b.example", "title": "B"}]
+
+
+async def _broken(session, query, time_range):
+    raise tool_mod.ProviderError(500, "upstream said: my private words")
+
+
+tool._fake, tool._broken = _fake, _broken
+tool._provider_order = lambda turn, skip=(): ["broken", "fake"]
+asyncio.run(tool._search_chain("my private words", "", "", turn_pi, skip={"tavily"}, fresh=True))
+lines = log_entries()
+check("log: one entry per search", len(lines) == 2, lines)
+check("log: cached search from Open WebUI", lines[0]["cached"] and lines[0]["app"] == "Open WebUI" and lines[0]["service"] == "tavily", lines[0])
+check("log: Pi retry with a failed service", lines[1]["app"] == "Pi" and lines[1]["retry"] and lines[1]["failed"] == ["broken"]
+      and lines[1]["service"] == "fake" and lines[1]["results"] == 2, lines[1])
+check("log: no search words by default", "private" not in json.dumps(lines) and "find" not in json.dumps(lines))
+tool.valves.log_search_words = True
+asyncio.run(tool._search_chain("words on", "", "", turn_pi))
+check("log: search words when log_search_words is on", log_entries()[-1].get("q") == "words on")
+tool.valves.log_search_words = False
+
+report = srv.usage_report(tool)
+day = report["history"]["days"][-1]
+check("history: today's searches per service and app",
+      day["total"] == 3 and day["cached"] == 1 and day["services"].get("fake") == 2 and day["apps"] == {"Open WebUI": 1, "Pi": 2}, day)
+check("history: latest first", report["history"]["latest"][0].get("q") == "words on" and len(report["history"]["latest"]) == 3)
+check("cache hits from the log", report["cache"]["hits_today"] == 1, report["cache"])
 
 import time  # noqa: E402
-
-
-# ---------------------------------------------------------------- the page and /usage.json over HTTP
-
-def _build_state_db(usage_data, cache_data, log_data):
-    """Pack sample data into a temporary SQLite-like dict that the dashboard reads."""
-    return {
-        "usage": usage_data,
-        "cache": cache_data,
-        "log": log_data,
-    }
-
-
-def run_server(state, host="127.0.0.1", port=0):
-    """Start a minimal HTTP server that serves /usage.json and the dashboard page."""
-    state_json = json.dumps(state).encode("utf-8")
-
-    class Handler(ThreadingHTTPServer):
-        pass
-
-    def _handle(self, request, client_address):
-        if request.startswith("GET /usage.json"):
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(state_json)
-        elif request.startswith("GET /"):
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html")
-            self.end_headers()
-            self.wfile.write(b"<html><body>Dashboard</body></html>")
-        else:
-            self.send_response(404)
-            self.end_headers()
-
-    from http.server import BaseHTTPRequestHandler
-
-    class MockHandler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            _handle(self, self.command + " " + self.path, self.client_address)
-
-        def log_message(self, format, *args):
-            pass  # silence stderr
-
-    server = ThreadingHTTPServer((host, port), MockHandler)
-    return server
-
-
-def main():
-    """Run all dashboard checks."""
-    print("=== dashboard-check.py ===")
-
-    # 1. usage report
-    tool = make_tool()
-    report = srv.usage_report(tool)
-    rows = {s["id"]: s for s in report["services"]}
-
-    check("order: the temporary order applies", report["order"]["temporary"] and report["order"]["active"] == "hasdata, tavily")
-    check("order: services sorted by the active order", [s["id"] for s in report["services"]][:2] == ["hasdata", "tavily"],
-          [s["id"] for s in report["services"]])
-    t = rows["tavily"]
-    check("tavily: used/allowance/left", (t["used"], t["allowance"], t["left"]) == (100, 950, 850), t)
-    check("tavily: available, confirmed by the service", t["status"] == "available" and t["source"] == "service", t)
-    check("tavily: calendar-month cycle", t["cycle_start"] == f"{month}-01", t)
-    s = rows["serpapi"]
-    check("serpapi: near the reserve (20 searches left)", s["status"] == "near reserve" and s["searches_left"] == 20, s)
-    hd = rows["hasdata"]
-    check("hasdata: used up (the reserve is reached)", hd["status"] == "used up" and hd["left"] == 0, hd)
-    check("brave: no key", rows["brave"]["status"] == "no key", rows["brave"])
-    check("cache: entries and fresh ones", report["cache"]["entries"] == 2 and report["cache"]["fresh"] == 1, report["cache"])
-    check("history: 30 days", len(report["history"]["days"]) == 30 and report["history"]["days"][-1]["day"] == today.isoformat())
-    check("tool version read", report["tool_version"] == tool_mod.__doc__.split("version:")[1].split()[0], report["tool_version"])
-    check("no API key in /usage.json", "KEY-" not in json.dumps(report))
-
-
-if __name__ == "__main__":
-    main()
+con = tool_mod._db()
+old_t = time.time() - (tool_mod.SEARCH_LOG_DAYS + 1) * 86400
+con.execute("INSERT INTO log (t, entry) VALUES (?, ?)", (old_t, json.dumps({"t": old_t, "app": "Pi", "service": "old"})))
+con.close()
+asyncio.run(tool._search_chain("one more", "", "", turn_pi))
+check(f"log: entries older than {tool_mod.SEARCH_LOG_DAYS} days are dropped", all(e.get("service") != "old" for e in log_entries())
+      and len(log_entries()) == 4, [e.get("service") for e in log_entries()])
+check("history counts every search of today", srv.usage_report(tool)["history"]["days"][-1]["total"] == 4)
+check("the state database is only yours (0600)", oct(os.stat(tmp / "state.db").st_mode & 0o777) == "0o600")
