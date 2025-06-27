@@ -185,6 +185,23 @@
       "current_info": ["останн* верси*", "останн* новин*", "найновіш*", "актуальн*", "нещодавн*", "прямо зараз", "на даний момент", "наразі", "сьогодні", "цього тижня", "цього місяця", "цього року", "поточн* цін*", "цін* на", "скільки коштує", "курс валют", "курс долара", "знижки"],
       "months": ["січень", "січня", "лютий", "лютого", "березень", "березня", "квітень", "квітня", "травень", "травня", "червень", "червня", "липень", "липня", "серпень", "серпня", "вересень", "вересня", "жовтень", "жовтня", "листопад", "листопада", "грудень", "грудня"],
       "bot_check": ["перевірка, що ви не робот", "підтвердьте, що ви людина", "перевірка браузера", "доступ заборонено", "незвичний трафік"]
+    },
+    "sv": {
+      "name": "Swedish",
+      "please": ["snälla", "vänligen"],
+      "latest": ["senaste", "nyaste", "aktuell*", "nyligen", "vad är nytt", "ändringslogg", "versionsinformation", "nya funktioner", "uppdaterad"],
+      "error": ["fel", "felet", "felmeddelande", "undantag", "misslyck*", "kraschar", "kraschade", "krasch", "fungerar inte", "funkar inte", "trasig", "bugg", "fixa", "åtgärda", "laga"],
+      "action_start": ["sök", "hitta", "öppna", "läs igenom", "gå till", "besök", "ladda ner", "redigera", "kolla"],
+      "question_start": ["vad", "varför", "hur", "när", "vem", "vilken", "vilket", "vilka", "finns det", "kan du förklara"],
+      "local_current": ["aktuell* katalog*", "aktuell* mapp*", "nuvarande katalog*", "nuvarande mapp*", "aktuell* fil*", "nuvarande fil*", "aktuell* gren*", "arbetskatalog*"],
+      "named_engine": ["sök på {engine}", "sök med {engine}", "sök i {engine}", "sök via {engine}"],
+      "named_source": {"verbs": ["läs", "öppna", "hitta", "kolla"], "nouns": ["sida", "sidan", "artikel*", "dokumentation*", "docs", "readme", "hemsida*"], "phrases": ["enligt", "modellkort"]},
+      "lookup": ["kolla upp", "slå upp", "sök upp det", "inte från minnet", "inte ur minnet", "sök på nätet", "sök online"],
+      "offer": ["vill du", "vill ni", "ska jag", "låt mig veta", "säg till om", "om du vill"],
+      "from_memory": ["allmän kunskap", "allmänbildning", "från minnet", "ur minnet", "jag vet redan", "utan webbsökning"],
+      "current_info": ["senaste", "nyaste", "nyligen", "aktuell*", "för närvarande", "just nu", "idag", "i dag", "denna vecka", "den här veckan", "denna månad", "den här månaden", "i år", "pris på", "priser på", "vad kostar", "hur mycket kostar", "växelkurs", "erbjudanden"],
+      "months": ["januari", "februari", "mars", "april", "maj", "juni", "juli", "augusti", "september", "oktober", "november", "december"],
+      "bot_check": ["verifierar att du är en människa", "bekräfta att du är en människa", "kontrollerar din webbläsare", "åtkomst nekad", "ovanlig trafik", "ett ögonblick..."]
     }
   }
 }
