@@ -223,6 +223,31 @@ def _as_searxng(query: str, results: list, used: str, problems: list) -> dict:
 async def search(params: dict) -> dict:
     query = " ".join(str(params.get("q", "")).split())
 
+    if not query:
+        return _as_searxng("", [], "", ["search-gateway: empty query"])
+
+    # Bangs only mean something to SearXNG; the services would search for the text "!gh".
+    query = LEAD_BANGS_RE.sub("", query).strip() or query
+
+    tool = _tool()
+    time_range = str(params.get("time_range", "")).strip().lower()
+    time_range = time_range if time_range in TIME_RANGES else ""
+    retry_after = [s for s in str(params.get("retry_after", "")).split(",") if s.strip()]
+    skip = tool._retry_skip(retry_after) if retry_after else set()
+    key = f"pi-{uuid.uuid4().hex}"
+    turn = tool._turn({"message_id": key})
+    turn["app"] = str(params.get("app") or "Pi")[:40]  # for the search log ("Protected Lookup" sets its own)
+    started = time.time()
+    try:
+        results, used, problems = await tool._search_chain(query, time_range, "", turn, skip=skip, fresh=bool(retry_after))
+    finally:
+        tool._state.pop(key, None)
+    if DEBUG:
+        log(f"{query!r}{f' ({time_range})' if time_range else ''}{f' (retry, skipping {sorted(skip)})' if retry_after else ''}: "
+            f"{len(results)} results via {used or 'nothing'} in {time.time() - started:.1f}s"
+            + (f"; {'; '.join(problems)}" if problems else ""))
+    return _as_searxng(query, results, used, problems)
+
 
 class SearchHandler(BaseHTTPRequestHandler):
     """HTTP request handler for the search gateway."""
