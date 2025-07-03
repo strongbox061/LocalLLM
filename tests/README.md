@@ -38,7 +38,7 @@ change), **system checks** (the live setup as it runs, no model; after a section
   ```
   Each run writes `~/LocalLLM/test-runs/<date-time>/<ID>.md` (prompt, expectation, reasoning on/off, every tool call with its arguments and result, blocks, the answer) and `summary.tsv`.
 
-**Judge from the trace, not the answer.** A correct answer reached the wrong way (a search engine page in the browser, instead of through the tool) doesn't count. Each report ends with a verdict line to fill in. When a test fails, run it again once before concluding.
+**Judge from the trace, not the answer.** A correct answer reached the wrong way (a search engine page in the browser, Context7 for "latest" docs, retyped edit text) is a failure. Each report ends with a verdict line to fill in. Runs vary: when a test fails, run it again once before concluding.
 
 Expected for every web test: no `!` left in an effective query, no `backend` field, at most 4 `web_search` calls, links copied from results, and `Service: <name>` in search results (the search gateway answered).
 

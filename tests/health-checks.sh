@@ -6,6 +6,7 @@
 #                                     split mode), Pi's settings, SearXNG, the search gateway and its dashboard,
 #                                     ./localllm.sh status, OCR, and tests/restorability-check.sh
 #   tests/system-checks.sh --helper   also the helper PC over SSH (split mode): its services' own report, the main
+#                                     PC's llama-server reached from there, Open WebUI's settings and chat type
 #                                     presets, its database's integrity
 # Read-only: nothing is started, stopped, switched or written in the live setup. The checks that change it (switch,
 # gaming mode, a rebuild) are by-hand steps in tests/pi-tests.md. Needs the services running (./localllm.sh start).
