@@ -2,7 +2,7 @@
 title: Protected Chat
 author: LocalLLM
 version: 0.1.0
-description: Keeps a protected chat (a chat type made by install/chat-types.sh) inside the computer. On every message it allows only the Protected Lookup tool and switches off web search, image generation, the code interpreter, memory, term ... [+242 chars omitted]
+description: Keeps a protected chat (a chat type made by install/chat-types.sh) inside the computer. On every message it allows only the Protected Lookup tool and switches off web search, image generation, the code interpreter, memory, terminals and the browser's own tool servers, whatever was switched on in the chat. It runs only for the presets that list it; it can't be switched off in a chat. Switching a chat to another model leaves this protection for the rest of that chat. ... [+242 chars omitted]
 """
 
 from pydantic import BaseModel, Field
@@ -24,8 +24,6 @@ class Filter:
         # No self.toggle: a filter with a toggle could be switched off in the chat.
 
     async def inlet(self, body: dict, __metadata__: dict = None) -> dict:
-        if not isinstance(body, dict):
-            return body
         body["tool_ids"] = [self.valves.lookup_tool_id]
         features = body.get("features")
         features = dict(features) if isinstance(features, dict) else {}
