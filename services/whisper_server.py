@@ -1,5 +1,5 @@
 """
-stt_server.py: speech-to-text for Open WebUI on the helper PC (README, "Voice in Open WebUI"), an
+whisper_server.py: speech-to-text for Open WebUI on the helper PC (README, "Voice in Open WebUI"), an
 OpenAI-compatible /v1/audio/transcriptions with faster-whisper.
 
 Why a service of its own: inside Open WebUI's process the same model on the same GPU took 2-3 times longer per
