@@ -3,7 +3,6 @@
 set -euo pipefail
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
-
 # In split mode it runs on the helper PC; when owui is not in LOCALLLM_APPS it stays off.
 apps_has owui \
     || die "Open WebUI is off (LOCALLLM_APPS=$LOCALLLM_APPS): ./localllm.sh apps pi,owui turns it back on."
@@ -19,3 +18,15 @@ else
     echo "Starting..."
     wait_for "$WEBUI_URL/health" 180 || die "Open WebUI did not become ready. Logs: journalctl --user -u open-webui -e"
 fi
+# Its data came from a backup made in split mode (restore.sh): its settings still name the helper's services. Set
+# them for this PC, once (the Knowledge bases are indexed again with this PC's embedding model: a few minutes).
+if [[ -f "$WEBUI_FROM_SPLIT_FILE" ]]; then
+    log "Open WebUI's settings for this PC (its data came from a backup made in split mode)"
+    if webui_settings_single; then
+        rm -f "$WEBUI_FROM_SPLIT_FILE"
+        echo "Open WebUI is set for this PC."
+    else
+        warn "Not every setting was set for this PC (see above): the next start/open-webui.sh tries again."
+    fi
+fi
+echo "Open WebUI: $WEBUI_URL"
