@@ -462,20 +462,6 @@ select:hover {
   text-align: center;
 }
 
-.pie-occupied {
-  font-size: 20px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.15;
-  color: var(--pie-used);
-}
-
-.pie-detail {
-  font-size: 12px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
 .notice code {
   background: var(--muted-bg);
   color: var(--text);
