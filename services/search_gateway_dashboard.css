@@ -88,6 +88,7 @@ a {
 
 .tile,
 .card {
+  min-width: 140px;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 8px;
