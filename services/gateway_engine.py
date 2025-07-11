@@ -41,7 +41,7 @@ MONTHS = r"تشرين\s+الثاني|تشرین\s+الثانی|كانون\s+ال
 LANG_CURRENT_INFO_RE = re.compile(r"(?:อัตราแลกเปลี่ยน|สัปดาห์นี้|โปรโมชั่น|ปัจจุบัน|เดือนนี้|เท่าไหร่|ตอนนี้|ล่าสุด|วันนี้|เท่าไร|ปีนี้|為替レート|価格|价格多少|價格多少|いくら|セール|价格是|價格是|多少錢|多少钱|今天|今年|今日|今月|今週|优惠|価格|値段|優惠|汇率|最新|最近|本周|本日|本月|本週)", re.I)
 
 # Text of a bot-check or access-denied page (short pages only).
-LANG_BOT_CHECK_RE = re.compile(r"(?:กำลังตรวจสอบเบราว์เซอร์|ยืนยันว่าคุณเป็นมนุษย์|การเข้าชมที่ผิดปกติ|การเข้าถึงถูกปฏิเสธ|ปฏิเสธการเข้าถึง|ブラウザをチェックしています|アクセスが拒否されました|ブラウザを確認しています|通常と異なるトラフィック|人間であることを確認|正在检查您的浏览器|正在檢查您的瀏覽器|異常なトラフィック|确认您是人类)", re.I)
+LANG_BOT_CHECK_RE = re.compile(r"(?:กำลังตรวจสอบเบราว์เซอร์|ยืนยันว่าคุณเป็นมนุษย์|การเข้าชมที่ผิดปกติ|การเข้าถึงถูกปฏิเสธ|ปฏิเสธการเข้าถึง|ブラウザをチェックしています|アクセスが拒否されました|ブラウザを確認しています|通常と異なるトラフィック|人間であることを確認|正在检查您的浏览器|正在檢查您的瀏覽器|異常なトラフィック|确认您是真人|確認您是真人|驗證您是人類|验证您是人类|访问被拒绝|存取遭拒|异常流量|拒绝访问|異常流量)|(?<![\w\u0300-\u036f\u0900-\u0dff])(?:just[\s-]+a[\s-]+moment\s*\.\s*\.\s*\.|ett[\s-]+ogonblick\s*\.\s*\.\s*\.\.|un[\s-]+momento\s*\.\s*\.\s*\.\.|chwilka[\s-]+proszę\s*\.\s*\.\s*\.\.|một[\s-]+chút\s*\.\s*\.\s*\.\.|bir[\s-]+saniye\s*\.\s*\.\s*\.\.|مجرد[\s-]+لحظة|רק[\s-]+רגע|un[\s-]+instant\s*\.\s*\.\s*\.\.|momentul[\s-]+asta|o[\s-]+chwilę|just[\s-]+a[\s-]+second|un[\s-]+segundo\s*\.\s*\.\s*\.\.)\s*(?:please|por[\s-]+favor|proszę|silakan|กรุณา|お待ちください|请稍候|請稍候|espera|por favor|bitên|lutfen|لطفاً|נא|من فضلك|krijayita)\s*$", re.I)
 
 # Text that marks a bot-protection / challenge page (short pages only): names and codes here, the words in every
 # language in LANG_BOT_CHECK_RE.
