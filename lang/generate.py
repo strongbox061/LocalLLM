@@ -164,43 +164,45 @@ def please_re(data: dict, f: Flavor) -> str:
 
 def engine_re(data: dict, f: Flavor) -> str:
     names = "|".join(escape(e) for e in data["engines"])
-    tail = r"(?:[-']?[\p{L}\p{M}]+)" if f.js else r"(?:[-']?\w+)?"
+    tail = r"(?:[-']?[\p{L}\p{M}]+)?" if f.js else r"(?:[-']?\w+)?"
     return f"({names}){tail}"
 
 
 def build_rule(data: dict, rule: str, f: Flavor) -> str:
-    """Build a complete regex rule from phrases.json data."""
-    rules = data.get("rules", {})
-    if rule not in rules:
-        return ""
-    rule_data = rules[rule]
-    langs = data.get("languages", {})
-    all_phrases = []
-    for lang_code, lang_data in langs.items():
-        if rule in lang_data:
-            all_phrases.extend(lang_data[rule])
-    if not all_phrases:
-        return ""
-
-    anchor = rule_data.get("anchor", "any")
-    fragments = []
-    for raw in all_phrases:
-        pat, _ = phrase_re(raw, f, default_anchor=anchor)
-        fragments.append(pat)
-
-    pattern = alternation(fragments) if len(fragments) > 1 else fragments[0]
-    return pattern
+    info = data["rules"][rule]
+    langs = data["languages"]
+    anchor = info.get("anchor", "any")
+    please = PLEASE_TOKEN if f.js else please_re(data, f)
+    engine = (ENGINE_TOKEN if f.js else engine_re(data, f)) if rule == "named_engine" else ""
+    phrases, extra = [], []
+    for code, lang in langs.items():
+        entry = lang.get(rule)
+        if not entry:
+            continue
+        try:
+            if rule == "named_source":
+                phrases += [phrase_re(p, f, anchor) for p in entry.get("phrases", [])]
+                verbs = combine([phrase_re(v, f, "any") for v in entry["verbs"]], f, please)
+                nouns = combine([phrase_re(n, f, "any") for n in entry["nouns"]], f, please)
+                tight = any(NOSPACE.search(norm(x)) for x in entry["verbs"] + entry["nouns"])
+                gap = f.gap_tight if tight else rf"[^{STOP}]{{0,120}}?"
+                a, b = (nouns, verbs) if lang.get("verb_last") else (verbs, nouns)
+                extra.append(f"(?:{a}){gap}(?:{b})")
+            else:
+                phrases += [phrase_re(p, f, anchor, engine) for p in entry]
+        except (ValueError, re.error) as e:
+            raise SystemExit(f"lang/phrases.json: {code}.{rule}: {e}")
+    return "|".join(x for x in [combine(phrases, f, please), *extra] if x)
 
 
 def months_re(data: dict) -> str:
-    """Build regex for month names across all languages."""
-    langs = data.get("languages", {})
-    parts = []
-    for lang_code, lang_data in langs.items():
-        if "months" in lang_data:
-            for m in lang_data["months"]:
-                parts.append(escape(norm(m)))
-    return alternation(parts) if parts else ""
+    """Month names for the tool's year filter, which runs on the raw query: written forms and accent-free ones."""
+    out = []
+    for lang in data["languages"].values():
+        for m in lang.get("months", []):
+            for form in {m.lower(), norm(m)}:
+                out.append(re.sub(r"\\\*", r"\\w*", re.sub(r"\\ ", r"\\s+", re.escape(form))))
+    return alternation(out)
 
 
 def js_regex(pattern: str, flags: str = "u") -> str:
