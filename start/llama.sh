@@ -10,6 +10,6 @@ if curl -fsS -m 2 -o /dev/null "$LLAMA_URL/health" 2>/dev/null; then
 else
     sudo systemctl start localllm-llm
     echo "Loading the model..."
-    wait_for "$LLAMA_URL/health" 300 || die "llama-server did not become ready."
+    wait_for "$LLAMA_URL/health" 300 || die "llama-server did not become ready. Logs: journalctl -u localllm-llm -e"
 fi
 echo "llama-server: $LLAMA_URL/v1"
