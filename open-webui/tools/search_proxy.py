@@ -94,6 +94,8 @@ class Tools:
         Once research takes several searches, call plan_research before searching further.
         :param query: The search keywords.
         """
+        if not query or not query.strip():
+            return "No search query provided. Please enter your search keywords."
         status = f"Searching: {query}"
         if __event_emitter__:
             await __event_emitter__({"type": "status", "data": {"description": status, "done": False}})
