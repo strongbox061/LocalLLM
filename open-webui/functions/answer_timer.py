@@ -79,7 +79,7 @@ class Filter:
         )
         if start is None:
             return body
-        elapsed = _fmt(max(0, time.time() - start))
+        elapsed = _fmt(time.time() - start)
         line = f"*⏱ Answered in {elapsed}*"
         if __event_emitter__:
             # Shown live in the chat: a status line above the reply, and the line added at its end.
