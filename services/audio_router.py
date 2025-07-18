@@ -1,14 +1,23 @@
 """
-audio_router.py: picks the Kokoro voice from the language of the text, so answers are read aloud in the right
+voice_router.py: picks the Kokoro voice from the language of the text, so answers are read aloud in the right
 language without switching voices by hand.
 
 Open WebUI sends its text-to-speech requests here (127.0.0.1:8881) instead of straight to Kokoro (8880):
-  - voice "auto" (or none): the language of each piece of text is detected with langdetect, and the
-    voice comes from VOICES below. Text too short reuses the language of the previous piece.
-  - any other voice: passed through unchanged.
-  - /v1/audio/voices: Kokoro's list with "auto" added first.
+  - voice "auto" (or none): the language of each piece of text (Open WebUI sends one sentence at a time) is
+    detected with langdetect, and the voice comes from VOICES below. Text too short to detect reliably
+    ("OK.", "7.3.4") reuses the language of the previous piece.
+  - any other voice: passed through unchanged, so a voice picked by hand still works.
+  - /v1/audio/voices: Kokoro's list with "auto" added first, so it appears in Open WebUI's voice picker.
   - everything else under /v1/ is forwarded to Kokoro unchanged.
 Each speech response carries an X-Voice-Router header: "<language> -> <voice>".
+
+Runs as the user service voice-router (services/voice-router.service), started and stopped with Kokoro by
+start/kokoro.sh and stop/kokoro.sh. Uses Open WebUI's Python, which has langdetect.
+
+Settings (environment variables, all optional):
+  VOICE_ROUTER_PORT   port to listen on        (default 8881)
+  KOKORO_URL          the Kokoro server        (default http://127.0.0.1:8880)
+  VOICE_ROUTER_DEBUG  1 to log every choice    (default 0)
 """
 
 import json
@@ -76,106 +85,86 @@ def forward(method: str, path: str, body: bytes | None, content_type: str | None
 
 
 class Handler(BaseHTTPRequestHandler):
-    """Handle Open WebUI TTS requests, resolve 'auto' voice, and forward to Kokoro."""
+    server_version = "voice-router/1.0"
 
-    def log_message(self, format, *args):
-        if DEBUG:
-            log(f"{self.client_address[0]} - {format % args}")
-
-    def _respond(self, status: int, headers: dict | None, body: bytes):
+    def _send(self, status: int, content_type: str, body: bytes, extra: dict | None = None):
         self.send_response(status)
-        if headers:
-            for key, value in headers.items():
-                if key.lower() not in ("transfer-encoding",):
-                    self.send_header(key, value)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        for k, v in (extra or {}).items():
+            self.send_header(k, v)
         self.end_headers()
         self.wfile.write(body)
 
-    def _get_voice(self, path: str, body: bytes | None) -> tuple[str, str, bytes | None]:
-        """Parse the request body to resolve voice, return (lang, resolved_voice, new_body)."""
-        if body is None:
-            return DEFAULT_LANG, VOICES[DEFAULT_LANG], None
+    def _json(self, status: int, data: dict):
+        self._send(status, "application/json", json.dumps(data).encode())
 
+    def _body(self) -> bytes:
+        length = int(self.headers.get("Content-Length") or 0)
+        return self.rfile.read(length) if length else b""
+
+    def log_message(self, fmt, *args):
+        if DEBUG:
+            log(fmt % args)
+
+    def _handle(self, method: str):
+        path = self.path.split("?", 1)[0].rstrip("/")
         try:
-            data = json.loads(body)
-        except (json.JSONDecodeError, ValueError):
-            return DEFAULT_LANG, VOICES[DEFAULT_LANG], body
+            if method == "GET" and path == "/health":
+                status, _, _ = forward("GET", "/health", None, None)
+                return self._json(200 if status == 200 else 503,
+                                  {"status": "ok" if status == 200 else "kokoro unavailable"})
+            if not path.startswith("/v1/"):
+                return self._json(404, {"error": "not found"})
 
-        voice = data.get("voice", "") or ""
-        text = data.get("text", "") or ""
+            body = self._body() if method == "POST" else None
+            if method == "GET" and path == "/v1/audio/voices":
+                status, ctype, raw = forward("GET", self.path, None, None)
+                if status == 200:
+                    data = json.loads(raw)
+                    data["voices"] = [{"id": AUTO, "name": f"{AUTO} (English / Spanish / French)"}] + [
+                        v for v in data.get("voices", []) if (v.get("id") if isinstance(v, dict) else v) != AUTO
+                    ]
+                    data["default_voice"] = AUTO
+                    return self._json(200, data)
+                return self._send(status, ctype, raw)
 
-        if voice == AUTO or not voice:
-            lang, resolved_voice = pick_language(text)
-            data["voice"] = resolved_voice
-            return lang, resolved_voice, json.dumps(data).encode()
+            extra = None
+            if method == "POST" and path == "/v1/audio/speech":
+                payload = json.loads(body or b"{}")
+                voice = str(payload.get("voice") or AUTO).strip()
+                if voice == AUTO:
+                    lang, how = pick_language(str(payload.get("input", "")))
+                    payload["voice"] = VOICES[lang]
+                    extra = {"X-Voice-Router": f"{lang} -> {payload['voice']}"}
+                    if DEBUG:
+                        log(f"{lang} ({how}) -> {payload['voice']}: {str(payload.get('input', ''))[:80]!r}")
+                else:
+                    extra = {"X-Voice-Router": f"as requested -> {voice}"}
+                body = json.dumps(payload).encode()
 
-        # Explicit voice — detect language for the header but don't change it.
-        lang, _ = pick_language(text)
-        return lang, voice, body
-
-    def _handle_v1(self, method: str, path: str):
-        """Handle /v1/* routes."""
-        content_length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(content_length) if content_length > 0 else None
-        content_type = self.headers.get("Content-Type")
-
-        # /v1/audio/voices — inject "auto" into Kokoro's voice list.
-        if path == "/v1/audio/voices":
-            status, headers, response_body = forward(method, path, body, content_type)
-            if status == 200 and response_body:
-                try:
-                    voices = json.loads(response_body)
-                    if isinstance(voices, list) and AUTO not in voices:
-                        voices.insert(0, AUTO)
-                    response_body = json.dumps(voices).encode()
-                except (json.JSONDecodeError, TypeError):
-                    pass
-            self._respond(status, headers, response_body)
-            return
-
-        # /v1/audio/speech — resolve "auto" voice, forward to Kokoro.
-        if path == "/v1/audio/speech":
-            lang, resolved_voice, new_body = self._get_voice(path, body)
-            status, headers, response_body = forward(method, path, new_body, content_type)
-            if status == 200:
-                headers["X-Voice-Router"] = f"{lang} -> {resolved_voice}"
-            self._respond(status, headers, response_body)
-            return
-
-        # All other /v1/* routes — forward as-is.
-        forward(method, path, body, content_type)
-
-    def _route(self, method: str):
-        path = self.path.split("?")[0]  # strip query string
-        if path.startswith("/v1/"):
-            self._handle_v1(method, path)
-        else:
-            self.send_response(404)
-            self.end_headers()
-            self.wfile.write(b"Not found")
+            status, ctype, raw = forward(method, self.path, body, self.headers.get("Content-Type"))
+            self._send(status, ctype, raw, extra)
+        except (URLError, ConnectionError, TimeoutError) as e:
+            self._json(502, {"error": f"Kokoro is not reachable at {KOKORO}: {e}"})
+        except Exception as e:  # keep serving; report the problem to Open WebUI
+            log(f"{method} {path} failed: {type(e).__name__}: {e}")
+            self._json(500, {"error": f"{type(e).__name__}: {e}"})
 
     def do_GET(self):
-        self._route("GET")
+        self._handle("GET")
 
     def do_POST(self):
-        self._route("POST")
-
-    def do_PUT(self):
-        self._route("PUT")
-
-    def do_DELETE(self):
-        self._route("DELETE")
+        self._handle("POST")
 
 
 def main():
-    """Start the voice router server."""
-    log(f"Starting voice router on port {PORT}, forwarding to {KOKORO}")
-    server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
+    server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    log(f"listening on http://127.0.0.1:{PORT}, forwarding to {KOKORO}; voices: {VOICES}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        log("Shutting down")
-        server.shutdown()
+        pass
 
 
 if __name__ == "__main__":
