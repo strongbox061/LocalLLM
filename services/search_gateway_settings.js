@@ -56,8 +56,9 @@ function applyFilter() {
 
 async function load() {
   const r = await fetch("/settings/data", { cache: "no-store" });
-  if (!r.ok) throw new Error(r.status);
-  render(await r.json());
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.error || r.status);
+  render(data);
 }
 
 async function save() {
@@ -95,4 +96,4 @@ form.addEventListener("input", () => {
 document.getElementById("filter").addEventListener("input", applyFilter);
 saveBtn.addEventListener("click", save);
 
-load();
+load().catch(e => { msg.className = "bad"; msg.textContent = "Couldn't load the settings: " + e; });
