@@ -39,6 +39,8 @@ def one_line(text: str, limit: int) -> str:
 
 
 def load(path: str) -> dict:
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"Session file not found: {path}")
     run = {"steps": [], "thinking": 0, "answer": "", "tools": Counter(), "blocked": 0, "errors": 0}
     for line in open(path, encoding="utf-8"):
         try:
