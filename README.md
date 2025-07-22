@@ -86,6 +86,27 @@ public: a Hugging Face login is optional (`hf auth login`, only for faster model
    (default=1)"): press Enter each time, the defaults are the right answer.
 7. **By hand:** log out and back in once, so the desktop picks up any new launchers/environment (such as Nix, if your
    `BROWSER_INSTALLER` uses it) and
+8. `./start.sh`: starts llama-server, Open WebUI, Kokoro and the search gateway.
+
+**After the scripts**
+
+9. Check Context7 (Pi's library docs). Its sign-in came back with the backup, so this only confirms it:
+    ```bash
+    install/pi-mcp.sh        # prints "Context7: signed in."
+    tests/context7-check.sh  # a real docs lookup through Pi (about a minute): ends with "Context7: ready"
+    ```
+    **By hand, only if it says "not signed in"** (the sign-in expired, or its key was lost): `pi`, then inside it `/mcp-auth context7`,
+    approve in the browser, `/quit`, and run the two commands again.
+10. Open Open WebUI (a rebuilt main PC is in single mode: http://127.0.0.1:3000; `./localllm.sh status` always shows
+    its address) and sign in with your usual account. The accounts, chats, settings, tools and functions, the search
+    services' API keys and the protected chats (their presets and Knowledge bases) all came back with the backup.
+    **Only if a protected chat's Knowledge base is empty:** `install/chat-types.sh --refresh-sources` downloads its
+    sources again (see "Protected chats").
+11. **By hand:** the passphrase file for new backups. The restored `~/.config/localllm/local.env` names where it goes
+    (`BACKUP_PASSPHRASE_FILE`), along with the archive folder, the rclone remote and how many archives to keep; put
+    the passphrase there, alone on one line, and `chmod 600` it.
+12. Turn on the scheduled backup: `rclone config` if you haven't yet (**by hand**: your storage's login), then
+    `install/backup-timer.sh --enable` (one test upload, then the timer is on; see "Automatic off-site backup").
 
 ## Starting and stopping
 
