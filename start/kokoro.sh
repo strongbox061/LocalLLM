@@ -23,19 +23,17 @@ log "Kokoro (text-to-speech)"
 if curl -fsS -m 2 -o /dev/null "$KOKORO_URL/health" 2>/dev/null; then
     echo "Already running."
 else
-    log "Starting Kokoro TTS server on ${KOKORO_HOST}:${KOKORO_PORT}..."
-    python3 -m kokoro_tts --port "$KOKORO_PORT" --host "$KOKORO_HOST" &
-    KOKORO_PID=$!
-    wait_for_service "$KOKORO_HOST" "$KOKORO_PORT" || { error "Kokoro TTS failed to start"; kill "$KOKORO_PID" 2>/dev/null; exit 1; }
+    kokoro_compose up -d
+    echo "Starting..."
+    wait_for "$KOKORO_URL/health" 90 || die "Kokoro did not become ready. Logs: docker logs kokoro"
 fi
 
 if curl -fsS -m 2 -o /dev/null "$VOICE_ROUTER_URL/health" 2>/dev/null; then
     echo "Voice router already running."
 else
-    log "Starting voice router on port ${ROUTER_PORT}..."
-    python3 -m voice_router --port "$ROUTER_PORT" --backend "$KOKORO_URL" &
-    ROUTER_PID=$!
-    wait_for_service localhost "$ROUTER_PORT" || { error "Voice router failed to start"; kill "$KOKORO_PID" "$ROUTER_PID" 2>/dev/null; exit 1; }
+    systemctl --user start voice-router
+    wait_for "$VOICE_ROUTER_URL/health" 30 \
+        || die "The voice router did not become ready. Logs: journalctl --user -u voice-router -e"
 fi
 
 echo "Kokoro: $KOKORO_URL (Open WebUI uses it through the voice router: $VOICE_ROUTER_URL)"
