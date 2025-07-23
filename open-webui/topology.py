@@ -11,7 +11,7 @@ read (Docling) and ranked (a reranker), and image generation (ComfyUI). Everythi
           (large-v3-turbo on the GPU), Docling, ComfyUI (a two-pass workflow, see hires_workflow), and the reranker
           from windows/versions.json (none: it doesn't fit on the helper's GPU).
 
-Usage: python layout.py <single|split> [--base-url URL]
+Usage: python topology.py <single|split> [--base-url URL]
 """
 
 import json
