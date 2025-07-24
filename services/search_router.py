@@ -1,5 +1,5 @@
 """
-search_router.py: version 3.0.0
+search_gateway.py: version 3.0.0
 Runs from this repo as the user service search-gateway (services/search-gateway.service, installed by
 install/search-gateway.sh with its own Python environment, started by start/search-gateway.sh).
 
@@ -222,7 +222,6 @@ def _as_searxng(query: str, results: list, used: str, problems: list) -> dict:
 
 async def search(params: dict) -> dict:
     query = " ".join(str(params.get("q", "")).split())
-
     if not query:
         return _as_searxng("", [], "", ["search-gateway: empty query"])
 
