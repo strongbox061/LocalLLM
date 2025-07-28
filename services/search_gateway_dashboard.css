@@ -88,7 +88,6 @@ a {
 
 .tile,
 .card {
-  min-width: 140px;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -199,6 +198,7 @@ a {
   align-items: center;
   justify-content: center;
 }
+
 .donut .hole b {
   font-size: 20px;
   font-weight: 650;
@@ -328,5 +328,3 @@ a {
   margin-right: 5px;
   vertical-align: -1px;
 }
-
-
