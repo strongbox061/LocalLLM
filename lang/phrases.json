@@ -202,6 +202,23 @@
       "current_info": ["senaste", "nyaste", "nyligen", "aktuell*", "för närvarande", "just nu", "idag", "i dag", "denna vecka", "den här veckan", "denna månad", "den här månaden", "i år", "pris på", "priser på", "vad kostar", "hur mycket kostar", "växelkurs", "erbjudanden"],
       "months": ["januari", "februari", "mars", "april", "maj", "juni", "juli", "augusti", "september", "oktober", "november", "december"],
       "bot_check": ["verifierar att du är en människa", "bekräfta att du är en människa", "kontrollerar din webbläsare", "åtkomst nekad", "ovanlig trafik", "ett ögonblick..."]
+    },
+    "no": {
+      "name": "Norwegian",
+      "please": ["vær så snill", "vennligst"],
+      "latest": ["nyeste", "siste versjon", "det siste", "siste nytt", "aktuell*", "nylig", "hva er nytt", "endringslogg", "versjonsmerknader", "nye funksjoner", "oppdatert"],
+      "error": ["feil", "feilen", "feilmelding", "unntak", "mislykk*", "krasjer", "krasjet", "krasj", "fungerer ikke", "virker ikke", "ødelagt", "fiks", "reparer"],
+      "action_start": ["søk", "finn", "åpne", "les gjennom", "gå til", "besøk", "last ned", "rediger", "sjekk"],
+      "question_start": ["hva", "hvorfor", "hvordan", "hvor", "når", "hvem", "hvilken", "hvilket", "hvilke", "finnes det", "kan du forklare"],
+      "local_current": ["gjeldende katalog*", "gjeldende mappe*", "nåværende katalog*", "nåværende mappe*", "gjeldende fil*", "nåværende fil*", "gjeldende gren*", "arbeidskatalog*"],
+      "named_engine": ["søk på {engine}", "søk med {engine}", "søk i {engine}", "søk via {engine}"],
+      "named_source": {"verbs": ["åpne", "finn", "sjekk"], "nouns": ["side", "siden", "artikel*", "dokumentasjon*", "docs", "readme", "hjemmeside*"], "phrases": ["ifølge", "modellkort"]},
+      "lookup": ["slå opp", "sjekk opp", "søk det opp", "ikke fra minnet", "ikke fra hukommelsen", "søk på nettet", "søk online"],
+      "offer": ["vil du", "ønsker du", "skal jeg", "gi meg beskjed", "si ifra", "si fra", "hvis du vil"],
+      "from_memory": ["generell kunnskap", "allmennkunnskap", "fra minnet", "fra hukommelsen", "jeg vet allerede", "uten nettsøk"],
+      "current_info": ["nyeste", "siste versjon", "siste nytt", "nylig", "aktuell*", "for øyeblikket", "akkurat nå", "i dag", "denne uken", "denne måneden", "i år", "pris på", "priser på", "hva koster", "hvor mye koster", "valutakurs", "tilbud på"],
+      "months": ["januar", "februar", "mars", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "desember"],
+      "bot_check": ["bekreft at du er et menneske", "verifiserer at du er et menneske", "sjekker nettleseren din", "tilgang nektet", "uvanlig trafikk", "et øyeblikk..."]
     }
   }
 }
