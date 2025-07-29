@@ -130,10 +130,8 @@ run_helper() {
 }
 
 require_split() {
-    if [[ "$LOCALLLM_MODE" != "split" ]]; then
-        echo "This command requires split mode (LOCALLLM_MODE=split in $ENV_FILE)" >&2
-        exit 1
-    fi
+    [[ "$LOCALLLM_MODE" == split ]] && return 0
+    die "This PC is in single mode (LOCALLLM_MODE in $LOCAL_ENV_FILE): there is no helper PC. README, \"Two-PC setup\"."
 }
 
 # In split mode the helper PC reaches the main PC's llama-server and SearXNG over Tailscale: `tailscale serve`
