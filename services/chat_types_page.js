@@ -42,7 +42,7 @@ async function load(selectId) {
 function drawList() {
   const list = $("list");
   list.replaceChildren();
-  if (!state.types.length) list.append(el("div", { class: "sub" }, "No chat types yet."));
+  if (!state || !state.types.length) list.append(el("div", { class: "sub" }, "No chat types yet."));
   for (const t of state.types) {
     const pills = [];
     if (t.problems.length) pills.push(el("span", { class: "pill bad" }, "file has problems"));
