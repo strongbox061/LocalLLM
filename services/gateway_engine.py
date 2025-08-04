@@ -71,6 +71,14 @@ GOOGLE_TBS = {"day": "qdr:d", "week": "qdr:w", "month": "qdr:m", "year": "qdr:y"
 # return instead of the page's address. Google answers them with a 302 to the real page.
 GOOGLE_GOTO_RE = re.compile(r"^(?:https?://(?:www\.)?google\.[a-z.]+)?/goto\?url=", re.I)
 
+BROWSER_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
+
+# Services added in 0.14.0 that share one counting scheme: a free monthly allowance in "units"
+# (dollars, credits or searches) and a known cost per search in the same unit.
+SIMPLE = {
+    "linkup": {"name": "Linkup", "unit": "$", "cost": 0.005, "free": 20.0},
+}
+
 
 class SearchResult(BaseModel):
     """A single search result."""
