@@ -62,7 +62,7 @@ async function load() {
 }
 
 async function save() {
-  const values = {};
+  const values = {}, clear = [];
   for (const f of fields) {
     const input = document.getElementById("f-" + f.name);
     if (f.type === "bool") values[f.name] = input.checked;
@@ -70,16 +70,18 @@ async function save() {
     else if (f.type === "int" || f.type === "float") values[f.name] = input.value === "" ? f.default : Number(input.value);
     else values[f.name] = input.value;
   }
+  for (const cb of form.querySelectorAll("input[data-clear]")) if (cb.checked) clear.push(cb.dataset.clear);
   saveBtn.disabled = true;
-  try {
-    const res = await fetch("/settings/save", { method: "POST", headers: { "Content-Type": "application/json" },
-                                               body: JSON.stringify(values) });
-    if (!res.ok) throw new Error(res.status);
-    msg.textContent = "Saved";
+  const r = await fetch("/settings/save", { method: "POST", headers: { "Content-Type": "application/json" },
+                                             body: JSON.stringify({ values, clear }) });
+  const data = await r.json().catch(() => ({}));
+  if (r.ok) {
     msg.className = "ok";
-  } catch (e) {
-    msg.textContent = "Save failed: " + e.message;
+    msg.textContent = data.changed && data.changed.length ? "Saved: " + data.changed.join(", ") : "Saved (nothing changed)";
+    await load();
+  } else {
     msg.className = "bad";
+    msg.textContent = (data.problems || [data.error || ("HTTP " + r.status)]).join("\n");
     saveBtn.disabled = false;
   }
 }
