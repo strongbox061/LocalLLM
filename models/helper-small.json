@@ -1,0 +1,6 @@
+{
+  "url": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+  "file": "Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+  "alias": "helper-small",
+  "ctx": 4096
+}
