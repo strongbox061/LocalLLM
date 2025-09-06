@@ -1,6 +1,8 @@
 ---
-description: Worker implements code, then a reviewer checks it
+description: Worker implements code, reviewer reviews, worker applies changes
 ---
-When implementing a task that benefits from review, use the subagent tool with the chain parameter to run both agents in sequence.
+Use the subagent tool with the chain parameter for this workflow:
 
-First, send the task to the worker agent to produce an implementation. Then pass the result to the reviewer agent for feedback. The worker can iterate on the changes if needed.
+1. First, the "worker" agent implements: $@
+2. Then, the "reviewer" agent reviews that implementation (use the {previous} placeholder)
+3. Finally, the "worker" agent applies the review's findings (use the {previous} placeholder)
