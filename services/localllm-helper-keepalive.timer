@@ -1,0 +1,11 @@
+# Run the keepalive service periodically
+
+[Unit]
+Description=Helper PC keepalive timer
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=60s
+
+[Install]
+WantedBy=timers.target
