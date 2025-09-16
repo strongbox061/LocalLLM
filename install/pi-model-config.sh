@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# Writes the llama.cpp provider into Pi's models.json: sized from the active model profile (lib/model.sh), served under
+# the alias "local". A models.json put back by restore.sh keeps everything else; only the llamacpp provider is
+# rewritten. In split mode (LOCALLLM_MODE in local.env) llama-server asks for an API key, since the helper PC reaches
+# it over Tailscale: Pi gets the key from ~/.config/localllm/llama-api-key (then models.json is made yours only).
+# Run by install/pi.sh and by ./localllm.sh switch.
+
+set -euo pipefail
+
+MODELS_JSON="$PI_AGENT_DIR/models.json"
+MODEL_ALIAS="local"
+MODEL_NAME="${MODEL_NAME:-Qwen3-30B-A3B-Instruct-2507}"
+CTX_PER_SLOT=128
+MAX_TOKENS=4096
+
+# Load model profile if available
+if [[ -f "${PI_AGENT_DIR}/lib/model.sh" ]]; then
+    source "${PI_AGENT_DIR}/lib/model.sh"
+fi
+
+CONTEXT=$((CTX_PER_SLOT - MAX_TOKENS))
+
+# Read API key for split mode
+API_KEY=""
+if [[ -n "${LOCALLLM_MODE:-}" ]] && [[ -f "$HOME/.config/localllm/llama-api-key" ]]; then
+    API_KEY="$(cat "$HOME/.config/localllm/llama-api-key")"
+fi
+
+# Generate models.json using embedded Python
+MODEL_ID="$MODEL_ALIAS" MODEL_NAME="$MODEL_NAME" CONTEXT="$CONTEXT" MAX_TOKENS="$MAX_TOKENS" \
+API_KEY="$API_KEY" python3 -c '
+import json, os, sys
+
+model_id = os.environ["MODEL_ID"]
+model_name = os.environ["MODEL_NAME"]
+context = int(os.environ["CONTEXT"])
+max_tokens = int(os.environ["MAX_TOKENS"])
+api_key = os.environ.get("API_KEY", "")
+
+models_json_path = os.environ.get("MODELS_JSON", os.path.expanduser("~/.config/pi/models.json"))
+
+# Load existing models.json if it exists
+if os.path.exists(models_json_path):
+    with open(models_json_path, "r") as f:
+        config = json.load(f)
+else:
+    config = {"providers": []}
+
+# Build the llamacpp provider entry
+provider = {
+    "name": "llamacpp",
+    "model_id": model_id,
+    "context_length": context,
+    "max_tokens": max_tokens
+}
+
+if api_key:
+    provider["api_key"] = api_key
+
+# Replace or add the llamacpp provider
+providers = config.get("providers", [])
+found = False
+for i, p in enumerate(providers):
+    if p.get("name") == "llamacpp":
+        providers[i] = provider
+        found = True
+        break
+if not found:
+    providers.append(provider)
+
+config["providers"] = providers
+
+# Write back
+with open(models_json_path, "w") as f:
+    json.dump(config, f, indent=2)
+    f.write("\n")
+
+print(f"Updated {models_json_path}: llamacpp provider for {model_name} (ctx={context}, max_tokens={max_tokens})")
+'
