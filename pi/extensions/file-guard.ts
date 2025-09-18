@@ -1,5 +1,5 @@
-// edit-guard.ts
-// Location: ~/.pi/agent/extensions/edit-guard.ts
+// file-guard.ts
+// Location: ~/.pi/agent/extensions/file-guard.ts
 //
 // Pi may only change files when your latest message asks for a change.
 // Otherwise `edit`, `write`, and file-changing bash commands are blocked,
@@ -70,12 +70,12 @@ export function personText(text: string): string {
 
 export default function (pi: any) {
   const homeDir = os.homedir();
-  const extensionPath = path.join(homeDir, ".pi", "agent", "extensions", "edit-guard.ts");
+  const extensionPath = path.join(homeDir, ".pi", "agent", "extensions", "file-guard.ts");
   
   // Check if the guard file exists
   if (!fs.existsSync(extensionPath)) {
     if (DEBUG) {
-      console.log("write-guard: guard file not found at", extensionPath);
+      console.log("file-guard: guard file not found at", extensionPath);
     }
     return;
   }
@@ -116,6 +116,6 @@ export default function (pi: any) {
   }
   
   if (DEBUG) {
-    console.log("write-guard: extension loaded from", extensionPath);
+    console.log("file-guard: extension loaded from", extensionPath);
   }
 }
