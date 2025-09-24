@@ -1,0 +1,23 @@
+[
+  {"id": "A1", "folder": "empty", "prompt": "How do I fix \"error: failed to commit transaction (invalid or corrupted package)\" with pacman?",
+   "expect": "web_search with site:wiki.archlinux.org; the fix comes from a page it opened"},
+  {"id": "A2", "folder": "empty", "prompt": "How do I cancel a fetch() request in JavaScript?",
+   "expect": "site:developer.mozilla.org; the answer mentions AbortController"},
+  {"id": "A3", "folder": "empty", "prompt": "What does rsync's --partial flag do?",
+   "expect": "site:man.archlinux.org; the answer comes from the man page text"},
+  {"id": "A4", "folder": "empty", "prompt": "Is there an official Docker image for Ollama?",
+   "expect": "site:hub.docker.com; names ollama/ollama"},
+  {"id": "A5", "folder": "empty", "prompt": "What's the latest version of the httpx Python package?",
+   "expect": "site:pypi.org, then opens the PyPI page and gives the version from it"},
+  {"id": "A6", "folder": "empty", "prompt": "Find recent papers on speculative decoding for LLMs.",
+   "expect": "lists papers, mostly with arXiv links; titles and dates as the results give them"},
+  {"id": "A7", "folder": "empty", "prompt": "Who developed the Mamba state space model architecture?",
+   "expect": "site:wikipedia.org or no filter; names Albert Gu and Tri Dao"},
+
+  {"id": "B1", "folder": "empty", "prompt": "Summarize https://docs.python.org/3/whatsnew/3.13.html",
+   "expect": "open, get text body, then reads the saved .txt in chunks; no snapshot"},
+  {"id": "B3", "folder": "empty", "prompt": "On https://wiki.archlinux.org/title/Pacman, what does the -Syu option do?",
+   "expect": "opens the page; grep on the saved .txt instead of reading it all"},
+  {"id": "B4", "folder": "empty", "prompt": "Read https://huggingface.co/Qwen/this-model-does-not-exist and tell me what's there.",
+   "expect": "open fails or shows placeholder; the agent reports the page doesn't exist"}
+]
