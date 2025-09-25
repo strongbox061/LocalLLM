@@ -1,5 +1,5 @@
 ---
-description: Worker implements code, reviewer reviews, worker applies changes
+description: Worker implements, reviewer reviews, worker applies changes
 ---
 Use the subagent tool with the chain parameter for this workflow:
 
