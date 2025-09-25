@@ -85,34 +85,15 @@ function lastUserIndex(messages: any[], person = ""): number {
 }
 
 export function clearTask(text: string): string | undefined {
-  const t = text.trim();
-  if (!t) return undefined;
-
-  // Long messages are likely tasks
-  const wordCount = t.split(/\s+/).length;
-  if (wordCount > MAX_QUICK_WORDS) return "long message";
-
-  // Explicit think prefix
-  if (THINK_PREFIX_RE.test(t)) return "think: prefix";
-
-  // URLs, code, file paths
-  if (/https?:\/\//.test(t)) return "url detected";
-  if (/\.(ts|js|py|md|json|yaml|yml|toml|sh|bash|rs|go|java|cpp|c|h)\b/.test(t)) return "file reference";
-  if (t.includes("```") || t.includes("code")) return "code block";
-
-  // Action verbs
-  const actionWords = ["search", "open", "read", "edit", "write", "run", "check", "find", "look"];
-  const lower = t.toLowerCase();
-  for (const w of actionWords) {
-    if (new RegExp(`^\\s*${w}\\b`).test(lower)) return `action: ${w}`;
-  }
-
-  // Error or debugging context
-  if (ERROR.test(t)) return "error context";
-
-  // Question about current state / live info
-  if (/current|latest|recent|now|today|status|working|running/.test(lower)) return "live info request";
-
+  if (THINK_PREFIX_RE.test(text)) return "asked to think";
+  if (/https?:\/\/|www\./i.test(text)) return "has a URL";
+  if (LATEST.test(norm(text).replace(LOCAL_CURRENT, ""))) return "needs current information";
+  if (has(ERROR, text)) return "about an error";
+  if (has(ACTION_START, text)) return "starts with an action";
+  if (/```|`[^`]+`/.test(text)) return "has code";
+  if (/[\w-]+\.(py|ts|js|json|md|ya?ml|toml|sh|rs|go|c|cpp|h|txt|csv)\b/i.test(text)) return "mentions a file";
+  const words = text.split(/\s+/).filter(Boolean).length;
+  if (words > MAX_QUICK_WORDS) return `${words} words`;
   return undefined;
 }
 

@@ -23,7 +23,20 @@ export interface AgentDiscoveryResult {
 	projectAgentsDir: string | null;
 }
 
-type AgentFrontmatter = Record<string, unknown>;
+/**
+ * Raw agent frontmatter. Values are `unknown` because `parseFrontmatter` runs a
+ * real YAML parser, so any scalar or collection can appear here.
+ *
+ * A type alias rather than an interface: `parseFrontmatter` constrains its
+ * parameter to `Record<string, unknown>`, and only an alias picks up the
+ * implicit index signature that satisfies it.
+ */
+type AgentFrontmatter = {
+	name?: unknown;
+	description?: unknown;
+	tools?: unknown;
+	model?: unknown;
+};
 
 function parseToolList(value: unknown): string[] | undefined {
 	const raw = Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : [];
@@ -81,11 +94,11 @@ function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig
 }
 
 function isDirectory(p: string): boolean {
-  try {
-    return fs.statSync(p).isDirectory();
-  } catch {
-    return false;
-  }
+	try {
+		return fs.statSync(p).isDirectory();
+	} catch {
+		return false;
+	}
 }
 
 function findNearestProjectAgentsDir(cwd: string): string | null {
