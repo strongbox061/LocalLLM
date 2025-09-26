@@ -14,37 +14,76 @@ Steps: know the URL? Read it with agent_browser. Otherwise web_search first.
 
 For how to use a library or API, prefer Context7 (docs for one version) and GitMCP (a
 GitHub project's current docs) over web_search.
-In a project, first find the version it uses from its dependency manifest. Then:
+In a project, first find the version it uses (package.json, *.csproj, pom.xml,
+build.gradle, pyproject.toml, requirements.txt). Then:
 - Pinned version: Context7 with that version's ID, then GitMCP, then web_search.
 - Latest docs or no project: GitMCP or the official llms.txt, then Context7.
 - Releases, changelogs: the releases page or web_search, not Context7.
+- Errors, how-tos, and web platform APIs (fetch, DOM, CSS): web_search with the table below.
 
 ## Searching
 
-web_search is the only way to search. Add the site: filter when the question fits a specific domain.
+web_search is the only way to search. Add the site: filter from this table when the
+question fits a row:
+
+| Looking for | Example query |
+|---|---|
+| Docs on a known site | `context length site:huggingface.co` |
+| Programming errors, how-tos | `selector not found site:stackoverflow.com` |
+| Arch Linux problems | `pacman keyring error site:wiki.archlinux.org` |
+| Web APIs, JS, CSS, HTML (fetch, DOM...) | `fetch abort signal site:developer.mozilla.org` |
+| CLI flags, man pages | `rsync man page site:man.archlinux.org` |
+| Docker images | `ollama site:hub.docker.com` |
+| Research papers | `speculative decoding site:arxiv.org` |
+| Definitions, people, places | `gated deltanet site:wikipedia.org` |
 
 ## agent_browser
 
-- Read a page: open the URL, then get the body text.
-- Interact (click, fill): take an interactive snapshot, then use the @ref selectors shown.
-- To find a link by text, evaluate JavaScript to extract matching links from the page.
+- Read a page: `await tools.agent_browser({ args: ["open", url] })` then `await tools.agent_browser({ args: ["get", "text", "body"] })`. Do NOT snapshot to read, and
+  don't use eval, screenshot or scroll for text.
+- Interact (click, fill): `["snapshot","-i"]`, then use its @eN refs. Don't use "find".
+- To find a link by its text (e.g. "blog"), don't search snapshots. Use exactly:
+  `await tools.agent_browser({ args: ["eval", "--stdin"], stdin: "[...document.links].filter(a=>/blog/i.test(a.textContent+' '+a.href)).slice(0,20).map(a=>a.textContent.trim().slice(0,80)+' -> '+a.href).join(' | ')" })`
+  (replace blog with your keyword), then `["open", <the URL>]`. Don't click links.
+- Click fails because something "covers" it (cookie banner, header): snapshot -i, click
+  its Accept/Close, retry once.
+- "open" timed out, or the page is "unverified": run ["get","url"]. Same page? Continue.
+  Another one? Retry "open" once.
+- "Full page text (N lines): <path>.txt" means that file IS the page: read it (offset/limit
+  300 at a time) or grep it. Don't fetch the page again.
+- Searching on Google Scholar (`scholar.google.com`): open `https://scholar.google.com/` first
+  (don't jump straight to `/scholar?q=...`), then `["snapshot","-i"]`, `["fill","@eN","<query>"]`,
+  `["press","Enter"]`, and `["get","text","body"]`.
+
+To find an issue or pull request in a GitHub repo:
+  `["open", "https://github.com/OWNER/REPO/issues?q=<keywords with + between them>"]`
+then `["get","text","body"]`. Results include pull requests. Search with one or two words
+for the problem itself (orphan, zombie, leak, hang...), not a phrase. Answer with the item
+whose title describes the problem asked about; a related fix is not it, so keep looking.
+Read the one you cite before naming it, and quote its title and number from that page.
 
 ## Editing files
 
-- Before an edit, read the lines you'll change and copy the old text.
-- Never retype old text from memory.
-- Old text should match exactly and uniquely in the file.
-- At most 3 edits per call; merge nearby changes when they affect the same block.
+- Before an edit, read the lines you'll change (`tools.read`) and copy the old text from that output.
+  Never retype it from memory.
+- Old text: only the lines that change, plus one unchanged line if needed to be unique.
+- At most 3 edits per `tools.edit` call.
 
 ## codemode
 
-When I ask for codemode, do the task in codemode scripts rather than separate bash or read calls.
-Scripts have no Node builtins — use the tools API instead: `(await tools.bash({ command: "ls -la" })).output`.
+All tool calls run inside `codemode` scripts via `await tools.<name>({ ... })`.
+Scripts run in QuickJS with no Node APIs: no require, import, fs, child_process, process or fetch.
+Call the tools instead:
+`(await tools.bash({ command: "ls -la" })).output`, `await tools.read({ path, limit: 10 })`, `await tools.edit({ ... })`.
 
 ## Todo list
 
-When a task changes more than one file, or ends with running tests, your first tool call
-is todo: add each stage, then do them in order and toggle each one when its work is done.
+When a task changes more than one file, or ends with running tests, start with `tools.todo`:
+add each stage (one add per stage), then do them in order and toggle each one only after
+its work is done (a test stage only after the tests ran and passed). Before your final
+answer, list and check every item is done. For a rename, before the final answer grep the
+project for the old name (as a word, in code, tests and docs) and change what's left,
+parameter names included.
 Before your final answer, list and check every item is done.
 
 ## Subagents
