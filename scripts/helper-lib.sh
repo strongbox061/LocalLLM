@@ -10,28 +10,20 @@ HELPER_WIN='C:\ProgramData\LocalLLM\repo\windows'
 DEPLOY_PATHS=(windows services open-webui models/helper-small.json config/services.json)
 DEPLOY_EXCLUDE='^windows/bootstrap|\.service$|\.timer$|^services/(kokoro|searxng)/|^services/(llm-server|open-webui)\.sh$|__pycache__'
 
-# --- helper.env (config/helper.example.env): the helper's own values, kept on the main PC (and in the backup). ---
-HELPER_ENV_FILE='config/helper.env'
-
+# helper.env (config/helper.example.env): the helper's own values, kept on the main PC (and in the backup).
 load_helper_env() {
-  if [[ -f "$HELPER_ENV_FILE" ]]; then
-    while IFS='=' read -r key value; do
-      key="${key%%#*}"
-      key="$(echo "$key" | xargs)"
-      [[ -z "$key" || "$key" == \#* ]] && continue
-      value="$(echo "$value" | sed 's/^"\(.*\)"$/\1/')"
-      export "HELPER_${key}"="$value"
-    done < "$HELPER_ENV_FILE"
-  fi
+    if [[ ! -f "$HELPER_ENV_FILE" ]]; then
+        mkdir -p "$(dirname -- "$HELPER_ENV_FILE")"
+        (umask 077 && cp "$REPO_DIR/config/helper.example.env" "$HELPER_ENV_FILE")
+        echo "Made $HELPER_ENV_FILE from config/helper.example.env."
+    fi
+    # shellcheck source=/dev/null
+    source "$HELPER_ENV_FILE"
 }
 
+# set_helper_env <NAME> <value>: like set_local_env, in helper.env.
 set_helper_env() {
-  local name="$1" value="$2"
-  if grep -q "^${name}=" "$HELPER_ENV_FILE" 2>/dev/null; then
-    sed -i "s|^${name}=.*|${name}=${value}|" "$HELPER_ENV_FILE"
-  else
-    echo "${name}=${value}" >> "$HELPER_ENV_FILE"
-  fi
+    LOCAL_ENV_FILE="$HELPER_ENV_FILE" set_local_env "$@"
 }
 
 # --- helper_task <task> [arguments]: windows\tasks.ps1 on the helper ---
