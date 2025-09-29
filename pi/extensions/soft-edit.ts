@@ -1,5 +1,5 @@
-// edit-fuzzy.ts
-// Location: ~/.pi/agent/extensions/edit-fuzzy.ts
+// soft-edit.ts
+// Location: ~/.pi/agent/extensions/soft-edit.ts
 //
 // Pi's `edit` tool replaces text only if `oldText` matches the file exactly.
 // The model often retypes the old text with small differences. This extension checks
