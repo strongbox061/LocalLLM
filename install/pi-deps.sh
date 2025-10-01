@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # install/pi-deps.sh — Install Node.js dependencies for Pi agent extensions and tools.
-# Dependencies are split into two tiers:
-#   install/pi-deps.sh              basic deps (extensions, search-gateway)
+# The search-gateway extension (pi/extensions/search-gateway.ts) handles web searching directly,
+# so no separate search package is installed. Dependencies are split into two tiers:
+#   install/pi-deps.sh              basic deps (extensions, metrics, themes)
 #   install/pi-packages.sh          only what is missing
 #   install/pi-packages.sh --update also update the installed packages
 
@@ -16,12 +17,17 @@ RETIRED_PACKAGES=(npm:pi-search-hub)
 
 # Default packages installed when no settings.json override exists.
 DEFAULT_PACKAGES=(
-  pi/extensions/code-finder
-  pi/extensions/planner
-  pi/extensions/name-guard
-  pi/extensions/subagent
-  pi/extensions/fuzzy-edit
-  pi/extensions/search-gateway
+    npm:pi-sandbox
+    npm:pi-metrics
+    npm:pi-tool-repair
+    npm:pi-mcp-adapter
+    npm:awesome-pi-themes
+    npm:pi-ui-extension
+    npm:pi-clear-screen
+    npm:pi-codemode-compact
+    # npm:billion-context
+    npm:modern-web-guidance
+    npm:pi-simplify
 )
 
 # Resolved package list: settings.json decides which packages to install; otherwise the default list.
