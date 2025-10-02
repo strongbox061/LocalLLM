@@ -1,0 +1,29 @@
+{
+  "settings": {
+    "namespaceProxyTools": false,
+    "allowInstall": false,
+    "allowScriptToolSave": false,
+    "notifyOnStartupConnect": false,
+    "disableProxyTool": true,
+    "oauthCredentialStore": "encrypted-file"
+  },
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@earendil-works/mcp-context7"],
+      "env": {
+        "CONTEXT7_OAUTH_FLOW": "true",
+        "CREDENTIAL_STORE_PATH": "~/.pi/mcp-oauth/credentials.json"
+      }
+    }
+  },
+  "toolGroups": {
+    "context7": ["docs", "gitmcp", "web-search"]
+  },
+  "defaults": {
+    "maxToolCalls": 10,
+    "timeoutMs": 30000,
+    "retryOnFailure": true,
+    "maxRetries": 2
+  }
+}
