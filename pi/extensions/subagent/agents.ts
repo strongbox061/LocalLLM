@@ -43,7 +43,8 @@ function parseToolList(value: unknown): string[] | undefined {
 	const tools = raw
 		.filter((t): t is string => typeof t === "string")
 		.map((t) => t.trim())
-		.filter(Boolean);
+		.filter(Boolean)
+		.filter((name) => /^[a-z0-9_-]+$/.test(name)); // reject names with spaces, slashes, or other chars that break tool resolution
 	return tools.length > 0 ? tools : undefined;
 }
 

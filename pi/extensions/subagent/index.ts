@@ -4,6 +4,30 @@
 // The `subagent` tool: runs a task in a separate `pi -p` process with its own clean context, so only the answer
 // comes back into this conversation. Agents are pi/agents/*.md (installed to ~/.pi/agent/agents), workflows
 // pi/prompts/*.md (/implement, /find-and-plan, /implement-and-review).
+//
+// Pi's example (examples/extensions/subagent/index.ts in the Pi install), with these changes, each marked "LocalLLM:":
+//   - Subagents at once: SUBAGENTS_AT_ONCE in local.env (model.json "subagentsAtOnce", 1 = one after another, at
+//     most llama-server's slots), counted over the whole session, not per call: separate calls wait in one queue.
+//     A call may hold up to 8 tasks (Pi's example), they queue too. SUBAGENTS_MAX (model.json "subagentsMax", 8
+//     without it) is the most one message of yours may start; a call that would go over it is refused. Each child is pinned to a free slot
+//     (LOCALLLM_SLOT, read by thinking-switch.ts), the last slot first, so this session's cache in slot 0 stays.
+//   - Edit permission follows YOUR latest message, not the task text the model wrote: it is passed to the child in
+//     LOCALLLM_PERSON_MESSAGE, which edit-guard.ts uses there.
+//   - A child's answer is capped at 12 KB (about 3,000 tokens) instead of 50 KB, for the small main context.
+
+/**
+ * Subagent Tool - Delegate tasks to specialized agents
+ *
+ * Spawns a separate `pi` process for each subagent invocation,
+ * giving it an isolated context window.
+ *
+ * Supports three modes:
+ *   - Single: { agent: "name", task: "..." }
+ *   - Parallel: { tasks: [{ agent: "name", task: "..." }, ...] }
+ *   - Chain: { chain: [{ agent: "name", task: "... {previous} ..." }, ...] }
+ *
+ * Uses JSON mode to capture structured output from subagents.
+ */
 
 import { spawn } from "node:child_process";
 import * as fs from "node:fs";
@@ -12,22 +36,31 @@ import * as path from "node:path";
 import type { AgentToolResult, ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { Message } from "@earendil-works/pi-ai";
 import { StringEnum } from "@earendil-works/pi-ai";
+import {
+	CONFIG_DIR_NAME,
+	DEFAULT_MAX_BYTES,
+	DEFAULT_MAX_LINES,
+	type ExtensionAPI,
+	formatReadLineRange,
+	getAgentDir,
+	getMarkdownTheme,
+	type JsonAgentSessionEvent,
+	truncateHead,
+	withFileMutationQueue,
+} from "@earendil-works/pi-coding-agent";
 import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { type AgentConfig, type AgentScope, discoverAgents } from "./agents.ts";
 import { personText } from "../edit-guard.ts";
 
-/** Read the number of slots from a local.llm model.json file. */
-export function modelSlots(
-  file = process.env.LOCALLLM_MODEL_JSON || path.join(os.homedir(), ".config/localllm/model.json"),
-): number {
-  try {
-    const raw = fs.readFileSync(file, "utf-8");
-    const cfg = JSON.parse(raw) as Record<string, unknown>;
-    const n = Number(cfg.gpu_layers ?? cfg.n_gpu_layers ?? cfg.layers ?? cfg.n_layers);
-    if (Number.isFinite(n) && n > 0) return Math.min(n, 128);
-  } catch { /* fall through */ }
-  return 4; // conservative default
+// LocalLLM: llama-server's slots, from the model profile (lib/model.sh writes model.json).
+export function modelSlots(file = process.env.LOCALLLM_MODEL_JSON || path.join(os.homedir(), ".config/localllm/model.json")): number {
+	try {
+		const n = Number(JSON.parse(fs.readFileSync(file, "utf8")).slots);
+		return Number.isInteger(n) && n >= 1 ? n : 2;
+	} catch {
+		return 2;
+	}
 }
 
 const SLOTS = modelSlots();
