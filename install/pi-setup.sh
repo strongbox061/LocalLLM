@@ -13,44 +13,53 @@ PI_SOURCE_DIR="$REPO_DIR/pi"
 # --- Key declarations / sections / selectors (bodies omitted for v1) ---
 
 # --- extensions: single-file extensions (.ts/.js) and extension directories ---
+mkdir -p "$PI_AGENT_DIR/extensions"
+for item in "$PI_SOURCE_DIR/extensions"/*; do
+    [[ -e "$item" ]] || continue
+    if [[ -d "$item" ]] || [[ "$item" == *.ts ]] || [[ "$item" == *.js ]]; then
+        target="$PI_AGENT_DIR/extensions/$(basename -- "$item")"
+        if [[ -e "$target" ]] && diff -rq "$item" "$target" >/dev/null 2>&1; then
+            echo "Same: extensions/$(basename -- "$item")"
+        else
+            cp -a "$item" "$PI_AGENT_DIR/extensions/"
+            echo "Copied: extensions/$(basename -- "$item")"
+        fi
+    fi
+done
+
 # --- single files: keep the existing one as a backup if it differs ---
 copy_file() {    # copy_file <name in pi/ and in ~/.pi/agent>
-  local name="$1"
-  local src="$PI_SOURCE_DIR/extensions/$name"
-  local dst="$PI_AGENT_DIR/$name"
-
-  if [[ ! -f "$src" ]]; then
-    log_warn "Missing extension source: $src"
-    return 0
-  fi
-
-  if [[ -f "$dst" ]] && cmp -s "$src" "$dst"; then
-    return 0
-  fi
-
-  if [[ -f "$dst" ]]; then
-    cp --backup=t "$dst" "${dst}.bak"
-    log_info "Backed up $dst"
-  fi
-
-  cp "$src" "$dst"
-  log_info "Installed extension: $name"
+    local source_file="$PI_SOURCE_DIR/$1" target_file="$PI_AGENT_DIR/$1" backup
+    [[ -f "$source_file" ]] || die "Not found: $source_file"
+    if [[ -f "$target_file" ]] && cmp -s "$source_file" "$target_file"; then
+        echo "Same: $1"
+        return 0
+    fi
+    if [[ -f "$target_file" ]]; then
+        backup="$target_file.bak.$(date +%Y%m%d-%H%M%S)"
+        cp -a "$target_file" "$backup"
+        echo "Backed up existing file to: $backup"
+    fi
+    cp -a "$source_file" "$target_file"
+    echo "Copied: $1"
 }
+
+copy_file AGENTS.md
 
 # --- subagents (extensions/subagent) and the workflows that use them (/implement...): one .md file each ---
+for dir in agents prompts; do
+    mkdir -p "$PI_AGENT_DIR/$dir"
+    for item in "$PI_SOURCE_DIR/$dir"/*.md; do
+        [[ -f "$item" ]] && copy_file "$dir/$(basename -- "$item")"
+    done
+done
 # Renamed since: the old copies would still be loaded (two web_search tools) or offered to the model.
-
-install_subagent_files() {
-  local name="$1"
-  local src="$PI_SOURCE_DIR/workflows/$name.md"
-  local dst="$PI_AGENT_DIR/prompts/$name.md"
-
-  [[ -f "$src" ]] || return 0
-  [[ -f "$dst" ]] && cmp -s "$src" "$dst" && return 0
-
-  cp "$src" "$dst"
-  log_info "Installed workflow prompt: $name.md"
-}
+for old in agents/scout.md prompts/scout-and-plan.md extensions/local-web-research.ts; do
+    if [[ -f "$PI_AGENT_DIR/$old" ]]; then
+        rm -- "$PI_AGENT_DIR/$old"
+        echo "Removed (renamed): $old"
+    fi
+done
 
 # --- compaction in settings.json: only these keys are set, the rest of the file is kept ---
 # When a session's context gets full, Pi summarizes the older part instead of stopping. Sized from the model profile:
@@ -139,27 +148,9 @@ install_skill() {
 main() {
   log_info "Setting up Pi agent from $PI_SOURCE_DIR"
 
-  # Install single-file extensions
-  for ext in "$PI_SOURCE_DIR"/extensions/*.ts "$PI_SOURCE_DIR"/extensions/*.js; do
-    [[ -f "$ext" ]] || continue
-    copy_file "$(basename "$ext")"
-  done
 
-  # Install extension directories
-  for dir in "$PI_SOURCE_DIR"/extensions/*/; do
-    [[ -d "$dir" ]] || continue
-    local dirname
-    dirname="$(basename "$dir")"
-    log_info "Extension directory: $dirname (skipped for now)"
-  done
 
-  # Install workflow prompts
-  if [[ -d "$PI_SOURCE_DIR/workflows" ]]; then
-    for wf in "$PI_SOURCE_DIR"/workflows/*.md; do
-      [[ -f "$wf" ]] || continue
-      install_subagent_files "$(basename "$wf" .md)"
-    done
-  fi
+
 
   # Configure compaction
   log_info "Configuring context compaction"
