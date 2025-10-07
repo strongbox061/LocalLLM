@@ -9,7 +9,12 @@
 //  - a file that exists: next to the edited file, under the working directory, or with that name anywhere in the
 //    project (git ls-files, tracked or untracked);
 //  - the file being written;
-//  - a name from your messages or from a tool result in this session.
+//  - a name from your messages or from a tool result in this session (a file the model listed, read or searched);
+//  - a name the model proposed in its last answer, when you replied just "yes" / "ok" / "go ahead".
+// Otherwise the change is blocked and the model is told to use a real name or ask you what to call the file.
+//
+// Code files are not checked: code that creates new files by name is normal. Nor is PLAN.md: a plan proposes
+// files that don't exist yet (code, config, logs, docs) and goes to you for review before anything is built.
 
 import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
@@ -42,8 +47,8 @@ function textOf(content: any): string {
 }
 
 function resolvePath(p: string, base: string): string {
-  if (p.startsWith("/")) return p;
-  return path.resolve(base, p);
+  if (p.startsWith("~/")) return path.join(os.homedir(), p.slice(2));
+  return path.isAbsolute(p) ? p : path.join(base, p);
 }
 
 // Base names of the project's files (tracked and untracked, not ignored), cached for a few seconds.

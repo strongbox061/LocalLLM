@@ -10,9 +10,12 @@
  * Todo Extension - Demonstrates state management via session entries
  *
  * This extension:
- * 1. Maintains a todo list across turns using Pi's session entry system
- * 2. Provides tools to add, complete, remove, and list todos
- * 3. Renders a compact table view in the TUI sidebar
+ * - Registers a `todo` tool for the LLM to manage todos
+ * - Registers a `/todos` command for users to view the list
+ *
+ * State is stored in tool result details (not external files), which allows
+ * proper branching - when you branch, the todo state is automatically
+ * correct for that point in history.
  */
 
 import { StringEnum } from "@earendil-works/pi-ai";
@@ -20,19 +23,17 @@ import type { ExtensionAPI, ExtensionContext, Theme } from "@earendil-works/pi-c
 import { matchesKey, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
-const STORAGE_KEY = "todo-list";
-
 interface Todo {
-  id: string;
-  text: string;
-  done: boolean;
+	id: number;
+	text: string;
+	done: boolean;
 }
 
 interface TodoDetails {
-  todos: Todo[];
-  total: number;
-  done: number;
-  pending: number;
+	action: "list" | "add" | "toggle" | "clear";
+	todos: Todo[];
+	nextId: number;
+	error?: string;
 }
 
 const TodoParams = Type.Object({
