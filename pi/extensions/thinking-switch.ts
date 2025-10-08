@@ -99,11 +99,9 @@ export function clearTask(text: string): string | undefined {
 
 export function usedTool(messages: any[], from: number): boolean {
   for (let i = from + 1; i < messages.length; i++) {
-    const msg = messages[i];
-    if (!msg) continue;
-    const content = textOf(msg.content);
-    if (msg.tool_calls?.length) return true;
-    if (content.includes("[Function:") || content.includes("[Bash:")) return true;
+    const m = messages[i];
+    if (m?.role === "tool" || m?.role === "toolResult") return true;
+    if (m?.role === "assistant" && Array.isArray(m.tool_calls) && m.tool_calls.length) return true;
   }
   return false;
 }
@@ -140,11 +138,6 @@ export function piSlot(value = process.env.LOCALLLM_SLOT): number {
 export function shape(payload: any, think: boolean, model: ModelInfo): any {
   const cloned = JSON.parse(JSON.stringify(payload));
 
-  if (model.reasoning === "none" && !think) {
-    // No thinking mode available or disabled — nothing to add
-    return cloned;
-  }
-
   if (think && model.reasoning === "qwen-template") {
     // Use the Qwen thinking template
     if (!cloned.prompt) cloned.prompt = "";
@@ -152,6 +145,9 @@ export function shape(payload: any, think: boolean, model: ModelInfo): any {
   } else if (think && model.reasoning === "reasoning-effort") {
     // Use reasoning effort parameter
     cloned.reasoning_effort = "enabled";
+  } else if (!think && model.reasoning === "reasoning-effort") {
+    // Explicitly disable reasoning when think is false
+    cloned.reasoning_effort = "none";
   }
 
   return cloned;
