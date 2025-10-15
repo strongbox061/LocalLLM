@@ -10,8 +10,8 @@ From the environment (lib/common.sh fills it from local.env, helper.env and vers
     HELPER_DOCLING         on/off: Docling for PDFs and scans (default on)
     HELPER_KOKORO_DEVICE   gpu/cpu (default gpu)
     OPEN_WEBUI_VERSION     the main PC's Open WebUI version (the helper runs the same one, so the data can move)
+Exit status 1 with the reason on stderr when something is missing or wrong.
 """
-
 import getpass
 import json
 import os
@@ -26,8 +26,10 @@ FEATURES = {"small-model": "HELPER_SMALL_MODEL", "comfyui": "HELPER_IMAGES", "do
 
 
 def flag(env, name, default="on"):
-    """Return the value of an on/off feature flag from the environment dict."""
-    return env.get(name, default) == "on"
+    v = env.get(name, "").strip().lower() or default
+    if v not in ("on", "off"):
+        raise ValueError(f"{name} is '{v}' in helper.env: it must be on or off.")
+    return v == "on"
 
 
 def build(env, endpoints, model, versions):

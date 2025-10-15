@@ -26,15 +26,13 @@ set_helper_env() {
     LOCAL_ENV_FILE="$HELPER_ENV_FILE" set_local_env "$@"
 }
 
-# --- helper_task <task> [arguments]: windows\tasks.ps1 on the helper ---
-helper_task() {
-  local task="$1"; shift
-  ssh "$HELPER_HOST" "powershell -ExecutionPolicy Bypass -File '${HELPER_LOCALLLM}/repo/windows/tasks.ps1' -Task '${task}' \$args" "$@"
+helper_task() {     # helper_task <task> [arguments]: windows\tasks.ps1 on the helper
+    helper_ps "$HELPER_WIN\\tasks.ps1" "$@"
 }
 
-# --- The helper's Open WebUI must be the main PC's version (an older one can't open a newer database). ---
+# The helper's Open WebUI must be the main PC's version (an older one can't open a newer database).
 main_webui_version() {
-  grep -oP 'VERSION=\K.*' "$LOCALLLM/open-webui/version" 2>/dev/null || echo "unknown"
+    uv tool list 2>/dev/null | sed -nE 's/^open-webui v([0-9][^ ]*).*/\1/p'
 }
 
 # --- pick_data_dir: HELPER_DATA_DIR in helper.env; when unset, the helper's internal NTFS drive with the most free space, ---
