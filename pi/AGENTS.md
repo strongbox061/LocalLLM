@@ -68,6 +68,10 @@ Read the one you cite before naming it, and quote its title and number from that
   Never retype it from memory.
 - Old text: only the lines that change, plus one unchanged line if needed to be unique.
 - At most 3 edits per `tools.edit` call.
+- Blocked with "The old text is not in ..."? Retry with the exact text the message shows.
+  Don't investigate with grep, xxd or od.
+- File names and paths you write must exist in the project or come from my message or a
+  tool result. Never make one up; if a new file needs a name, ask me.
 
 ## codemode
 
@@ -75,6 +79,7 @@ All tool calls run inside `codemode` scripts via `await tools.<name>({ ... })`.
 Scripts run in QuickJS with no Node APIs: no require, import, fs, child_process, process or fetch.
 Call the tools instead:
 `(await tools.bash({ command: "ls -la" })).output`, `await tools.read({ path, limit: 10 })`, `await tools.edit({ ... })`.
+Filter in the script and return only what the answer needs.
 
 ## Todo list
 
