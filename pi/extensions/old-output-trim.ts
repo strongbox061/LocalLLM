@@ -8,9 +8,13 @@ function estimateTokens(text: string): number {
 }
 
 export function trimOutput(text: string, maxTokens = MAX_TOKENS): string {
+  if (!text || !text.length) return text;
   const estimated = estimateTokens(text);
   if (estimated <= maxTokens) return text;
   const ratio = maxTokens / estimated;
-  const trimmed = text.slice(0, Math.floor(text.length * ratio));
+  let trimmed = text.slice(0, Math.floor(text.length * ratio));
+  // Avoid cutting mid-word: truncate back to the last space
+  const lastSpace = trimmed.lastIndexOf(' ');
+  if (lastSpace > 0) trimmed = trimmed.slice(0, lastSpace);
   return trimmed + '\n\n[truncated — output exceeded token budget]';
 }
