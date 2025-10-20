@@ -19,27 +19,39 @@ const DEBUG = false;
 const MAX_SHOWN_LINES = 40;
 const MAX_LINE_CHARS = 300;
 
+// Compare lines ignoring indentation, trailing spaces, repeated spaces and quote styles.
+// Compare lines ignoring indentation, trailing spaces, repeated spaces and quote styles.
 function norm(line: string): string {
-  return line.replace(/\r/g, "").replace(/[\t ]+/g, " ").trim();
+  return line
+    .replace(/\r$/, "")
+    .replace(/[ \t]/g, " ")
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/ {2,}/g, " ")
+    .trim();
 }
 
+// The lines of `oldText`, without the blank first/last lines the model sometimes adds.
 function wantedLines(oldText: string): string[] {
-  return oldText.split("\n").filter((l) => l.trim().length > 0);
+  const want = oldText.replace(/\r/g, "").split("\n");
+  while (want.length > 1 && want[0].trim() === "") want.shift();
+  while (want.length > 1 && want[want.length - 1].trim() === "") want.pop();
+  return want;
 }
 
+// Start lines of every place in the file that matches `want` when formatting is ignored (stops at 2).
 function formatMatches(fileLines: string[], want: string[]): number[] {
-  const results: number[] = [];
-  for (let i = 0; i <= fileLines.length - want.length; i++) {
-    let match = true;
-    for (let j = 0; j < want.length; j++) {
-      if (norm(fileLines[i + j]) !== norm(want[j])) {
-        match = false;
-        break;
-      }
+  const w = want.map(norm);
+  const hits: number[] = [];
+  for (let i = 0; i + w.length <= fileLines.length; i++) {
+    let ok = true;
+    for (let j = 0; j < w.length; j++) {
+      if (norm(fileLines[i + j]) !== w[j]) { ok = false; break; }
     }
-    if (match) results.push(i);
+    if (ok) hits.push(i);
+    if (hits.length > 1) break;
   }
-  return results;
+  return hits;
 }
 
 export function fixOldText(file: string, oldText: string): string | undefined {

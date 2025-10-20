@@ -16,7 +16,9 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { QUESTION_START, has } from "./lang-words.ts";
 
-const ALLOW_RE = /\b(?:yes|yeah|go\s*ahead|do\s*it|sure|ok|okay|allow|permit|approve|grant|proceed|continue|change|edit|update|modify|write|create|replace|delete|remove|add)\b/i;
+// Words in your message that count as permission to change files.
+const ALLOW_RE =
+  /\b(edit|change|modify|fix|update|write|create|add|remove|delete|rename|move|refactor|implement|apply|perform|execute|carry out|replace|install|save|patch|rewrite|put|insert|append|include|document|record|note down|fill( in)?|draft|generate|convert|format|reorgani[sz]e|clean up|set up|go with|let'?s|make (it|the|a|this|these|those)|yes|yep|ok(ay)?|go ahead|do (it|them|that|(the|those|these) (changes|edits|updates|fixes))|proceed|continue|resume|keep going|try again|retry|sure)\b/i;
 const FILE_RE = /@?[\w./-]+\.(md|txt|ts|tsx|js|jsx|json|ya?ml|toml|py|sh|css|html|env|sql)\b/i;
 const PLAN_ASK_RE = /\b(?:plan(?:s|ned|ning)?|planea\w*|planifi\w*|planej\w*|pianific\w*|planen)\b/i;
 
@@ -26,7 +28,9 @@ export function allowsChanges(text: string): boolean {
   return ALLOW_RE.test(lower);
 }
 
-const BASH_WRITE_RE = /\b(?:echo|cat|tee|printf)\s*.*>\s*['"]?[\w./-]+/i;
+// bash commands that change files.
+const BASH_WRITE_RE =
+  /(^|[;&|]\s*)(rm|mv|cp|mkdir|rmdir|touch|chmod|chown|ln|truncate|tee|patch|git\s+(commit|checkout|reset|apply|restore|rm|mv|stash))\b|\bsed\s+(-[a-zA-Z]*i|--in-place)|(^|[^>&0-9])>>?\s*[^\s&|]|\b(npm|pnpm|yarn|pip3?)\s+(install|uninstall|add|remove)\b;
 const DEBUG = false;
 const PARTIAL_READ_RE = /Use offset=\d+ to continue/;
 
