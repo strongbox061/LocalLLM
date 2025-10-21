@@ -38,6 +38,18 @@ type AgentFrontmatter = {
 	model?: unknown;
 };
 
+/**
+ * Normalize a frontmatter `tools` value to a list of tool names.
+ *
+ * Both spellings are valid YAML and both are in use:
+ *
+ *     tools: read, bash        # string
+ *     tools: [read, bash]      # array
+ *
+ * so accept either. Anything else (a number, a map, a nested list) yields no
+ * tools rather than throwing: this runs inside agent discovery, where a single
+ * bad file must not take down every other agent in the same directory.
+ */
 function parseToolList(value: unknown): string[] | undefined {
 	const raw = Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : [];
 	const tools = raw
