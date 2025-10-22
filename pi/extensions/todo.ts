@@ -37,9 +37,9 @@ interface TodoDetails {
 }
 
 const TodoParams = Type.Object({
-  action: StringEnum(["add", "complete", "remove", "list"]),
-  text: Type.Optional(Type.String({ minLength: 1, maxLength: 500 })),
-  id: Type.Optional(Type.String()),
+	action: StringEnum(["list", "add", "toggle", "clear"] as const),
+	text: Type.Optional(Type.String({ description: "Todo text (for add)" })),
+	id: Type.Optional(Type.Number({ description: "Todo ID (for toggle)" })),
 });
 
 function loadTodos(): Todo[] {
