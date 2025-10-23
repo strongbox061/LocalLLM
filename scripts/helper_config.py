@@ -34,52 +34,78 @@ def flag(env, name, default="on"):
 
 def build(env, endpoints, model, versions):
     """Build and return the helper config dict."""
-    data_dir = env.get("HELPER_DATA_DIR")
-    if not data_dir:
-        print("error: HELPER_DATA_DIR is not set", file=sys.stderr)
-        sys.exit(1)
+    if endpoints.get("mode") != "split":
+        raise ValueError("The helper PC is only used in split mode (./localllm.sh switch split).")
+    data_dir = env.get("HELPER_DATA_DIR", "").strip()
+    if not data_dir or not (len(data_dir) > 2 and data_dir[1] == ":" and data_dir[2] == "\\"):
+        raise ValueError(f"HELPER_DATA_DIR ('{data_dir}') must be a full Windows path like X:\\LocalLLM (helper.env).")
+    device = env.get("HELPER_KOKORO_DEVICE", "").strip().lower() or "gpu"
+    if device not in ("gpu", "cpu"):
+        raise ValueError(f"HELPER_KOKORO_DEVICE is '{device}': it must be gpu or cpu.")
+    webui_version = env.get("OPEN_WEBUI_VERSION", "").strip()
+    if not webui_version:
+        raise ValueError("The main PC's Open WebUI version is unknown: run ./backup.sh once (it writes versions.env).")
 
-    config = {
-        "helper_data_dir": data_dir,
-        "open_webui_version": env.get("OPEN_WEBUI_VERSION", ""),
-        "kokoro_device": env.get("HELPER_KOKORO_DEVICE", "gpu"),
-        "features": {
-            "small_model": flag(env, "HELPER_SMALL_MODEL"),
-            "images": flag(env, "HELPER_IMAGES"),
-            "docling": flag(env, "HELPER_DOCLING"),
-        },
-        "endpoints": endpoints,
-        "model": model,
+    svc = endpoints["services"]
+    apps = env.get("LOCALLLM_APPS", "").strip() or endpoints.get("apps") or "pi,owui"
+    services = []
+    for name in HELPER_ORDER:
+        s = svc.get(name)
+        if not s or s.get("where") != "helper":
+            continue
+        if name in FEATURES and not flag(env, FEATURES[name]):
+            continue
+        services.append({"name": name, "title": s["title"], "port": s["port"], "health": s["health"],
+                         "id": f"localllm-{name}", "owui_only": bool(s.get("owui_only"))})
+    names = {s["name"] for s in services}
+    llama = svc["llama"]["from_helper"]
+    ctx, max_tokens = int(model.get("contextPerSlot") or 0), int(model.get("maxTokens") or 0)
+    return {
+        "mode": "split",
+        "apps": apps,
+        "data_dir": data_dir,
+        "main_host": endpoints["main_host"],
+        "main_user": env.get("MAIN_USER", "").strip() or getpass.getuser(),
+        "helper_host": endpoints["helper_host"],
+        "llama_url": llama,
+        "searxng_search": svc["searxng"]["from_helper"] + "/search" if svc["searxng"]["where"] == "main" else "",
+        "model_alias": model.get("alias") or "local",
+        "model_name": model.get("name") or "Local Model",
+        "context_window": (ctx - max_tokens) if ctx > max_tokens > 0 else 57344,
+        "max_tokens": max_tokens or 8192,
+        "model_vision": bool(model.get("vision", True)),
+        "model_reasoning": str(model.get("reasoning") or "none").strip().lower() != "none",
+        # Open WebUI compacts a chat at 7/8 of what's left in llama-server's slot (as services/open-webui.sh).
+        "compaction_threshold": (ctx - max_tokens) * 7 // 8 if ctx > max_tokens > 0 else 0,
+        "open_webui_version": webui_version,
+        "kokoro_device": device,
+        "services": services,
+        "exposed": [n for n in ("open-webui", "search-gateway") if n in names],
+        "versions": versions,
     }
-
-    return config
 
 
 def main(argv):
-    if len(argv) < 3:
-        print(f"usage: {sys.argv[0]} <endpoints.json> <model.json>", file=sys.stderr)
-        sys.exit(1)
-
-    endpoints_path = argv[1]
-    model_path = argv[2]
-
-    with open(endpoints_path) as f:
-        endpoints = json.load(f)
-    with open(model_path) as f:
-        model = json.load(f)
-
-    env = {
-        "HELPER_DATA_DIR": os.environ.get("HELPER_DATA_DIR"),
-        "HELPER_SMALL_MODEL": os.environ.get("HELPER_SMALL_MODEL", "on"),
-        "HELPER_IMAGES": os.environ.get("HELPER_IMAGES", "on"),
-        "HELPER_DOCLING": os.environ.get("HELPER_DOCLING", "on"),
-        "HELPER_KOKORO_DEVICE": os.environ.get("HELPER_KOKORO_DEVICE", "gpu"),
-        "OPEN_WEBUI_VERSION": os.environ.get("OPEN_WEBUI_VERSION", ""),
-    }
-
-    config = build(env, endpoints, model, {})
-    print(json.dumps(config, indent=2))
+    if len(argv) != 3:
+        print(__doc__.strip(), file=sys.stderr)
+        return 2
+    try:
+        endpoints = json.load(open(argv[1]))
+        try:
+            model = json.load(open(argv[2]))
+        except OSError:
+            model = {}
+        versions = {k: v for k, v in json.load(open(os.path.join(REPO, "windows", "versions.json"))).items()
+                    if not k.startswith("_")}
+        # The small model lives with the other model definitions (models/), like every model name.
+        versions["small_model"] = {k: v for k, v in json.load(open(os.path.join(REPO, "models", "helper-small.json"))).items()
+                                   if not k.startswith("_")}
+        print(json.dumps(build(os.environ, endpoints, model, versions), indent=2))
+    except (ValueError, OSError, KeyError) as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main(sys.argv)
+    sys.exit(main(sys.argv))
