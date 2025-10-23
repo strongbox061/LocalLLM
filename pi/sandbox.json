@@ -5,7 +5,10 @@
     ],
     "denyWrite": [
       ".env",
-      ".pi/config.json"
+      ".env.*",
+      "*.pem",
+      "*.key",
+      "~/.ssh"
     ]
   }
 }
