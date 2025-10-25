@@ -9,7 +9,7 @@ const MARKS = /[̀-֑ͯ-ׇֽֿׁׂًׅׄ-ٰٟ]/gu;
 const SAME: Record<string, string> = {"\u2019": "'", "\u2018": "'", "\u02bc": "'", "`": "'", "\u03c2": "\u03c3", "\u064a": "\u06cc", "\u0649": "\u06cc", "\u0643": "\u06a9", "\u200c": "", "\u200d": ""};
 export function norm(text: string): string {
   const t = String(text ?? "").toLowerCase().normalize("NFD").replace(MARKS, "").normalize("NFC");
-  return Object.entries(SAME).reduce((s, [a, b]) => s.replaceAll(a, b), t);
+  return t.replace(/[\u2019\u2018\u02bc`\u03c2\u064a\u0649\u0643\u200c\u200d]/g, (c) => SAME[c] ?? c);
 }
 
 const PLEASE = String.raw`s'?il[\s-]+vous[\s-]+plait|vær[\s-]+sa[\s-]+snill|por[\s-]+gentileza|برای[\s-]+مهربانی|per[\s-]+piacere|خواهش[\s-]+میکنم|অনুগ্রহ[\s-]+করে|будь[\s-]+ласка|por[\s-]+favor|لطفاً|merhaba[\s-]+yardım|kérlek[\s-]+szívesen|пожалуйста|prosim[\s-]+tě|prosím[\s-]+tě|merhaba|لطف[\s-]+دارید|gracias[\s-]+por[\s-]+tu[\s-]+ayuda|おねがいします|请[\s-]+麻烦|請[\s-]+麻煩|お願いします|麻烦[\s-]+您|麻煩[\s-]+您|부탁[\s-]+드립니다|감사합니다|谢谢[\s-]+你|謝謝[\s-]+你|감사[\s-]+합니다|merci[\s-]+beaucoup|grazie[\s-]+mille|danke[\s-]+sehr|תודה[\s-]+רבה|شكراً[\s-]+جداً|arigatou[\s-]+gozaimasu|spasiba[\s-]+bol'she|dank[\s-]+uwel`;
