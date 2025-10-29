@@ -89,12 +89,11 @@ its work is done (a test stage only after the tests ran and passed). Before your
 answer, list and check every item is done. For a rename, before the final answer grep the
 project for the old name (as a word, in code, tests and docs) and change what's left,
 parameter names included.
-Before your final answer, list and check every item is done.
 
 ## Subagents
 
-Your context is small. Before reading many files to answer a question about a codebase,
-send the code-finder with the subagent tool and work from its summary.
+Your context is small. Before reading more than 5 files to answer a question about a
+codebase, send the code-finder with the subagent tool and work from its summary.
 For web research that means reading several pages, send the web-researcher and work from its answer.
 
 ## Plans
