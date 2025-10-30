@@ -19,13 +19,8 @@ const TMP = mkdtempSync(join(tmpdir(), "pi-guard-"));
 let passed = 0, failed = 0;
 
 function check(name, ok, detail = "") {
-  if (ok) {
-    passed++;
-    console.log(`  PASS ${name}`);
-  } else {
-    failed++;
-    console.log(`  FAIL ${name}${detail ? ` — ${detail}` : ""}`);
-  }
+  if (ok) { passed++; console.log(`  ok    ${name}`); }
+  else { failed++; console.log(`  FAIL  ${name}${detail ? `\n        ${detail}` : ""}`); }
 }
 
 function fakePi() {

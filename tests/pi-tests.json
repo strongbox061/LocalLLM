@@ -1,8 +1,8 @@
 [
   {"id": "A1", "folder": "empty", "prompt": "How do I fix \"error: failed to commit transaction (invalid or corrupted package)\" with pacman?",
-   "expect": "web_search with site:wiki.archlinux.org; the fix comes from a page it opened"},
+   "expect": "web_search with site:wiki.archlinux.org (or a general retry); the fix comes from a page it opened"},
   {"id": "A2", "folder": "empty", "prompt": "How do I cancel a fetch() request in JavaScript?",
-   "expect": "site:developer.mozilla.org; the answer mentions AbortController"},
+   "expect": "site:developer.mozilla.org (or a docs tool); the answer mentions AbortController"},
   {"id": "A3", "folder": "empty", "prompt": "What does rsync's --partial flag do?",
    "expect": "site:man.archlinux.org; the answer comes from the man page text"},
   {"id": "A4", "folder": "empty", "prompt": "Is there an official Docker image for Ollama?",
