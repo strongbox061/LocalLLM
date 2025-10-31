@@ -10,6 +10,16 @@
 //   2. Everything else starts WITHOUT reasoning.
 //      - If the model answers directly, it was a quick question: fast answer.
 //      - If the model reaches for a tool (search, browser, bash...), it's a task:
+//        reasoning turns ON for every following step of that task.
+//
+// The switch happens at most once per task (off -> on), never back.
+//
+// The word rules (latest, error, action, "current directory") come in 35 languages from lang-words.ts.
+//
+// How reasoning is switched off comes from the model profile (models/<name>.env), as written by lib/model.sh to
+// ~/.config/localllm/model.json: "qwen-template" (the chat template's enable_thinking=false), "reasoning-effort"
+// (reasoning_effort set to the profile's lowest level) or "none" (the model doesn't reason: only the slot is pinned).
+// Only requests for llama-server's alias ("local") are touched.
 
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -17,73 +27,74 @@ import { join } from "node:path";
 import { ACTION_START, ERROR, LATEST, LOCAL_CURRENT, has, norm } from "./lang-words.ts";
 
 export type Reasoning = "qwen-template" | "reasoning-effort" | "none";
+export interface ModelInfo { alias: string; reasoning: Reasoning; reasoningOffEffort: string }
 
-export interface ModelInfo {
-  alias: string;
-  reasoning: Reasoning;
-  reasoningOffEffort: string;
-}
+// Without model.json (install/llama.sh writes it): only the slot is pinned, reasoning is left as Pi asked.
+const FALLBACK: ModelInfo = { alias: "local", reasoning: "none", reasoningOffEffort: "" };
 
 const MODEL_JSON = join(homedir(), ".config/localllm/model.json");
 const REASONING_TYPES = ["qwen-template", "reasoning-effort", "none"];
+
+export function modelInfo(file = process.env.LOCALLLM_MODEL_JSON || MODEL_JSON): ModelInfo {
+  try {
+    const j = JSON.parse(readFileSync(file, "utf8"));
+    const reasoning: Reasoning = REASONING_TYPES.includes(j?.reasoning) ? j.reasoning : "none";
+    const reasoningOffEffort = String(j?.reasoningOffEffort || "low");
+    return { alias: String(j?.alias || "local"), reasoning, reasoningOffEffort };
+  } catch {
+    return FALLBACK;
+  }
+}
+
+// Messages longer than this get reasoning from the start.
 const MAX_QUICK_WORDS = 25;
+
+// Without reasoning the model tends to answer these from memory instead of looking
+// them up, or to print a tool call as plain text.
+// "current directory" and similar (LOCAL_CURRENT) are about this machine, not the web.
 const THINK_PREFIX_RE = /^\s*think\s*:/i;
+
+// Set true to print each decision to the terminal while testing.
 const DEBUG = false;
 
 function log(...args: any[]) {
   if (DEBUG) console.log("[thinking-switch]", ...args);
 }
 
-export function modelInfo(file = process.env.LOCALLLM_MODEL_JSON || MODEL_JSON): ModelInfo {
-  const raw = readFileSync(file, "utf-8");
-  const data = JSON.parse(raw);
-  const entry = data.models?.[0] || data;
-  const alias = entry.alias || entry.name || "qwen";
 
-  let reasoning: Reasoning = "none";
-  const r = (entry.reasoning as string)?.toLowerCase() || "";
-  if (r.includes("template")) reasoning = "qwen-template";
-  else if (r.includes("effort") || r.includes("deep")) reasoning = "reasoning-effort";
-
-  const effort = entry.reasoningOffEffort || (reasoning === "reasoning-effort" ? "minimal" : "");
-
-  return { alias, reasoning, reasoningOffEffort: effort };
-}
 
 function textOf(content: any): string {
   if (typeof content === "string") return content;
   if (Array.isArray(content)) {
-    return content
-      .map((c: any) => {
-        if (c.type === "text") return c.text || "";
-        if (c.type === "image_url" && c.image_url?.url) return "[image]";
-        return "";
-      })
-      .join("\n");
+    return content.map((p: any) => (typeof p === "string" ? p : p?.text ?? "")).join("\n");
   }
-  return String(content ?? "");
+  return "";
 }
 
+// The person's own latest message comes from Pi's `input` event (see personText); its place in the
+// request is the last user message that holds its text. Without it (a skill or template expanded the text), the last
+// user message that isn't an end-of-answer check.
 const FINISH_TAG = "[Automatic check, not from the user.";
 
 export function personText(text: string): string {
-  if (text.includes(FINISH_TAG)) return text.split(FINISH_TAG)[0].trim();
-  return text.trim();
+  const t = String(text ?? "");
+  if (t.includes(FINISH_TAG)) return t.split(FINISH_TAG)[0].trim();
+  return t.trim();
 }
 
 function lastUserIndex(messages: any[], person = ""): number {
+  const key = person.trim().slice(0, 200);
+  let fallback = -1;
   for (let i = messages.length - 1; i >= 0; i--) {
-    const role = messages[i]?.role || "";
-    if (role === "user") {
-      if (!person) return i;
-      const content = textOf(messages[i].content);
-      const sender = messages[i]?.sender || messages[i]?.from || "";
-      if (norm(sender).includes(norm(person)) || norm(content).includes(norm(person))) return i;
-    }
+    if (messages[i]?.role !== "user") continue;
+    const text = textOf(messages[i].content);
+    if (key && text.includes(key)) return i;
+    if (fallback < 0 && !text.includes(FINISH_TAG)) fallback = i;
   }
-  return -1;
+  return fallback;
 }
 
+// Rule 1: is this obviously a task, before the model has done anything?
 export function clearTask(text: string): string | undefined {
   if (THINK_PREFIX_RE.test(text)) return "asked to think";
   if (/https?:\/\/|www\./i.test(text)) return "has a URL";
@@ -97,6 +108,7 @@ export function clearTask(text: string): string | undefined {
   return undefined;
 }
 
+// Rule 2: has the model used a tool since your last message?
 export function usedTool(messages: any[], from: number): boolean {
   for (let i = from + 1; i < messages.length; i++) {
     const m = messages[i];
@@ -107,63 +119,57 @@ export function usedTool(messages: any[], from: number): boolean {
 }
 
 export function decide(messages: any[], person = ""): { think: boolean; why: string } {
-  const idx = lastUserIndex(messages, person);
-  if (idx < 0) return { think: false, why: "no user message" };
+  if (!Array.isArray(messages)) return { think: true, why: "no messages" };
+  const u = lastUserIndex(messages, person);
+  if (u < 0) return { think: true, why: "no user message" };
 
-  const msg = messages[idx];
-  const text = personText(textOf(msg.content));
-  log("last user:", text.slice(0, 120));
-
-  const taskReason = clearTask(text);
-  if (taskReason) {
-    log("clear task:", taskReason);
-    return { think: true, why: taskReason };
-  }
-
-  // Check if model already used a tool — escalate to reasoning
-  if (usedTool(messages, idx)) {
-    log("tool used after quick start");
-    return { think: true, why: "tool escalation" };
-  }
-
-  return { think: false, why: "quick question" };
+  const reason = clearTask((person.trim() || textOf(messages[u].content)).trim());
+  if (reason) return { think: true, why: reason };
+  if (usedTool(messages, u)) return { think: true, why: "the model used a tool, so it's a task" };
+  return { think: false, why: "first answer, no tool yet" };
 }
 
+// llama-server slot reserved for Pi (Open WebUI uses slot 1). A subagent's Pi gets its slot from subagent/index.ts
+// in LOCALLLM_SLOT, so it doesn't push this session out of slot 0.
 export function piSlot(value = process.env.LOCALLLM_SLOT): number {
-  if (value == null) return -1;
-  const n = parseInt(String(value), 10);
-  return isNaN(n) ? -1 : n;
+  const n = Number(value);
+  return value !== undefined && value.trim() !== "" && Number.isInteger(n) && n >= 0 ? n : 0;
 }
 
+// The request to send: pinned to Pi's slot, and with reasoning off when `think` is false, the way the profile says.
 export function shape(payload: any, think: boolean, model: ModelInfo): any {
-  const cloned = JSON.parse(JSON.stringify(payload));
+  // Always pin Pi to its own slot so Open WebUI never overwrites its cache.
+  const pinned = { ...payload, id_slot: payload.id_slot ?? piSlot(), cache_prompt: true };
+  if (think || model.reasoning === "none") return pinned; // reasoning as Pi built it, just pinned
 
-  if (think && model.reasoning === "qwen-template") {
-    // Use the Qwen thinking template
-    if (!cloned.prompt) cloned.prompt = "";
-    cloned.prompt = "<think>\nLet me work through this step by step.\n</think>\n" + cloned.prompt;
-  } else if (think && model.reasoning === "reasoning-effort") {
-    // Use reasoning effort parameter
-    cloned.reasoning_effort = "enabled";
-  } else if (!think && model.reasoning === "reasoning-effort") {
-    // Explicitly disable reasoning when think is false
-    cloned.reasoning_effort = "none";
+  const { reasoning, ...rest } = pinned;
+  if (model.reasoning === "reasoning-effort") {
+    return {
+      ...rest,
+      reasoning_effort: model.reasoningOffEffort,
+      chat_template_kwargs: { ...(payload.chat_template_kwargs ?? {}), reasoning_effort: model.reasoningOffEffort },
+    };
   }
-
-  return cloned;
+  return {
+    ...rest,
+    reasoning_effort: "none",
+    chat_template_kwargs: { ...(payload.chat_template_kwargs ?? {}), enable_thinking: false },
+  };
 }
 
 export default function (pi: any) {
-  pi.hook("beforePayload", (payload: any, context: any) => {
-    const model = modelInfo();
-    const messages = payload.messages || [];
-    const decision = decide(messages, context?.person || "");
+  let person = "";
+  pi.on("input", (event: any) => { person = personText(event?.text); });
 
-    log("decide:", decision.why, "think:", decision.think);
+  pi.on("before_provider_request", (event: any) => {
+    const payload = event?.payload;
+    if (!payload || typeof payload !== "object") return;
+    const model = modelInfo(); // read each time: a profile change needs no Pi restart
+    if (String(payload.model ?? "") !== model.alias) return;
 
-    if (decision.think || model.reasoning !== "none") {
-      return shape(payload, decision.think, model);
-    }
-    return payload;
+    const { think, why } = model.reasoning === "none" ? { think: true, why: "the model doesn't reason" }
+      : decide(payload.messages, person);
+    if (DEBUG) console.error(`[thinking-switch] reasoning ${think ? "ON" : "OFF"} (${why}), ${model.reasoning}`);
+    return shape(payload, think, model);
   });
 }
