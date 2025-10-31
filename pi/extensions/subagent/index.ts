@@ -64,26 +64,19 @@ export function modelSlots(file = process.env.LOCALLLM_MODEL_JSON || path.join(o
 }
 
 const SLOTS = modelSlots();
-
-/** How many subagents may run in parallel — read from local.env or model.json. */
-export function subagentsAtOnce(
-  file = process.env.LOCALLLM_MODEL_JSON || path.join(os.homedir(), ".config/localllm/model.json"),
-): number {
-  const env = process.env.SUBAGENTS_AT_ONCE;
-  if (env) {
-    const n = Number(env);
-    if (Number.isFinite(n) && n > 0) return Math.min(n, SLOTS);
-  }
-  try {
-    const raw = fs.readFileSync(file, "utf-8");
-    const cfg = JSON.parse(raw) as Record<string, unknown>;
-    const n = Number((cfg as any).subagentsAtOnce ?? 1);
-    if (Number.isFinite(n) && n > 0) return Math.min(n, SLOTS);
-  } catch { /* fall through */ }
-  return 1; // one after another by default
+// LocalLLM: how many children may run at once: model.json "subagentsAtOnce" (from local.env), 1 without it, never
+// more than the slots.
+export function subagentsAtOnce(file = process.env.LOCALLLM_MODEL_JSON || path.join(os.homedir(), ".config/localllm/model.json")): number {
+	const slots = modelSlots(file);
+	try {
+		const n = Number(JSON.parse(fs.readFileSync(file, "utf8")).subagentsAtOnce);
+		return Number.isInteger(n) && n >= 1 ? Math.min(n, slots) : 1;
+	} catch {
+		return 1;
+	}
 }
-
-/** Queue that maps tasks to free GPU slots. */
+// LocalLLM: the slots children may use, shared by every subagent call in this session. take() waits for a free one
+// (the highest first: slot 0 is the main session's) and gives undefined when aborted while waiting.
 export class SlotQueue {
   private readonly size: number;
   private readonly totalSlots: number;

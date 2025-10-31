@@ -40,15 +40,20 @@ const NOT_FILES_RE = /^(node|next|vue|nuxt|express|three|chart|d3|p5|alpine|embe
 // A short "yes" to the model's proposal: the names in that proposal count as yours.
 const AGREE_RE = /^\s*(yes|yep|yeah|ok(ay)?|sure|go ahead|do it|apply( it)?|proceed|sounds good|lgtm|looks good)\b/i;
 
+export function fileNames(text: string): string[] {
+  const out = new Set<string>();
+  const t = String(text ?? "").replace(URL_RE, " ");
+  for (const m of t.matchAll(NAME_RE)) {
+    const name = m[1].replace(/^\.\//, "");
+    if (!NOT_FILES_RE.test(name)) out.add(name);
+  }
+  return [...out];
+}
+
 function textOf(content: any): string {
   if (typeof content === "string") return content;
   if (Array.isArray(content)) return content.map((p) => (typeof p === "string" ? p : textOf(p?.text ?? p?.content))).join("\n");
   return "";
-}
-
-function resolvePath(p: string, base: string): string {
-  if (p.startsWith("~/")) return path.join(os.homedir(), p.slice(2));
-  return path.isAbsolute(p) ? p : path.join(base, p);
 }
 
 // Base names of the project's files (tracked and untracked, not ignored), cached for a few seconds.
@@ -72,11 +77,6 @@ export function fileNames(text: string): string[] {
     if (!NOT_FILES_RE.test(name)) out.add(name);
   }
   return [...out];
-}
-
-function resolvePath(p: string, base: string): string {
-  if (p.startsWith("~/")) return path.join(os.homedir(), p.slice(2));
-  return path.isAbsolute(p) ? p : path.join(base, p);
 }
 
 // The names in `added` that nothing backs up.
