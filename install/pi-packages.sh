@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# install/pi-deps.sh — Install Node.js dependencies for Pi agent extensions and tools.
+# install/pi-packages.sh — Install Node.js dependencies for Pi agent extensions and tools.
 # The search-gateway extension (pi/extensions/search-gateway.ts) handles web searching directly,
-# so no separate search package is installed. Dependencies are split into two tiers:
-#   install/pi-deps.sh              basic deps (extensions, metrics, themes)
-#   install/pi-packages.sh          only what is missing
+# so no separate search package is installed. Packages are managed in a single script:
+#   install/pi-packages.sh          install all configured packages
 #   install/pi-packages.sh --update also update the installed packages
 
 set -euo pipefail
