@@ -8,8 +8,9 @@
 // Pi never searches SearXNG, DuckDuckGo or another engine directly.
 //
 // The gateway enforces per-user caps (daily budget, max queries), tracks usage,
-// and caches recent results to avoid redundant calls. It also respects unasked
-// years, the search budget).
+// and caches recent results to avoid redundant calls. Repeats: the same words
+// searched again in one task mean the results weren't useful, so the repeat
+// skips the cache and every service that answered them before.
 //
 
 import { readFileSync } from "node:fs";
@@ -37,37 +38,107 @@ const MAX_RETRIES = 2;
 const normalise = (q: string) => q.toLowerCase().split(/\s+/).filter(Boolean).sort().join(" ");
 
 function serverDown(g: { url: string; where: string }): string {
-  return `Search gateway at ${g.url} (${g.where}) is unreachable`;
+  const fix = g.where === "helper"
+    ? "it runs on the helper PC: tell the user to start it there, " +
+      "or to run ./localllm.sh switch single"
+    : "tell the user to run ./start.sh in the LocalLLM folder";
+  return `The Search Gateway server (${g.url}) isn't running, so web_search can't search. ` +
+    `Don't search another way (no browser, no curl); ${fix}, then stop.`;
 }
 
 export default function (pi: any) {
+  // Services that answered each query in this task.
+  let answered = new Map<string, string[]>();
+  pi.on?.("input", () => { answered = new Map(); });
+
   pi.registerTool({
     name: "web_search",
-    description: "Search the web via the local search gateway. Returns a list of results with titles, URLs, and snippets.",
+    label: "Web Search",
+    description:
+      "Search the web through the user's search gateway (the same search services and cache as Open WebUI). " +
+      "Returns titles, URLs and snippets. Use site:<domain> in the query to search one site.",
+    promptSnippet: "Search the web through the search gateway",
+    promptGuidelines: [
+      "Use web_search when you need up-to-date information, facts, or documentation from the web.",
+      "web_search is the only way to search. Never open a search engine's results page in the browser.",
+      "If the results aren't useful, the same search again goes to a different kind of search service.",
+    ],
     parameters: Type.Object({
-      query: Type.String({ description: "The search query string" }),
+      query: Type.String({ description: "Search query. Add site:<domain> to search one site." }),
+      numResults: Type.Optional(Type.Number({ description: "Number of results (1-20, default 10)" })),
     }),
-    handler: async ({ query }: { query: string }) => {
-      const g = gateway();
-      const url = `${g.url}/search?q=${encodeURIComponent(query)}`;
 
+    async execute(_id: string, params: any, signal?: AbortSignal, _onUpdate?: any, ctx?: any) {
+      const query = String(params.query ?? "").trim();
+      if (!query) throw new Error("web_search needs a query.");
+      const count = Math.max(1, Math.min(Number(params.numResults) || 10, 20));
+      const key = normalise(query);
+      const before = answered.get(key) ?? [];
+      if (before.length > MAX_RETRIES) {
+        return {
+          content: [{ type: "text", text:
+            `You already searched these words ${before.length} times, each time on a different search service ` +
+            `(${before.join(", ")}). Use those results, or try different keywords.` }],
+          details: { service: "none", resultCount: 0 },
+        };
+      }
+
+      const g = gateway();
+      const ask = new URLSearchParams({ q: query, format: "json" });
+      if (before.length > 0) ask.set("retry_after", before.join(","));
+
+      ctx?.ui?.setStatus?.("search", `🔍 Search Gateway: ${before.length > 0 ? "searching again on another service" : "searching"}...`);
       let attempts = 0;
       while (attempts <= MAX_RETRIES) {
         try {
-          const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+          const timeout = AbortSignal.timeout(TIMEOUT_MS);
+          const res = await fetch(`${g.url}/search?${ask}`, {
+            headers: { Accept: "application/json" },
+            signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+          });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
           const data = await res.json();
-          const results: any[] = (data.results || []).slice(0, 10);
-          return results.map((r: any) => ({
-            title: (r.title || "").slice(0, MAX_SNIPPET),
-            url: r.url || "",
-            snippet: (r.snippet || "").slice(0, MAX_SNIPPET),
-          }));
+          const results: any[] = (Array.isArray(data?.results) ? data.results : [])
+            .filter((r: any) => /^https?:\/\//i.test(String(r?.url ?? "")))
+            .slice(0, count);
+          const service = String(data?.service || results[0]?.engine || "none");
+
+          if (results.length) answered.set(key, [...before, service.split(",")[0].trim()]);
+          ctx?.ui?.setStatus?.("search", `🔍 Search Gateway (${service}): ${results.length} results`);
+
+          const safeQuery = query.replace(/[\n\r]/g, " ");
+          const lines = [`## Search Results: "${safeQuery}"`, `Service: ${service}  ·  Results: ${results.length}`];
+          if (before.length > 0) {
+            lines.push(results.length
+              ? `A different search service than your earlier search with these words (${before.join(", ")}).`
+              : "No other search service found anything for these words. Use the earlier results, or try different keywords.");
+          }
+          lines.push("");
+          results.forEach((r, i) => {
+            lines.push(`### ${i + 1}. ${r.title || "Untitled"}`);
+            lines.push(`   URL: ${r.url}`);
+            const text = String(r.content ?? r.snippet ?? "");
+            if (text) lines.push(`   ${text.slice(0, MAX_SNIPPET)}${text.length > MAX_SNIPPET ? "..." : ""}`);
+            if (r.publishedDate) lines.push(`   Date: ${r.publishedDate}`);
+            lines.push("");
+          });
+          if (!results.length && !before.length && (data?.problems?.length)) {
+            lines.push(`No results. The tool reported: ${(data.problems as string[]).slice(0, 6).join("; ")}`);
+          }
+
+          return {
+            content: [{ type: "text", text: lines.join("\n") }],
+            details: { service, resultCount: results.length },
+          };
         } catch (err: any) {
           attempts++;
           if (attempts > MAX_RETRIES) {
-            return { error: serverDown(g), detail: err.message };
+            if (signal?.aborted) throw err;
+            return {
+              content: [{ type: "text", text: serverDown(g) }],
+              details: { service: "none", resultCount: 0 },
+            };
           }
         }
       }
