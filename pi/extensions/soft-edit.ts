@@ -71,35 +71,16 @@ export function fixOldText(file: string, oldText: string): string | undefined {
   return undefined;
 }
 
+// How alike two lines are, 0..1: 1 when equal ignoring formatting, else the share of shared words.
 function lineSimilarity(a: string, b: string): number {
-  const normA = a.toLowerCase().trim();
-  const normB = b.toLowerCase().trim();
-  if (normA === normB) return 1.0;
-  if (!normA || !normB) return 0.0;
-
-  const maxLen = Math.max(normA.length, normB.length);
-  let edits = 0;
-
-  // Simple Levenshtein-like distance for short strings
-  const matrix: number[][] = [];
-  for (let i = 0; i <= normA.length; i++) {
-    matrix[i] = [i];
-  }
-  for (let j = 0; j <= normB.length; j++) {
-    matrix[0][j] = j;
-  }
-  for (let i = 1; i <= normA.length; i++) {
-    for (let j = 1; j <= normB.length; j++) {
-      const cost = normA[i - 1] === normB[j - 1] ? 0 : 1;
-      matrix[i][j] = Math.min(
-        matrix[i - 1][j] + 1,
-        matrix[i][j - 1] + 1,
-        matrix[i - 1][j - 1] + cost
-      );
-    }
-  }
-
-  return 1.0 - matrix[normA.length][normB.length] / maxLen;
+  const na = norm(a), nb = norm(b);
+  if (na === nb) return 1;
+  const wa = new Set(na.toLowerCase().split(/\W+/).filter(Boolean));
+  const wb = new Set(nb.toLowerCase().split(/\W+/).filter(Boolean));
+  if (wa.size === 0 || wb.size === 0) return 0;
+  let shared = 0;
+  for (const x of wa) if (wb.has(x)) shared++;
+  return shared / Math.max(wa.size, wb.size);
 }
 
 function clip(line: string): string {
