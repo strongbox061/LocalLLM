@@ -23,9 +23,9 @@ const FILE_RE = /@?[\w./-]+\.(md|txt|ts|tsx|js|jsx|json|ya?ml|toml|py|sh|css|htm
 const PLAN_ASK_RE = /\b(?:plan(?:s|ned|ning)?|planea\w*|planifi\w*|planej\w*|pianific\w*|planen)\b/i;
 
 export function allowsChanges(text: string): boolean {
-  // Check if the text contains an explicit permission to make changes
-  const lower = text.toLowerCase();
-  return ALLOW_RE.test(lower);
+  const t = text.trim();
+  if (ALLOW_RE.test(t)) return true;
+  return FILE_RE.test(t) && !has(QUESTION_START, t);
 }
 
 // bash commands that change files.
