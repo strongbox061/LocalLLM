@@ -3,7 +3,6 @@ name: reviewer
 description: Reviews recent changes for bugs, security problems and unclear code, without changing anything
 tools: read, grep, find, ls, bash
 model: llamacpp/local
-
 ---
 
 # Reviewer Agent
