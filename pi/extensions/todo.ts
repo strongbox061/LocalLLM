@@ -42,26 +42,22 @@ const TodoParams = Type.Object({
 	id: Type.Optional(Type.Number({ description: "Todo ID (for toggle)" })),
 });
 
-function loadTodos(): Todo[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
+/**
+ * Reconstruct state from session entries.
+ */
+const reconstructState = (ctx: ExtensionContext): Todo[] => {
+  let todos: Todo[] = [];
+  for (const entry of ctx.sessionManager.getBranch()) {
+    if (entry.type !== "message") continue;
+    const msg = entry.message;
+    if (msg.role !== "toolResult" || msg.toolName !== "todo") continue;
+    const details = msg.details as TodoDetails | undefined;
+    if (details) {
+      todos = details.todos;
+    }
   }
-}
-
-function saveTodos(todos: Todo[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
-}
-
-function nextId(todos: Todo[]): string {
-  const max = todos.reduce((acc, t) => {
-    const n = parseInt(t.id, 10);
-    return isNaN(n) ? acc : Math.max(acc, n);
-  }, 0);
-  return String(max + 1);
-}
+  return todos;
+};
 
 function formatTodoList(todos: Todo[]): string {
   if (todos.length === 0) {
@@ -79,8 +75,8 @@ function formatTodoList(todos: Todo[]): string {
 class TodoListComponent {
   private todos: Todo[];
 
-  constructor() {
-    this.todos = loadTodos();
+  constructor(initialTodos?: Todo[]) {
+    this.todos = initialTodos || [];
   }
 
   get count(): number {
@@ -98,9 +94,12 @@ class TodoListComponent {
   add(text: string): Todo | null {
     const trimmed = text.trim();
     if (!trimmed) return null;
-    const todo: Todo = { id: nextId(this.todos), text: trimmed, done: false };
+    const max = this.todos.reduce((acc, t) => {
+      const n = parseInt(t.id, 10);
+      return isNaN(n) ? acc : Math.max(acc, n);
+    }, 0);
+    const todo: Todo = { id: max + 1, text: trimmed, done: false };
     this.todos.push(todo);
-    saveTodos(this.todos);
     return todo;
   }
 
@@ -109,7 +108,6 @@ class TodoListComponent {
       const todo = this.todos.find((t) => t.id === id);
       if (todo && !todo.done) {
         todo.done = true;
-        saveTodos(this.todos);
         return todo;
       }
     } else {
@@ -117,7 +115,6 @@ class TodoListComponent {
       const pending = this.todos.find((t) => !t.done);
       if (pending) {
         pending.done = true;
-        saveTodos(this.todos);
         return pending;
       }
     }
@@ -128,11 +125,7 @@ class TodoListComponent {
     if (!id) return false;
     const before = this.todos.length;
     this.todos = this.todos.filter((t) => t.id !== id);
-    if (this.todos.length < before) {
-      saveTodos(this.todos);
-      return true;
-    }
-    return false;
+    return this.todos.length < before;
   }
 
   list(): TodoDetails {
@@ -153,7 +146,16 @@ class TodoListComponent {
 }
 
 export default function (pi: ExtensionAPI) {
-  const component = new TodoListComponent();
+  let todos: Todo[] = [];
+
+  pi.on("session_start", async (_event, ctx) => {
+    todos = reconstructState(ctx);
+  });
+  pi.on("session_tree", async (_event, ctx) => {
+    todos = reconstructState(ctx);
+  });
+
+  const component = new TodoListComponent(todos);
 
   pi.registerTool({
     name: "todos",
