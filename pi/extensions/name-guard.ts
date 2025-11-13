@@ -56,6 +56,11 @@ function textOf(content: any): string {
   return "";
 }
 
+function resolvePath(p: string, base: string): string {
+  if (p.startsWith("~/")) return path.join(os.homedir(), p.slice(2));
+  return path.isAbsolute(p) ? p : path.join(base, p);
+}
+
 // Base names of the project's files (tracked and untracked, not ignored), cached for a few seconds.
 let projectCache: { cwd: string; at: number; names: Set<string> } | undefined;
 function projectNames(cwd: string): Set<string> {
@@ -67,16 +72,6 @@ function projectNames(cwd: string): Set<string> {
   } catch {}
   projectCache = { cwd, at: Date.now(), names };
   return names;
-}
-
-export function fileNames(text: string): string[] {
-  const out = new Set<string>();
-  const t = String(text ?? "").replace(URL_RE, " ");
-  for (const m of t.matchAll(NAME_RE)) {
-    const name = m[1].replace(/^\.\//, "");
-    if (!NOT_FILES_RE.test(name)) out.add(name);
-  }
-  return [...out];
 }
 
 // The names in `added` that nothing backs up.
@@ -100,6 +95,20 @@ export default function (pi: any) {
   const learn = (text: string) => { for (const n of fileNames(text)) { known.add(n); known.add(path.basename(n)); } };
 
   pi.on("session_start", () => { known.clear(); lastUser = ""; });
+
+  // Your messages (Pi's `input` event; an Inbox reply without its title line, which the model wrote).
+  pi.on("input", (event: any) => {
+    const t = String(event?.text ?? "");
+    if (t.length > 120) return;
+    lastUser = t;
+    // Also learn from the model's previous answer, in case your reply is a bare "yes".
+    const msgs: any[] = event?.payload?.messages ?? [];
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i]?.role !== "assistant") continue;
+      const text = textOf(msgs[i]?.content);
+      if (text.trim()) { learn(text); break; }
+    }
+  });
 
   // What tools returned (a listing, a file read, a search).
   pi.on("tool_result", (event: any) => { if (!event?.isError) learn(textOf(event?.content)); });
