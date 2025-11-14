@@ -15,6 +15,12 @@ fi
 MODEL="${PI_MODEL:-Qwen3-30B-A3B-Instruct-2507}"
 PORT="${PI_PORT:-18789}"
 
+# Validate that the model file exists before launching
+if [[ ! -f "$PROJECT_ROOT/models/$MODEL" ]]; then
+  echo "[pi-launcher] Error: Model file not found: $PROJECT_ROOT/models/$MODEL"
+  exit 1
+fi
+
 echo "[pi-launcher] Starting Pi with $MODEL on port $PORT"
 echo "[pi-launcher] Model: $MODEL | Port: $PORT"
 
