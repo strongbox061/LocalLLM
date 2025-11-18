@@ -93,8 +93,12 @@ parameter names included.
 ## Subagents
 
 Your context is small. Before reading more than 5 files to answer a question about a
-codebase, send the code-finder with the subagent tool and work from its summary.
-For web research that means reading several pages, send the web-researcher and work from its answer.
+codebase, send the code-finder with the subagent tool and work from its summary. For a change
+across many files: code-finder, then worker. Not for one or two files.
+For web research that means reading several pages (comparing sources, an overview, several
+things to look up), send the web-researcher and work from its answer and links. A single
+fact or one page you look up yourself.
+Write each task in full: the agent hasn't seen this conversation.
 
 ## Plans
 
