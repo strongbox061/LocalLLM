@@ -10,7 +10,7 @@
   {"id": "A5", "folder": "empty", "prompt": "What's the latest version of the httpx Python package?",
    "expect": "site:pypi.org, then opens the PyPI page and gives the version from it"},
   {"id": "A6", "folder": "empty", "prompt": "Find recent papers on speculative decoding for LLMs.",
-   "expect": "lists papers, mostly with arXiv links; titles and dates as the results give them"},
+   "expect": "lists papers, mostly with arXiv links (site:arxiv.org preferred, not required); titles and dates as the results or pages give them"},
   {"id": "A7", "folder": "empty", "prompt": "Who developed the Mamba state space model architecture?",
    "expect": "site:wikipedia.org or no filter; names Albert Gu and Tri Dao"},
 

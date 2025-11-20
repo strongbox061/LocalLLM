@@ -6,7 +6,7 @@
 // and requests the model would. The Context7 ID cache goes to a temporary file (PI_CONTEXT7_ID_CACHE), and web_search's
 // HTTP calls go to a fake fetch, so nothing real is touched.
 
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync, copyFileSync, cpSync, existsSync, readFileSync, readdirSync, writeFileSync, appendFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, copyFileSync, cpSync, existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
 import { homedir, tmpdir } from "node:os";
@@ -16,6 +16,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const EXT = join(REPO, "pi", "extensions");
 const TMP = mkdtempSync(join(tmpdir(), "pi-guard-"));
+process.env.PI_CONTEXT7_ID_CACHE = join(TMP, "context7-ids.json");
+
 let passed = 0, failed = 0;
 
 function check(name, ok, detail = "") {

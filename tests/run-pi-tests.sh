@@ -9,12 +9,11 @@
 # Each test runs as `pi -p "<prompt>" < /dev/null` in a prepared folder (empty, a Next.js project pinned to 14.2.3, a
 # config.yml, this repo's last commit). K4 runs with a stand-in HOME (only Pi's own folder is the real one).
 # Reports go to ~/LocalLLM/test-runs/<date-time>/: <ID>.md per test and summary.tsv. Web tests use real search credits.
-# While it runs, each tool call and its result is printed as it happens: send the output to a file and follow
+# While it runs, each tool call and its result is printed as it happens: send the output to a file and follow it
 # with tail -f.
-#
-# The PC mustn't sleep during a run (an idle suspend once froze a test for 89 minutes): run again under systemd-inhibit.
-
 set -euo pipefail
+
+# The PC mustn't sleep during a run (an idle suspend once froze a test for 89 minutes): run again under systemd-inhibit.
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 TESTS_FILE="$REPO_DIR/tests/pi-tests.json"
