@@ -1,5 +1,8 @@
 {
-  "_about": "Small helper model for Open WebUI titles, tags and follow-ups so they never disturb the main model's cache.",
+  "_about": [
+    "The helper PC's small model (two-PC setup): Open WebUI's titles, tags and follow-ups, so they never disturb the",
+    "main model's cache. llama.cpp for Windows serves it on the helper's CPU (windows/setup.ps1; the GPU is kept for"
+  ],
   "url": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
   "file": "Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
   "alias": "helper-small",
