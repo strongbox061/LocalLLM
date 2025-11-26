@@ -92,6 +92,11 @@ function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig
 			continue;
 		}
 
+		// Skip agents with empty or whitespace-only names
+		if (!frontmatter.name.trim()) {
+			continue;
+		}
+
 		agents.push({
 			name: frontmatter.name,
 			description: frontmatter.description,
