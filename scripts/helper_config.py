@@ -18,10 +18,8 @@ import os
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
 # Start order on the helper; stop goes the other way round (Open WebUI and the search gateway first).
 HELPER_ORDER = ["kokoro", "voice-router", "whisper", "docling", "small-model", "comfyui", "search-gateway", "open-webui"]
-
 FEATURES = {"small-model": "HELPER_SMALL_MODEL", "comfyui": "HELPER_IMAGES", "docling": "HELPER_DOCLING"}
 
 
@@ -33,7 +31,6 @@ def flag(env, name, default="on"):
 
 
 def build(env, endpoints, model, versions):
-    """Build and return the helper config dict."""
     if endpoints.get("mode") != "split":
         raise ValueError("The helper PC is only used in split mode (./localllm.sh switch split).")
     data_dir = env.get("HELPER_DATA_DIR", "").strip()

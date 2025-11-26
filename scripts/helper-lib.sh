@@ -38,28 +38,20 @@ main_webui_version() {
 # --- pick_data_dir: HELPER_DATA_DIR in helper.env; when unset, the helper's internal NTFS drive with the most free space, ---
 # --- saved there (so every later run, and a rebuild from the backup, uses the same place). ---
 pick_data_dir() {
-  if [[ -n "${HELPER_DATA_DIR:-}" ]]; then
-    echo "$HELPER_DATA_DIR"
-    return
-  fi
+  [[ -n "${HELPER_DATA_DIR:-}" ]] && return 0
+  local drives letter
 
-  local best_dir="" best_free=0
-  while IFS= read -r line; do
-    local dir free
-    dir="$(echo "$line" | awk '{print $2}')"
-    free="$(echo "$line" | awk '{print $1}')"
-    if (( free > best_free )); then
-      best_free=$free
-      best_dir=$dir
-    fi
-  done < <(ssh "$HELPER_HOST" "powershell -Command 'Get-Volume | Where DriveType -eq Fixed | Select @{N=\"FreeGB\";E={[math]::Round(\$_.SizeRemaining/1GB)}},DriveLetter | Sort FreeGB -Descending | ForEach {\"\$_.FreeGB C:\$($_.DriveLetter):}\"'")
 
-  if [[ -n "$best_dir" ]]; then
-    set_helper_env "HELPER_DATA_DIR" "$best_dir"
-    echo "$best_dir"
-  else
-    echo "C:\\Data"
-  fi
+    drives="$(helper_task drives 2>/dev/null | tr -d '\r')" || die "Couldn't list the helper's drives."
+    letter="$(python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print(d[0]["letter"] if d else "")' "$drives" 2>/dev/null)"
+    [[ -n "$letter" ]] || die "The helper has no internal NTFS drive to use ($drives)."
+    python3 -c 'import json,sys
+for d in json.loads(sys.argv[1]): print(f"  {d[\"letter\"]}: {d[\"free_gb\"]} GB free of {d[\"size_gb\"]} GB")' "$drives" 2>/dev/null \
+        || printf '%s\n' "$drives"
+    HELPER_DATA_DIR="$letter:\\LocalLLM"
+    set_helper_env HELPER_DATA_DIR "$HELPER_DATA_DIR"
+    echo "Data folder on the helper: $HELPER_DATA_DIR (the drive with the most free space; saved as HELPER_DATA_DIR in"
+    echo "$HELPER_ENV_FILE: edit it there to use another one before the first switch)."
 }
 
 # --- split_endpoints <file>: endpoints.json as split mode has them, also while this PC is still in single mode ---
