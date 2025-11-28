@@ -35,13 +35,11 @@ main_webui_version() {
     uv tool list 2>/dev/null | sed -nE 's/^open-webui v([0-9][^ ]*).*/\1/p'
 }
 
-# --- pick_data_dir: HELPER_DATA_DIR in helper.env; when unset, the helper's internal NTFS drive with the most free space, ---
-# --- saved there (so every later run, and a rebuild from the backup, uses the same place). ---
+# pick_data_dir: HELPER_DATA_DIR in helper.env; when unset, the helper's internal NTFS drive with the most free space,
+# saved there (so every later run, and a rebuild from the backup, uses the same place).
 pick_data_dir() {
-  [[ -n "${HELPER_DATA_DIR:-}" ]] && return 0
-  local drives letter
-
-
+    [[ -n "${HELPER_DATA_DIR:-}" ]] && return 0
+    local drives letter
     drives="$(helper_task drives 2>/dev/null | tr -d '\r')" || die "Couldn't list the helper's drives."
     letter="$(python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print(d[0]["letter"] if d else "")' "$drives" 2>/dev/null)"
     [[ -n "$letter" ]] || die "The helper has no internal NTFS drive to use ($drives)."
