@@ -22,9 +22,9 @@ check_extension() {
     return
   fi
 
-  # Ensure the extension has at least a non-empty SKILL.md and an index or manifest
-  if [[ ! -f "${ext_path}/index.js" && ! -f "${ext_path}/index.ts" && ! -f "${ext_path}/SKILL.md" ]]; then
-    echo "FAIL  ${ext_name} — no entry point found"
+  # Verify at least one JS/TS entry point exists alongside SKILL.md
+  if [[ ! -f "${ext_path}/index.js" && ! -f "${ext_path}/index.ts" ]]; then
+    echo "FAIL  ${ext_name} — no JS/TS entry point found"
     ((FAIL++))
     return
   fi
