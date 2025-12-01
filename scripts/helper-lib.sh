@@ -52,28 +52,13 @@ for d in json.loads(sys.argv[1]): print(f"  {d[\"letter\"]}: {d[\"free_gb\"]} GB
     echo "$HELPER_ENV_FILE: edit it there to use another one before the first switch)."
 }
 
-# --- split_endpoints <file>: endpoints.json as split mode has them, also while this PC is still in single mode ---
-# --- (install-helper runs before switch split). Always includes owui so install-helper installs the full helper stack even ---
-# --- when LOCALLLM_APPS=pi (the runtime apps toggle stays in config.json's "apps" field). ---
+# split_endpoints <file>: endpoints.json as split mode has them, also while this PC is still in single mode
+# (install-helper runs before switch split). Always includes owui so install-helper installs the full helper stack even
+# when LOCALLLM_APPS=pi (the runtime apps toggle stays in config.json's "apps" field).
 split_endpoints() {
-  local file="$1"
-  if [[ ! -f "$file" ]]; then
-    echo "error: $file not found" >&2
-    return 1
-  fi
-
-  local llm_endpoint owui_endpoint
-  llm_endpoint="$(jq -r '.llm // empty' "$file")"
-  owui_endpoint="$(jq -r '.owui // empty' "$file")"
-
-  if [[ -z "$llm_endpoint" || -z "$owui_endpoint" ]]; then
-    # Single mode: both point here
-    local here_port="${LOCALLLM_PORT:-3490}"
-    llm_endpoint="http://localhost:${here_port}"
-    owui_endpoint="http://localhost:${here_port}"
-  fi
-
-  echo "${llm_endpoint}|${owui_endpoint}"
+    local args=(LOCALLLM_MODE=split "LOCALLLM_APPS=pi,owui" HELPER_HOST="${HELPER_HOST:-}" MAIN_HOST="${MAIN_HOST:-}") v
+    for v in $(compgen -v PLACE_); do args+=("$v=${!v}"); done
+    env "${args[@]}" python3 "$REPO_DIR/lib/endpoints.py" print > "$1" || die "The split-mode addresses don't fit together."
 }
 
 # --- build_stage <dir>: everything the helper gets, laid out as C:\ProgramData\LocalLLM (repo\, config.json, model.json, ---
