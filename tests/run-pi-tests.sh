@@ -20,17 +20,16 @@ TESTS_FILE="$REPO_DIR/tests/pi-tests.json"
 TRACE="$REPO_DIR/tests/trace.py"
 TIMEOUT_SECONDS=480
 OUT_DIR="$HOME/LocalLLM/test-runs/$(date +%Y%m%d-%H%M%S)"
+
 WITH_F1=false
 WITH_J1=false
 SELECTED=()
-
-# --- which tests ---
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --with-f1) WITH_F1=true; shift ;;
-        --with-j1) WITH_J1=true; shift ;;
-        -*) echo "Unknown option: $1" >&2; exit 1 ;;
-        *) SELECTED+=("$1"); shift ;;
+for arg in "$@"; do
+    case "$arg" in
+        --with-f1) WITH_F1=true ;;
+        --with-j1) WITH_J1=true ;;
+        -h | --help) sed -n '2,10p' "$0"; exit 0 ;;
+        *) SELECTED+=("$arg") ;;
     esac
 done
 
