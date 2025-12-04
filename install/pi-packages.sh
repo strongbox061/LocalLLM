@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
-# install/pi-packages.sh — Install Node.js dependencies for Pi agent extensions and tools.
-# The search-gateway extension (pi/extensions/search-gateway.ts) handles web searching directly,
-# so no separate search package is installed. Packages are managed in a single script:
-#   install/pi-packages.sh          install all configured packages
-#   install/pi-packages.sh --update also update the installed packages
+# (pi/extensions/search-gateway.ts, copied by install/pi-config.sh), so no search package is installed.
+#   install/pi-packages.sh            only what is missing
+#   install/pi-packages.sh --update   also update the installed packages
 
 set -euo pipefail
 
@@ -11,15 +9,13 @@ source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
 
 SETTINGS="$PI_AGENT_DIR/settings.json"
 
-# Packages that have been superseded and should be cleaned up.
+# Replaced by pi/extensions/search-gateway.ts: it searched DuckDuckGo and SearXNG directly.
 RETIRED_PACKAGES=(npm:pi-search-hub)
 
-# Default packages installed when no settings.json override exists.
 DEFAULT_PACKAGES=(
     npm:pi-sandbox
     npm:pi-metrics
     npm:pi-tool-repair
-    npm:pi-mcp-adapter
     npm:awesome-pi-themes
     npm:pi-ui-extension
     npm:pi-clear-screen
@@ -29,74 +25,58 @@ DEFAULT_PACKAGES=(
     npm:pi-simplify
 )
 
-# Resolved package list: settings.json decides which packages to install; otherwise the default list.
+# A restored settings.json decides which packages to install; otherwise the default list.
 PACKAGES=()
+if [[ -f "$SETTINGS" ]]; then
+    mapfile -t PACKAGES < <(python3 -c '
+import json, sys
+for p in json.load(open(sys.argv[1])).get("packages", []):
+    print(p if isinstance(p, str) else p.get("source", ""))
+' "$SETTINGS" | grep .) || true
+fi
+[[ ${#PACKAGES[@]} -gt 0 ]] || PACKAGES=("${DEFAULT_PACKAGES[@]}")
 
-# Check if a package name matches any retired package.
-is_retired() {
-  local p
-  for p in "${RETIRED_PACKAGES[@]}"; do
-    [[ "$1" == "$p" ]] && return 0
-  done
-  return 1
-}
+is_retired() { local p; for p in "${RETIRED_PACKAGES[@]}"; do [[ "$1" == "$p" ]] && return 0; done; return 1; }
 
 # recorded_version <npm name>: its version in the last backup (PI_PACKAGE_VERSIONS in versions.env), if any.
 recorded_version() {
-  local ver
-  ver=$(grep "^${2:-}" "$PI_AGENT_DIR/versions.env" 2>/dev/null | head -1 | cut -d= -f2) || true
-  echo "$ver"
+    local entry
+    for entry in ${PI_PACKAGE_VERSIONS:-}; do
+        [[ "${entry%@*}" == "$1" ]] && { echo "${entry##*@}"; return 0; }
+    done
 }
 
-# Read settings.json to determine which packages to install.
-if [[ -f "$SETTINGS" ]]; then
-  PACKAGES=($(python3 -c "
-import json, sys
-try:
-    with open('$SETTINGS') as f:
-        data = json.load(f)
-    pkgs = data.get('packages', [])
-    for p in pkgs:
-        print(p)
-except (json.JSONDecodeError, KeyError):
-    pass
-"))
-fi
-
-# Fall back to defaults if no packages were resolved.
-if [[ ${#PACKAGES[@]} -eq 0 ]]; then
-  PACKAGES=("${DEFAULT_PACKAGES[@]}")
-fi
-
-# Install each package.
-for pkg in "${PACKAGES[@]}"; do
-  if is_retired "$pkg"; then
-    notice "Skipping retired package: $pkg"
-    continue
-  fi
-  info "Installing dependency: $pkg"
-  npm install --prefix "$PI_AGENT_DIR" "$pkg" 2>&1 | tee -a "$PI_AGENT_DIR/install.log"
+for package in "${PACKAGES[@]}"; do
+    is_retired "$package" && continue
+    if [[ "$package" == npm:* ]] && [[ -d "$PI_AGENT_DIR/npm/node_modules/${package#npm:}" ]]; then
+        echo "Already installed: $package"
+    else
+        pi install "$package"
+        # A fresh install gets the version of the last backup (settings keep the unpinned name, so --update still
+        # moves it to the newest).
+        name="${package#npm:}"
+        version="$(recorded_version "$name")"
+        if [[ "$package" == npm:* && -n "$version" && "${1:-}" != "--update" ]]; then
+            npm --prefix "$PI_AGENT_DIR/npm" install --no-audit --no-fund "$name@$version" >/dev/null
+            echo "  $name: the recorded version $version"
+        fi
+    fi
 done
 
-# Clean up any retired packages that may still be installed.
-for pkg in "${RETIRED_PACKAGES[@]}"; do
-  if [[ -d "$PI_AGENT_DIR/node_modules/$pkg" ]]; then
-    notice "Removing retired package: $pkg"
-    rm -rf "$PI_AGENT_DIR/node_modules/$pkg"
-  fi
+# A settings.json from an older backup can still list a retired package.
+for package in "${RETIRED_PACKAGES[@]}"; do
+    if grep -qF "\"$package\"" "$SETTINGS" 2>/dev/null || [[ -d "$PI_AGENT_DIR/npm/node_modules/${package#npm:}" ]]; then
+        pi remove "$package"
+        echo "Removed: $package (replaced by this repo's extensions)"
+    fi
 done
 
-# Sync custom browser executable, launch args, and extensions from local.env
-if [[ -f "$PI_AGENT_DIR/local.env" ]]; then
-  info "Syncing browser config from local.env"
-  # Browser settings are read by extensions at runtime.
-fi
+npm config set prefix "$HOME/.local"
 
 # pi-search-hub's config, no longer read by anything.
-# Its data directory can be removed if it still exists.
-if [[ -d "$PI_AGENT_DIR/data/pi-search-hub" ]]; then
-  notice "Cleaning up retired pi-search-hub data"
-  rm -rf "$PI_AGENT_DIR/data/pi-search-hub"
+if [[ -f "$PI_AGENT_DIR/extensions/search.json" ]]; then
+    rm -f "$PI_AGENT_DIR/extensions/search.json"
+    echo "Removed: $PI_AGENT_DIR/extensions/search.json"
 fi
 
 info "All dependencies installed successfully."
