@@ -152,6 +152,10 @@ export function discoverAgents(cwd: string, scope: AgentScope): AgentDiscoveryRe
 	return { agents: Array.from(agentMap.values()), projectAgentsDir };
 }
 
+export function getAgentByName(agents: AgentConfig[], name: string): AgentConfig | undefined {
+	return agents.find((a) => a.name === name);
+}
+
 export function formatAgentList(agents: AgentConfig[], maxItems: number): { text: string; remaining: number } {
 	if (agents.length === 0) return { text: "none", remaining: 0 };
 	const listed = agents.slice(0, maxItems);
