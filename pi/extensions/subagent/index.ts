@@ -62,7 +62,6 @@ export function modelSlots(file = process.env.LOCALLLM_MODEL_JSON || path.join(o
 		return 2;
 	}
 }
-
 const SLOTS = modelSlots();
 // LocalLLM: how many children may run at once: model.json "subagentsAtOnce" (from local.env), 1 without it, never
 // more than the slots.
