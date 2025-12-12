@@ -57,12 +57,6 @@ const THINK_PREFIX_RE = /^\s*think\s*:/i;
 // Set true to print each decision to the terminal while testing.
 const DEBUG = false;
 
-function log(...args: any[]) {
-  if (DEBUG) console.log("[thinking-switch]", ...args);
-}
-
-
-
 function textOf(content: any): string {
   if (typeof content === "string") return content;
   if (Array.isArray(content)) {
