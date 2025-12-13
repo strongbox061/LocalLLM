@@ -44,19 +44,25 @@ const TodoParams = Type.Object({
 
 /**
  * Reconstruct state from session entries.
+ * Scans tool results for this tool and applies them in order.
  */
-const reconstructState = (ctx: ExtensionContext): Todo[] => {
-  let todos: Todo[] = [];
-  for (const entry of ctx.sessionManager.getBranch()) {
-    if (entry.type !== "message") continue;
-    const msg = entry.message;
-    if (msg.role !== "toolResult" || msg.toolName !== "todo") continue;
-    const details = msg.details as TodoDetails | undefined;
-    if (details) {
-      todos = details.todos;
-    }
-  }
-  return todos;
+const reconstructState = (ctx: ExtensionContext) => {
+	let todos: Todo[] = [];
+	let nextId = 1;
+
+	for (const entry of ctx.sessionManager.getBranch()) {
+		if (entry.type !== "message") continue;
+		const msg = entry.message;
+		if (msg.role !== "toolResult" || msg.toolName !== "todo") continue;
+
+		const details = msg.details as TodoDetails | undefined;
+		if (details) {
+			todos = details.todos;
+			nextId = details.nextId;
+		}
+	}
+
+	return { todos, nextId };
 };
 
 function formatTodoList(todos: Todo[]): string {
@@ -74,9 +80,11 @@ function formatTodoList(todos: Todo[]): string {
 
 class TodoListComponent {
   private todos: Todo[];
+  private nextId: number;
 
-  constructor(initialTodos?: Todo[]) {
-    this.todos = initialTodos || [];
+  constructor(todos: Todo[], nextId: number) {
+    this.todos = todos;
+    this.nextId = nextId;
   }
 
   get count(): number {
@@ -94,11 +102,7 @@ class TodoListComponent {
   add(text: string): Todo | null {
     const trimmed = text.trim();
     if (!trimmed) return null;
-    const max = this.todos.reduce((acc, t) => {
-      const n = parseInt(t.id, 10);
-      return isNaN(n) ? acc : Math.max(acc, n);
-    }, 0);
-    const todo: Todo = { id: max + 1, text: trimmed, done: false };
+    const todo: Todo = { id: this.nextId++, text: trimmed, done: false };
     this.todos.push(todo);
     return todo;
   }
@@ -130,7 +134,9 @@ class TodoListComponent {
 
   list(): TodoDetails {
     return {
+      action: "list" as const,
       todos: this.todos,
+      nextId: this.nextId,
       total: this.todos.length,
       done: this.doneCount,
       pending: this.pendingCount,
@@ -146,16 +152,22 @@ class TodoListComponent {
 }
 
 export default function (pi: ExtensionAPI) {
+  // In-memory state (reconstructed from session on load)
   let todos: Todo[] = [];
+  let nextId = 1;
 
   pi.on("session_start", async (_event, ctx) => {
-    todos = reconstructState(ctx);
+    const { todos: restoredTodos, nextId: restoredNextId } = reconstructState(ctx);
+    todos = restoredTodos;
+    nextId = restoredNextId;
   });
   pi.on("session_tree", async (_event, ctx) => {
-    todos = reconstructState(ctx);
+    const { todos: restoredTodos, nextId: restoredNextId } = reconstructState(ctx);
+    todos = restoredTodos;
+    nextId = restoredNextId;
   });
 
-  const component = new TodoListComponent(todos);
+  const component = new TodoListComponent(todos, nextId);
 
   pi.registerTool({
     name: "todos",
