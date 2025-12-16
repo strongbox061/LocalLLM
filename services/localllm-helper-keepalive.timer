@@ -1,7 +1,7 @@
-# Run the keepalive service periodically
+# Pings the helper PC over Tailscale every 60 seconds so the direct WireGuard tunnel stays warm.
 
 [Unit]
-Description=Helper PC keepalive timer
+Description=LocalLLM helper PC Tailscale keepalive every 60s
 
 [Timer]
 OnBootSec=30s
