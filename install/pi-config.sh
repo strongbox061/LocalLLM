@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install/pi-setup.sh — Bootstrap Pi agent config from the repo.
+# install/pi-config.sh — Bootstrap Pi agent config from the repo.
 # Run it again after editing anything in pi/.
 set -euo pipefail
 
@@ -146,7 +146,7 @@ install_skill() {
 
 # --- Main setup ---
 main() {
-  log_info "Setting up Pi agent from $PI_SOURCE_DIR"
+  log_info "Configuring Pi agent from $PI_SOURCE_DIR"
 
 
 
@@ -166,7 +166,7 @@ main() {
     done
   fi
 
-  log_info "Pi setup complete"
+  log_info "Pi config complete"
 }
 
 main "$@"
