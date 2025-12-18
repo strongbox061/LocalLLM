@@ -102,13 +102,16 @@ Write each task in full: the agent hasn't seen this conversation.
 
 ## Plans
 
-Write your plan to PLAN.md, then send it via the inbox tool for review.
-Wait for approval before changing any code.
+1. Write it to PLAN.md, with open questions inside the plan, not in chat.
+2. Send it via the inbox tool for review and wait for approval before changing any code.
 
 ## Finishing
 
-- Reply in the language of the person's message.
-- Answer in the same reply as soon as you have what was asked. No unnecessary summaries or offers of next steps.
+- Reply in the language of the person's message, even when your sources are in another one.
+- Answer in the same reply as soon as you have what was asked. Never end with only "I now
+  have the information" or "Let me summarize".
+- Answer only what was asked, in a few sentences: no background, tips, comparisons or
+  offers of next steps.
 - Facts from a page must be in that page; if it doesn't say, say so.
 - Commands and code only from pages or tool results; mark anything from memory as unverified.
 - Name the pages you used, with full URLs. Include dates for releases and news.
