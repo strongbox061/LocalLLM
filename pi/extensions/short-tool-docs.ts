@@ -16,6 +16,29 @@ const DROPPED_TOOLS = new Set(["tool_search"]);
 type Short = { description: string; params?: Record<string, string>; drop?: string[]; bare?: string[] };
 
 const SHORT: Record<string, Short> = {
+  todo: {
+    description:
+      "Your todo list for this task. Use it first for any task that changes more than one file or ends with running " +
+      "tests: add each stage, toggle each right after its step (one at a time). Actions: add (text), toggle (id: done/not done), list, clear.",
+    params: { text: "The step, for add.", id: "The item's number, for toggle." },
+  },
+  subagent: {
+    description:
+      "Run a task in a separate agent with a clean context; only its final answer comes back. Agents: code-finder (finds " +
+      "and summarizes code), web-researcher (researches on the web, answers with links), planner (writes a plan), " +
+      "reviewer (reviews changes), worker (makes changes). Give the task everything it needs: the agent hasn't seen " +
+      "this conversation. One mode: agent+task, tasks (several; they take turns as the setup allows), or chain (in " +
+      "order; {previous} in a task is the step before's answer).",
+    params: {
+      agent: "Agent name, for one task.",
+      task: "The task, for one task.",
+      tasks: "Several {agent, task}; as many run at once as the setup allows, the rest wait.",
+      chain: "{agent, task} steps run in order.",
+      cwd: "Folder to work in (default: the current one).",
+    },
+    drop: ["agentScope", "confirmProjectAgents"],
+    bare: ["tasks", "chain"],
+  },
   "context7_resolve-library-id": {
     description: "Resolve a library name to its Context7-compatible ID for documentation lookup.",
     params: {
@@ -73,28 +96,33 @@ const SHORT: Record<string, Short> = {
 };
 
 function shorten(def: any): boolean {
-  const name = def.name;
-  if (!name || !SHORT[name]) {
-    return false;
+  const short = SHORT[def.name];
+  if (!short) return false;
+
+  // Schema-based: update parameter descriptions directly on the JSON schema
+  const schema = def.parameters ?? def.input_schema ?? def.inputSchema;
+  if (schema && typeof schema === "object" && short.params) {
+    delete schema.$schema;
+    for (const [name, text] of Object.entries(short.params)) {
+      if (schema.properties?.[name]) schema.properties[name].description = text;
+    }
+    for (const name of short.drop ?? []) {
+      if (schema.properties) delete schema.properties[name];
+      if (Array.isArray(schema.required)) schema.required = schema.required.filter((r: string) => r !== name);
+    }
+    for (const name of short.bare ?? []) {
+      for (const item of Object.values<any>(schema.properties?.[name]?.items?.properties ?? {})) delete item.description;
+    }
+    return true;
   }
 
-  const shortDoc = SHORT[name];
-  let result = shortDoc.description;
-
-  if (shortDoc.params && Object.keys(shortDoc.params).length > 0) {
-    result += "\n\nParameters:\n";
-    for (const [paramName, paramDesc] of Object.entries(shortDoc.params)) {
-      result += `- ${paramName}: ${paramDesc}\n`;
+  // Text-based fallback for older tools that lack a structured schema
+  def.description = short.description;
+  if (short.drop) {
+    for (const drop of short.drop) {
+      def.description = def.description.split(drop).join("");
     }
   }
-
-  if (shortDoc.drop) {
-    for (const drop of shortDoc.drop) {
-      result = result.split(drop).join("");
-    }
-  }
-
-  def.description = result;
   return true;
 }
 
