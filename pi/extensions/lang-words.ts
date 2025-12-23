@@ -12,7 +12,9 @@ export function norm(text: string): string {
   return t.replace(/[\u2019\u2018\u02bc`\u03c2\u064a\u0649\u0643\u200c\u200d]/g, (c) => SAME[c] ?? c);
 }
 
-const PLEASE = String.raw`s'?il[\s-]+vous[\s-]+plait|vær[\s-]+sa[\s-]+snill|por[\s-]+gentileza|برای[\s-]+مهربانی|per[\s-]+piacere|خواهش[\s-]+میکنم|অনুগ্রহ[\s-]+করে|будь[\s-]+ласка|por[\s-]+favor|لطفاً|merhaba[\s-]+yardım|kérlek[\s-]+szívesen|пожалуйста|prosim[\s-]+tě|prosím[\s-]+tě|merhaba|لطف[\s-]+دارید|gracias[\s-]+por[\s-]+tu[\s-]+ayuda|おねがいします|请[\s-]+麻烦|請[\s-]+麻煩|お願いします|麻烦[\s-]+您|麻煩[\s-]+您|부탁[\s-]+드립니다|감사합니다|谢谢[\s-]+你|謝謝[\s-]+你|감사[\s-]+합니다|merci[\s-]+beaucoup|grazie[\s-]+mille|danke[\s-]+sehr|תודה[\s-]+רבה|شكراً[\s-]+جداً|arigatou[\s-]+gozaimasu|spasiba[\s-]+bol'she|dank[\s-]+uwel`;
+// Words allowed before a phrase that starts the message (please, por favor...), and the search engine names.
+const PLEASE = String.raw`s'?il[\s-]+vous[\s-]+plait|s'?il[\s-]+te[\s-]+plait|vær[\s-]+sa[\s-]+snill|por[\s-]+gentileza|برایے[\s-]+مہربانی|per[\s-]+piacere|خواهش[\s-]+میکنم|অনুগ্রহ[\s-]+করে|per[\s-]+favore|будь[\s-]+ласка|por[\s-]+favor|ystavallisesti|merci[\s-]+de|ole[\s-]+hyva|vui[\s-]+long|براہ[\s-]+کرم|দয়া[\s-]+করে|vær[\s-]+sød|xin[\s-]+hay|لو[\s-]+سمحت|من[\s-]+فضلک|alsjeblieft|alstublieft|liefst[\s-]+gewenst|ven[\s-]+alstublieft|graag[\s-]+gedaan|dank[\s-]+uwel`;
+// The search engine names, with optional Unicode suffixes.
 const ENGINE = String.raw`(google|bing|duckduckgo|mojeek|brave|yahoo|qwant|startpage|ecosia)(?:[-']?[\p{L}\p{M}]+)?`;
 export const LATEST = /(?:アップデート情報|現在のバージョン|何が新しい|新功能|最新機能|版本更新|有什么新|变更日志|当前版本|新特性|リリースノート|最新版|変更履歴)|(?<![\p{L}\p{M}\p{N}])(?:latest[\s-]+version|new[\s-]+features|what's[\s-]+new|recent[\s-]+changes|current[\s-]+version|last[\s-]+update|changelog|release[\s-]+notes)/i;
 export const ERROR = /(?:error|erroe|errror|błąd|exception|エラー|クラッシュ|落ちる|バグ|崩溃|错误|異常|故障|閃退)|(?<![\p{L}\p{M}\p{N}])(?:crash|hang|fail|failed|fails|broken|not[\s-]+working|won't[\s-]+work|doesn't[\s-]+work)/i;
