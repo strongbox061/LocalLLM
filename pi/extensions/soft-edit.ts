@@ -1,5 +1,5 @@
-// soft-edit.ts
-// Location: ~/.pi/agent/extensions/soft-edit.ts
+// edit-fuzzy.ts
+// Location: ~/.pi/agent/extensions/edit-fuzzy.ts
 //
 // Pi's `edit` tool replaces text only if `oldText` matches the file exactly.
 // The model often retypes the old text with small differences. This extension checks
@@ -8,8 +8,11 @@
 //    quotes): if exactly ONE place in the file matches when those are ignored,
 //    it swaps in the file's real text and the edit goes ahead.
 //  - Real differences (a word the model remembered wrong) are never guessed. When
-//    all edits in a call fail, the edit is blocked with the closest place in
-//    the file, the lines that differ, and the file's exact text to copy.
+//    all edits in a call fail, the edit is blocked with the closest place in the
+//    file, the lines that differ, and the file's exact text to copy. In a multi-edit
+//    call where some edits match and others don't, the valid edits are allowed to
+//    apply and the skipped ones are reported in the tool result so the model only
+//    retries what failed.
 
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -20,13 +23,12 @@ const MAX_SHOWN_LINES = 40;
 const MAX_LINE_CHARS = 300;
 
 // Compare lines ignoring indentation, trailing spaces, repeated spaces and quote styles.
-// Compare lines ignoring indentation, trailing spaces, repeated spaces and quote styles.
 function norm(line: string): string {
   return line
     .replace(/\r$/, "")
     .replace(/[ \t]/g, " ")
-    .replace(/[\u2018\u2019]/g, "'")
-    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[']/g, "'")
+    .replace(/["/g, '"')
     .replace(/ {2,}/g, " ")
     .trim();
 }
@@ -84,8 +86,7 @@ function lineSimilarity(a: string, b: string): number {
 }
 
 function clip(line: string): string {
-  if (line.length <= MAX_LINE_CHARS) return line;
-  return line.slice(0, MAX_LINE_CHARS) + "...";
+  return line.length > MAX_LINE_CHARS ? line.slice(0, MAX_LINE_CHARS) + "\u2026" : line;
 }
 
 export function explainMiss(
