@@ -99,7 +99,7 @@ export default function (pi: any) {
   // Your messages (Pi's `input` event; an Inbox reply without its title line, which the model wrote).
   pi.on("input", (event: any) => {
     const t = String(event?.text ?? "");
-    if (t.length > 120) return;
+    if (t.length > 256) return;
     lastUser = t;
     // Also learn from the model's previous answer, in case your reply is a bare "yes".
     const msgs: any[] = event?.payload?.messages ?? [];
