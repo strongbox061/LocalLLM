@@ -61,26 +61,30 @@ split_endpoints() {
     env "${args[@]}" python3 "$REPO_DIR/lib/endpoints.py" print > "$1" || die "The split-mode addresses don't fit together."
 }
 
-# --- build_stage <dir>: everything the helper gets, laid out as C:\ProgramData\LocalLLM (repo\, config.json, model.json, ---
-# --- chat-types\, secrets\). Without HELPER_DATA_DIR only the repo files. ---
 build_stage() {
-  local stage_dir="$1"
-  mkdir -p "$stage_dir"
-
-  # Copy repo files
-  for path in "${DEPLOY_PATHS[@]}"; do
-    if [[ -e "$path" ]]; then
-      local dest="${stage_dir}/${path}"
-      mkdir -p "$(dirname "$dest")"
-      cp -r "$path" "$dest" 2>/dev/null || true
-    fi
-  done
-
-  # Copy config files
-  [[ -f "config.json" ]] && cp config.json "$stage_dir/"
-  [[ -f "models/helper-small.json" ]] && cp models/helper-small.json "$stage_dir/models/"
-
-  echo "$stage_dir"
+    local stage="$1" f eps
+    mkdir -p "$stage/repo"
+    while IFS= read -r f; do
+        [[ -f "$REPO_DIR/$f" ]] || continue
+        mkdir -p "$stage/repo/$(dirname -- "$f")"
+        cp "$REPO_DIR/$f" "$stage/repo/$f"
+    done < <(cd "$REPO_DIR" && git ls-files --cached --others --exclude-standard -- "${DEPLOY_PATHS[@]}" | grep -Ev "$DEPLOY_EXCLUDE")
+    [[ -n "${HELPER_DATA_DIR:-}" ]] || return 0
+    eps="$stage/.endpoints.json"
+    split_endpoints "$eps"
+    write_model_json_quiet
+    HELPER_DATA_DIR="$HELPER_DATA_DIR" OPEN_WEBUI_VERSION="$(main_webui_version)" LOCALLLM_APPS="${LOCALLLM_APPS:-pi,owui}" \
+        python3 "$REPO_DIR/lib/helper_config.py" "$eps" "$MODEL_JSON_FILE" > "$stage/config.json" || die "helper config.json failed."
+    rm -f "$eps"
+    cp "$MODEL_JSON_FILE" "$stage/model.json"
+    # Only the chat type files themselves (not .deleted/, the page's deleted ones, kept here and in the backup).
+    mkdir -p "$stage/chat-types"
+    if [[ -d "$CHAT_TYPES_DIR" ]]; then find "$CHAT_TYPES_DIR" -maxdepth 1 -type f -name '*.json' -exec cp {} "$stage/chat-types/" \; ; fi
+    mkdir -p "$stage/secrets"
+    ensure_llama_api_key >/dev/null
+    cp "$LLAMA_API_KEY_FILE" "$stage/secrets/llama-api-key"
+    [[ -f "$WEBUI_KEY_FILE" ]] && cp "$WEBUI_KEY_FILE" "$stage/secrets/webui-secret-key"
+    return 0
 }
 
 # --- write_model_json_quiet: quietly write model JSON, skip if unchanged. ---
