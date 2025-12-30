@@ -1,8 +1,9 @@
 ---
-description: Code finder and planner workflow
+description: The code-finder finds the code, planner writes a plan (nothing is changed)
 ---
-Use the subagent tool to find relevant code and create a plan.
+Use the subagent tool with the chain parameter for this workflow:
 
-First run the code-finder agent to locate all code related to the task. Then use the planner agent to write an implementation plan based on what was found.
+1. First, the "code-finder" agent finds all code relevant to: $@
+2. Then, the "planner" agent writes an implementation plan for "$@" from the code-finder's findings (use the {previous} placeholder)
 
-Don't implement anything yourself - just return the plan for review.
+Run it as one chain, passing the code-finder's answer on with {previous}. Don't implement anything yourself - just return the plan for review.
