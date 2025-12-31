@@ -19,40 +19,52 @@ const TMP = mkdtempSync(join(tmpdir(), "pi-guard-"));
 process.env.PI_CONTEXT7_ID_CACHE = join(TMP, "context7-ids.json");
 
 let passed = 0, failed = 0;
-
 function check(name, ok, detail = "") {
   if (ok) { passed++; console.log(`  ok    ${name}`); }
   else { failed++; console.log(`  FAIL  ${name}${detail ? `\n        ${detail}` : ""}`); }
 }
 
 function fakePi() {
-  const handlers = {};
-  const calls = [];
-  const results = [];
-
+  const handlers = {}, tools = {}, messages = [];
+  const pi = { on: (name, fn) => (handlers[name] ??= []).push(fn), registerTool: (t) => (tools[t.name] = t),
+               registerCommand() {}, getActiveTools: () => [], setActiveTools() {} };
+  const send = async () => { for (const fn of handlers.before_provider_request ?? []) await fn({ payload: { messages: [...messages] } }); };
   return {
-    register(name, handler) {
-      handlers[name] = handler;
+    pi, tools, messages, handlers,
+    async say(text) {
+      for (const fn of handlers.input ?? []) await fn({ text, source: "interactive" });
+      messages.push({ role: "user", content: text });
+      await send();
     },
-    getHandlers() {
-      return { ...handlers };
+    async inject(text) {
+      messages.push({ role: "user", content: text });
+      await send();
     },
-    recordCall(call) {
-      calls.push(call);
+    async call(toolName, input, cwd = TMP) {
+      for (const fn of handlers.tool_call ?? []) {
+        const r = await fn({ toolName, input }, { cwd });
+        if (r?.block) return { blocked: true, reason: r.reason, input };
+      }
+      return { blocked: false, input };
     },
-    getCalls() {
-      return [...calls];
+    async result(toolName, input, text, isError = false, cwd = TMP) {
+      let last;
+      for (const fn of handlers.tool_result ?? []) last = (await fn({ toolName, input, content: [{ type: "text", text }], isError }, { cwd })) ?? last;
+      return last;
     },
-    recordResult(result) {
-      results.push(result);
+    async settle(answerText, ctx) {
+      for (const fn of handlers.agent_end ?? []) await fn({ messages: [{ role: "assistant", content: [{ type: "text", text: answerText }] }] });
+      let out;
+      for (const fn of handlers.agent_before_settle ?? []) out = (await fn({ entries: [] }, ctx)) ?? out;
+      return (out?.entries ?? []).map((e) => e.content).join("\n");
     },
-    getResults() {
-      return [...results];
+    async event(name, event, ctx) {
+      for (const fn of handlers[name] ?? []) await fn(event, ctx);
     },
-    reset() {
-      calls.length = 0;
-      results.length = 0;
-    }
+    async request(payload) {
+      for (const fn of handlers.before_provider_request ?? []) payload = (await fn({ payload })) ?? payload;
+      return payload;
+    },
   };
 }
 
