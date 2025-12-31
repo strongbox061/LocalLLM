@@ -11,11 +11,16 @@
 # Reports go to ~/LocalLLM/test-runs/<date-time>/: <ID>.md per test and summary.tsv. Web tests use real search credits.
 # While it runs, each tool call and its result is printed as it happens: send the output to a file and follow it
 # with tail -f.
-set -euo pipefail
+set -uo pipefail
 
 # The PC mustn't sleep during a run (an idle suspend once froze a test for 89 minutes): run again under systemd-inhibit.
+if [[ -z "${PI_TESTS_INHIBITED:-}" ]] && command -v systemd-inhibit >/dev/null; then
+    PI_TESTS_INHIBITED=1 exec systemd-inhibit --what=sleep:idle --who="LocalLLM tests" \
+        --why="Pi model tests are running" "$0" "$@"
+fi
 
-REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
+
 TESTS_FILE="$REPO_DIR/tests/pi-tests.json"
 TRACE="$REPO_DIR/tests/trace.py"
 TIMEOUT_SECONDS=480
