@@ -98,16 +98,8 @@ export default function (pi: any) {
 
   // Your messages (Pi's `input` event; an Inbox reply without its title line, which the model wrote).
   pi.on("input", (event: any) => {
-    const t = String(event?.text ?? "");
-    if (t.length > 256) return;
-    lastUser = t;
-    // Also learn from the model's previous answer, in case your reply is a bare "yes".
-    const msgs: any[] = event?.payload?.messages ?? [];
-    for (let i = msgs.length - 1; i >= 0; i--) {
-      if (msgs[i]?.role !== "assistant") continue;
-      const text = textOf(msgs[i]?.content);
-      if (text.trim()) { learn(text); break; }
-    }
+    lastUser = String(event?.text ?? "");
+    learn(lastUser);
   });
 
   // What tools returned (a listing, a file read, a search).

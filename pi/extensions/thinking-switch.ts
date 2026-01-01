@@ -71,9 +71,10 @@ function textOf(content: any): string {
 const FINISH_TAG = "[Automatic check, not from the user.";
 
 export function personText(text: string): string {
-  const t = String(text ?? "");
+  const t = String(text ?? "").trim();
+  if (!t) return "";
   if (t.includes(FINISH_TAG)) return t.split(FINISH_TAG)[0].trim();
-  return t.trim();
+  return t;
 }
 
 function lastUserIndex(messages: any[], person = ""): number {
