@@ -80,74 +80,66 @@ function formatTodoList(todos: Todo[]): string {
 
 class TodoListComponent {
   private todos: Todo[];
-  private nextId: number;
+  private theme: Theme;
+  private onClose: () => void;
+  private cachedWidth?: number;
+  private cachedLines?: string[];
 
-  constructor(todos: Todo[], nextId: number) {
+  constructor(todos: Todo[], theme: Theme, onClose: () => void) {
     this.todos = todos;
-    this.nextId = nextId;
+    this.theme = theme;
+    this.onClose = onClose;
   }
 
-  get count(): number {
-    return this.todos.length;
+  handleInput(data: string): void {
+    if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) {
+      this.onClose();
+    }
   }
 
-  get doneCount(): number {
-    return this.todos.filter((t) => t.done).length;
-  }
+  render(width: number): string[] {
+    if (this.cachedLines && this.cachedWidth === width) {
+      return this.cachedLines;
+    }
 
-  get pendingCount(): number {
-    return this.todos.length - this.doneCount;
-  }
+    const lines: string[] = [];
+    const th = this.theme;
 
-  add(text: string): Todo | null {
-    const trimmed = text.trim();
-    if (!trimmed) return null;
-    const todo: Todo = { id: this.nextId++, text: trimmed, done: false };
-    this.todos.push(todo);
-    return todo;
-  }
+    lines.push("");
+    const title = th.fg("accent", " Todos ");
+    const headerLine =
+      th.fg("borderMuted", "─".repeat(3)) + title + th.fg("borderMuted", "─".repeat(Math.max(0, width - 10)));
+    lines.push(truncateToWidth(headerLine, width));
+    lines.push("");
 
-  complete(id?: string): Todo | null {
-    if (id) {
-      const todo = this.todos.find((t) => t.id === id);
-      if (todo && !todo.done) {
-        todo.done = true;
-        return todo;
-      }
+    if (this.todos.length === 0) {
+      lines.push(truncateToWidth(`  ${th.fg("dim", "No todos yet. Ask the agent to add some!")}`, width));
     } else {
-      // Complete the first pending one
-      const pending = this.todos.find((t) => !t.done);
-      if (pending) {
-        pending.done = true;
-        return pending;
+      const done = this.todos.filter((t) => t.done).length;
+      const total = this.todos.length;
+      lines.push(truncateToWidth(`  ${th.fg("muted", `${done}/${total} completed`)}`, width));
+      lines.push("");
+
+      for (const todo of this.todos) {
+        const check = todo.done ? th.fg("success", "✓") : th.fg("dim", "○");
+        const id = th.fg("accent", `#${todo.id}`);
+        const text = todo.done ? th.fg("dim", todo.text) : th.fg("text", todo.text);
+        lines.push(truncateToWidth(`  ${check} ${id} ${text}`, width));
       }
     }
-    return null;
+
+    lines.push("");
+    lines.push(truncateToWidth(`  ${th.fg("dim", "Press Escape to close")}`, width));
+    lines.push("");
+
+    this.cachedWidth = width;
+    this.cachedLines = lines;
+    return lines;
   }
 
-  remove(id?: string): boolean {
-    if (!id) return false;
-    const before = this.todos.length;
-    this.todos = this.todos.filter((t) => t.id !== id);
-    return this.todos.length < before;
-  }
-
-  list(): TodoDetails {
-    return {
-      action: "list" as const,
-      todos: this.todos,
-      nextId: this.nextId,
-      total: this.todos.length,
-      done: this.doneCount,
-      pending: this.pendingCount,
-    };
-  }
-
-  render(): string {
-    const info = this.list();
-    const header = `Todos (${info.done}/${info.total} done, ${info.pending} pending)`;
-    const body = formatTodoList(info.todos);
-    return `${header}\n${body}`;
+  invalidate(): void {
+    this.cachedWidth = undefined;
+    this.cachedLines = undefined;
   }
 }
 

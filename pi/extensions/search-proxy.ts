@@ -18,17 +18,18 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { Type } from "typebox";
 
+// Where the gateway runs: ~/.config/localllm/endpoints.json (lib/endpoints.py; on the helper PC in split mode), read
+// at every search so ./localllm.sh switch needs no restart of Pi. SEARCH_GATEWAY_URL overrides it.
 const ENDPOINTS = process.env.LOCALLLM_ENDPOINTS || join(homedir(), ".config/localllm/endpoints.json");
-
 export function gateway(): { url: string; where: string; mode: string } {
+  let url = "http://127.0.0.1:8090", where = "main", mode = "single";
   try {
-    const endpoints = JSON.parse(readFileSync(ENDPOINTS, "utf-8"));
-    if (endpoints.helper && endpoints.helper.searchGateway) {
-      return { url: endpoints.helper.searchGateway, where: "helper", mode: "split" };
-    }
-  } catch { /* fallback below */ }
-
-  return { url: "http://127.0.0.1:8090", where: "local", mode: "standalone" };
+    const data = JSON.parse(readFileSync(ENDPOINTS, "utf8"));
+    const s = data?.services?.["search-gateway"];
+    if (s?.url) { url = String(s.url); where = String(s.where || where); mode = String(data.mode || mode); }
+  } catch { /* no endpoints.json yet: the single-mode address */ }
+  if (process.env.SEARCH_GATEWAY_URL) url = process.env.SEARCH_GATEWAY_URL;
+  return { url: url.replace(/\/+$/, ""), where, mode };
 }
 
 const TIMEOUT_MS = 90_000;

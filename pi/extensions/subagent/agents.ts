@@ -88,12 +88,7 @@ function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig
 
 		const { frontmatter, body } = parseFrontmatter<AgentFrontmatter>(content);
 
-		if (typeof frontmatter.name !== "string" || typeof frontmatter.description !== "string") {
-			continue;
-		}
-
-		// Skip agents with empty or whitespace-only names
-		if (!frontmatter.name.trim()) {
+		if (typeof frontmatter.name !== "string" || typeof frontmatter.description !== "string" || !frontmatter.name.trim()) {
 			continue;
 		}
 
