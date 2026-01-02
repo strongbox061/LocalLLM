@@ -15,6 +15,7 @@ RETIRED_PACKAGES=(npm:pi-search-hub)
 DEFAULT_PACKAGES=(
     npm:pi-sandbox
     npm:pi-metrics
+    npm:pi-mcp-adapter
     npm:pi-tool-repair
     npm:awesome-pi-themes
     npm:pi-ui-extension
