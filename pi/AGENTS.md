@@ -29,13 +29,23 @@ question fits a row:
 | Looking for | Example query |
 |---|---|
 | Docs on a known site | `context length site:huggingface.co` |
+| Code, repos, GitHub issues | `pi-agent-browser-native site:github.com` |
 | Programming errors, how-tos | `selector not found site:stackoverflow.com` |
 | Arch Linux problems | `pacman keyring error site:wiki.archlinux.org` |
 | Web APIs, JS, CSS, HTML (fetch, DOM...) | `fetch abort signal site:developer.mozilla.org` |
 | CLI flags, man pages | `rsync man page site:man.archlinux.org` |
 | Docker images | `ollama site:hub.docker.com` |
+| Python / Node packages | `httpx site:pypi.org`, `agent-browser site:npmjs.com` |
 | Research papers | `speculative decoding site:arxiv.org` |
 | Definitions, people, places | `gated deltanet site:wikipedia.org` |
+
+- Nothing useful with site:? Retry once without it. Results not useful? The exact same
+  search again goes to a different search service.
+- If I name an engine (Google, Mojeek...), don't open it in the browser: search engines refuse
+  automated browsers. Use web_search with my exact words and start the answer by saying so.
+- If the requested site has nothing after 2 tries, say so, give what you found, and stop.
+- Open result pages only when snippets don't answer, except for commands and fixes: open
+  their page before giving them.
 
 ## agent_browser
 
@@ -102,8 +112,14 @@ Write each task in full: the agent hasn't seen this conversation.
 
 ## Plans
 
+Every plan goes to my Plannotator Inbox, new or revised, asked for or not:
 1. Write it to PLAN.md, with open questions inside the plan, not in chat.
-2. Send it via the inbox tool for review and wait for approval before changing any code.
+2. Send it: plannotator_inbox, action send_message, a one-line summary of what's new as
+   the body, attachments ["PLAN.md"].
+3. End your turn. Change no code until I reply.
+When I ask to see or review the plan, send PLAN.md the same way, unchanged.
+My reply arrives as a new message: revise and send again, or start when I approve.
+In Plannotator plan mode its own instructions apply; never call plannotator_submit_plan.
 
 ## Finishing
 
@@ -112,6 +128,28 @@ Write each task in full: the agent hasn't seen this conversation.
   have the information" or "Let me summarize".
 - Answer only what was asked, in a few sentences: no background, tips, comparisons or
   offers of next steps.
-- Facts from a page must be in that page; if it doesn't say, say so.
-- Commands and code only from pages or tool results; mark anything from memory as unverified.
-- Name the pages you used, with full URLs. Include dates for releases and news.
+- Facts from a page must be in that page; if it doesn't say, say so. Copy numbers as
+  written ("128k" stays 128k). If a page lists categories (stable, longterm...), use the
+  one asked about (or the site's main page if this one lacks it).
+- Commands, flags and code only from a page or tool result in this task; mark any from
+  memory "(unverified)". From general knowledge, leave out names, dates and links you
+  aren't sure of.
+- For people (authors, founders, maintainers), open the page about that work and copy the
+  names from it; a name found elsewhere doesn't confirm it.
+- Name the pages you used, with full URLs copied from results: [title](https://...). For
+  search results, give each title and URL. For releases and news, include the dates.
+- Don't mention search counts, budgets or tool errors, except: if the source I asked for
+  was blocked or empty, start by saying so and name what you used instead ("Google
+  doesn't allow automated browsers, so these results are from Search Gateway").
+
+<!-- plannotator-inbox:start v9 · added by Plannotator. Remove it in the Inbox's Settings or with `plannotator uninstall` -->
+## Plannotator Inbox
+
+The person reads what agents send in their Plannotator Inbox and answers when they can.
+
+With the `plannotator_inbox` tool, use `send_message` to ask a decision only they can make (a `:::question` block, one per decision, also inside reports) or to hand over finished long work (a short summary, pictures as `![alt](path)`, files in `attachments`). Then keep working.
+Send important updates and decisions right away, don't batch them. One thread per work stream.
+Their reply comes back here by itself. Before reply_to into a thread you haven't read here, call read_thread with no id and match the subject.
+When they write in chat, mention what's waiting in the Inbox (summary and link), but don't ask it again in chat.
+In a `:::question` block, keep choices in natural order and put `Recommended: <label>` on its own line after them.
+Outside your repo, write issues as owner/repo#123 or a full URL.
