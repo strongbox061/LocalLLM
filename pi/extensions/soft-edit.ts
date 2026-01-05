@@ -27,8 +27,8 @@ function norm(line: string): string {
   return line
     .replace(/\r$/, "")
     .replace(/[ \t]/g, " ")
-    .replace(/[']/g, "'")
-    .replace(/["/g, '"')
+    .replace(/[''']/g, "'")
+    .replace(/[""/g, '"')
     .replace(/ {2,}/g, " ")
     .trim();
 }
@@ -56,21 +56,15 @@ function formatMatches(fileLines: string[], want: string[]): number[] {
   return hits;
 }
 
+// Find the file's real text for `oldText`, or undefined.
 export function fixOldText(file: string, oldText: string): string | undefined {
-  const filePath = resolvePath(file);
-  const content = fs.readFileSync(filePath, "utf-8");
-  const fileLines = content.split("\n");
+  if (file.includes(oldText)) return undefined; // already exact
+  const fileLines = file.split("\n");
   const want = wantedLines(oldText);
-
-  if (want.length === 0) return undefined;
-
-  const matches = formatMatches(fileLines, want);
-  if (matches.length === 1) {
-    const start = matches[0];
-    const end = start + want.length;
-    return fileLines.slice(start, end).join("\n");
-  }
-  return undefined;
+  if (want.every((l) => l.trim() === "")) return undefined;
+  const hits = formatMatches(fileLines, want);
+  if (hits.length !== 1) return undefined; // none, or ambiguous: don't guess
+  return fileLines.slice(hits[0], hits[0] + want.length).join("\n");
 }
 
 // How alike two lines are, 0..1: 1 when equal ignoring formatting, else the share of shared words.
@@ -147,9 +141,8 @@ export function explainMiss(
 }
 
 function resolvePath(p: string, cwd?: string): string {
-  if (path.isAbsolute(p)) return p;
-  const base = cwd || process.cwd();
-  return path.resolve(base, p);
+  if (p.startsWith("~/")) return path.join(os.homedir(), p.slice(2));
+  return path.isAbsolute(p) ? p : path.join(cwd ?? process.cwd(), p);
 }
 
 export default function (pi: any) {
