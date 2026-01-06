@@ -76,41 +76,33 @@ export function subagentsAtOnce(file = process.env.LOCALLLM_MODEL_JSON || path.j
 }
 // LocalLLM: the slots children may use, shared by every subagent call in this session. take() waits for a free one
 // (the highest first: slot 0 is the main session's) and gives undefined when aborted while waiting.
-export class SlotQueue {
-  private readonly size: number;
-  private readonly totalSlots: number;
-  private busy = 0;
-  private readonly waiting: Array<() => void> = [];
-
-  constructor(size: number, totalSlots: number) {
-    this.size = size;
-    this.totalSlots = totalSlots;
-  }
-
-  /** Reserve a slot; returns a release callback. */
-  acquire(): () => void {
-    if (this.busy < this.size) {
-      this.busy++;
-      return () => { this.busy--; this._drain(); };
-    }
-    return new Promise<void>((resolve) => {
-      this.waiting.push(resolve);
-    }).then(() => {
-      this.busy++;
-      return () => { this.busy--; this._drain(); };
-    });
-  }
-
-  private _drain(): void {
-    while (this.busy < this.size && this.waiting.length > 0) {
-      const fn = this.waiting.shift()!;
-      this.busy++;
-      fn();
-    }
-  }
-
-  available(): number { return this.size - this.busy; }
-}
+	private free: number[];
+	private waiting: Array<(slot: number) => void> = [];
+	constructor(atOnce: number, slots: number) {
+		this.free = Array.from({ length: Math.min(atOnce, slots) }, (_, i) => slots - 1 - i);
+	}
+	take(signal?: AbortSignal): Promise<number | undefined> {
+		if (signal?.aborted) return Promise.resolve(undefined);
+		const slot = this.free.shift();
+		if (slot !== undefined) return Promise.resolve(slot);
+		return new Promise((resolve) => {
+			const onAbort = () => {
+				this.waiting = this.waiting.filter((w) => w !== waiter);
+				resolve(undefined);
+			};
+			const waiter = (s: number) => {
+				signal?.removeEventListener("abort", onAbort);
+				resolve(s);
+			};
+			this.waiting.push(waiter);
+			signal?.addEventListener("abort", onAbort, { once: true });
+		});
+	}
+	give(slot: number): void {
+		const next = this.waiting.shift();
+		if (next) return next(slot);
+		this.free.push(slot);
+	}
 
 export function subagentsMax(
   file = process.env.LOCALLLM_MODEL_JSON || path.join(os.homedir(), ".config/localllm/model.json"),
