@@ -1,5 +1,5 @@
-// edit-guard.ts
-// Location: ~/.pi/agent/extensions/edit-guard.ts
+// patch-guard.ts
+// Location: ~/.pi/agent/extensions/patch-guard.ts
 //
 // Pi may only change files when your latest message asks for a change.
 // Otherwise `edit`, `write`, and file-changing bash commands are blocked,
