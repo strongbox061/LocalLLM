@@ -87,13 +87,10 @@ build_stage() {
     return 0
 }
 
-# --- write_model_json_quiet: quietly write model JSON, skip if unchanged. ---
 write_model_json_quiet() {
-  local target="$1" content="$2"
-  if [[ -f "$target" ]] && diff -q <(cat "$target") <(echo "$content") >/dev/null 2>&1; then
-    return 0
-  fi
-  echo "$content" > "$target"
+    # shellcheck source=lib/model.sh
+    source "$REPO_DIR/lib/model.sh"
+    load_model_profile >/dev/null && write_model_json >/dev/null
 }
 
 # --- Every tar here is pax: it records file names as UTF-8, which Windows' tar reads right (in its default format a name ---
