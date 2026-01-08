@@ -10,6 +10,9 @@
 // between about 3,000 and 7,000 tokens), and the full text is saved to a file named in the result:
 // - bash keeps its first quarter and its end (errors and summaries are at the end);
 // - read keeps the start, cut at a line, and ends with Pi's own "Use offset=N to continue", so the model reads on
+//   and edit-guard.ts (loaded after this file) sees that the file wasn't read whole;
+// - other tools keep the start and the last quarter.
+// Calls made inside a codemode script (parentToolCallId set) are left alone: the script gets everything and filters it.
 
 import * as fs from "node:fs";
 import * as os from "node:os";

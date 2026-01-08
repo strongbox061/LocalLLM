@@ -16,7 +16,7 @@ const LOCAL_ENV = path.join(os.homedir(), ".config", "localllm", "local.env");
 
 // The value of KEY_NAME in a shell-style env file (KEY="value" or KEY=value), or "" when it isn't there.
 export function keyFromEnvFile(text: string): string {
-  const m = text.match(new RegExp(`^\\s*${KEY_NAME}=(?:"([^"]\\n]*)"|'([^'\\n]*)'|([^\\s#]*))`, "m"));
+  const m = text.match(new RegExp(`^\\s*${KEY_NAME}=(?:"([^"\\n]*)"|'([^'\\n]*)'|([^\\s#]*))`, "m"));
   return (m?.[1] ?? m?.[2] ?? m?.[3] ?? "").trim();
 }
 
