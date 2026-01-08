@@ -24,6 +24,9 @@ function check(name, ok, detail = "") {
   else { failed++; console.log(`  FAIL  ${name}${detail ? `\n        ${detail}` : ""}`); }
 }
 
+// A fake Pi: records handlers and tools; say() is a message from the person (Pi's `input` event, then a request with
+// it); inject() is a hidden message another extension adds (the Plannotator Inbox reminder, an end-of-answer check):
+// a user message in the request, no `input` event.
 function fakePi() {
   const handlers = {}, tools = {}, messages = [];
   const pi = { on: (name, fn) => (handlers[name] ??= []).push(fn), registerTool: (t) => (tools[t.name] = t),
