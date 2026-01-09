@@ -89,6 +89,7 @@ All tool calls run inside `codemode` scripts via `await tools.<name>({ ... })`.
 Scripts run in QuickJS with no Node APIs: no require, import, fs, child_process, process or fetch.
 Call the tools instead:
 `(await tools.bash({ command: "ls -la" })).output`, `await tools.read({ path, limit: 10 })`, `await tools.edit({ ... })`.
+Wrap tool calls in try/catch to handle failures gracefully — QuickJS throws on invalid arguments or timeouts.
 Filter in the script and return only what the answer needs.
 
 ## Todo list
