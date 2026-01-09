@@ -30,13 +30,6 @@ def flag(env, name, default="on"):
     return v == "on"
 
 
-def _ensure(key, env_name, env, label=""):
-    val = env.get(env_name, "").strip().lower() or key
-    if not val:
-        raise ValueError(f"{label or env_name} is missing and has no default.")
-    return val
-
-
 def build(env, endpoints, model, versions):
     if endpoints.get("mode") != "split":
         raise ValueError("The helper PC is only used in split mode (./localllm.sh switch split).")
