@@ -19,4 +19,4 @@ What was done.
 - `path/to/file.ts`: what changed
 
 ## Notes
-- Any open questions, things to double-check, or follow-up items.
+Anything the main agent should know: what failed, what is left, what you weren't sure about.
