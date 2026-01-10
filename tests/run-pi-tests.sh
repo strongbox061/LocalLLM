@@ -38,40 +38,31 @@ for arg in "$@"; do
     esac
 done
 
-# --- python helpers ---
-run_python() {
-    python3 -c "$1" "$@"
-}
-
+# --- which tests ---
+mapfile -t IDS < <(python3 - "$TESTS_FILE" "$WITH_F1" "$WITH_J1" "${SELECTED[@]}" <<'EOF'
 import json, sys
-field() {   # field <id> <name>: one field of a test
-    local id="$1" name="$2"
-    local val
-    val=$(python3 -c "
-import json, sys
-with open('$TESTS_FILE') as f:
-    tests = json.load(f)
+tests = json.load(open(sys.argv[1]))
+with_f1, with_j1, wanted = sys.argv[2] == "true", sys.argv[3] == "true", [w.upper() for w in sys.argv[4:]]
 for t in tests:
-    if t['id'] == '$id':
-        print(t.get('$name', ''))
-        break
-" 2>/dev/null)
-    echo "$val"
+    tid = t["id"]
+    if wanted:
+        if tid.upper() in wanted or tid[0] in wanted:
+            print(tid)
+    elif (tid != "F1" or with_f1) and (tid != "J1" or with_j1):
+        print(tid)
+EOF
+)
+[[ ${#IDS[@]} -gt 0 ]] || die "No test matches: ${SELECTED[*]}"
+
+field() {   # field <id> <name>: one field of a test
+    python3 -c 'import json,sys; t={t["id"]: t for t in json.load(open(sys.argv[1]))}[sys.argv[2]]; print(t.get(sys.argv[3], ""))' \
+        "$TESTS_FILE" "$1" "$2"
 }
 
 # --- checks before starting ---
-if [[ ! -f "$TESTS_FILE" ]]; then
-    echo "Error: $TESTS_FILE not found" >&2
-    exit 1
-fi
-
-if [[ ! -x "$(command -v pi)" ]]; then
-    echo "Error: 'pi' command not found in PATH" >&2
-    exit 1
-fi
-
-mkdir -p "$OUT_DIR"
-echo "Output directory: $OUT_DIR"
+command -v pi >/dev/null || die "pi isn't installed."
+curl -fsS -m 3 -o /dev/null http://127.0.0.1:8081/health || die "llama-server isn't answering on 127.0.0.1:8081: run ./start.sh."
+curl -fsS -m 3 -o /dev/null "$SEARCH_GATEWAY_URL/healthz" || warn "The search gateway isn't running: web tests will fail (./start.sh)."
 
 # --- fixtures ---
 FIXTURES="$(mktemp -d "${TMPDIR:-/tmp}/pi-tests.XXXXXX")"
@@ -79,10 +70,11 @@ MARKER="$FIXTURES/.marker"
 STOPPED_SEARCH_GATEWAY=false
 
 cleanup() {
-    rm -rf "$FIXTURES"
     if $STOPPED_SEARCH_GATEWAY; then
-        systemctl --user start search-gateway
+        echo "Starting the search gateway again..."
+        "$REPO_DIR/localllm.sh" start search-gateway >/dev/null || warn "Couldn't restart it: ./localllm.sh start search-gateway."
     fi
+    rm -rf "$FIXTURES"
 }
 trap cleanup EXIT
 

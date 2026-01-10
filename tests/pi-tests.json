@@ -16,10 +16,12 @@
 
   {"id": "B1", "folder": "empty", "prompt": "Summarize https://docs.python.org/3/whatsnew/3.13.html",
    "expect": "open, get text body, then reads the saved .txt in chunks; no snapshot"},
+  {"id": "B2", "folder": "empty", "prompt": "What does the README of https://github.com/vercel-labs/agent-browser/blob/main/README.md say about installation?",
+   "expect": "the open is rewritten to raw.githubusercontent.com; one read; no curl"},
   {"id": "B3", "folder": "empty", "prompt": "On https://wiki.archlinux.org/title/Pacman, what does the -Syu option do?",
-   "expect": "opens the page; grep on the saved .txt instead of reading it all"},
+   "expect": "opens the page; grep on the saved .txt (run by the guard) instead of reading it all"},
   {"id": "B4", "folder": "empty", "prompt": "Read https://huggingface.co/Qwen/this-model-does-not-exist and tell me what's there.",
-   "expect": "open fails or shows placeholder; the agent reports the page doesn't exist"},
+   "expect": "says the page doesn't exist (404); invents no content"},
 
   {"id": "C1", "folder": "empty", "prompt": "Open https://pypi.org/project/httpx/ and follow the link to its documentation. Tell me what the docs' homepage says.",
    "expect": "link-finding eval, then open of the docs URL; no find, no clicking"},
