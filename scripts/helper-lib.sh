@@ -93,36 +93,39 @@ write_model_json_quiet() {
     load_model_profile >/dev/null && write_model_json >/dev/null
 }
 
-# --- Every tar here is pax: it records file names as UTF-8, which Windows' tar reads right (in its default format a name ---
-# --- like "Código.md" arrives as "C├│digo.md", read in the console's code page). ---
+# Every tar here is pax: it records file names as UTF-8, which Windows' tar reads right (in its default format a name
+# like "Código.md" arrives as "C├│digo.md", read in the console's code page).
 DEPLOYED=()     # what the last deploy sent (paths relative to C:\ProgramData\LocalLLM)
 
-# --- push_stage <dir>: sends what differs from the helper's last deploy (deployed.sha256 there), removes repo files that ---
-# --- are gone, and records the new list. The folder is made Administrators/SYSTEM-only before anything lands in it. ---
+# push_stage <dir>: sends what differs from the helper's last deploy (deployed.sha256 there), removes repo files that
+# are gone, and records the new list. The folder is made Administrators/SYSTEM-only before anything lands in it.
 push_stage() {
-  local stage_dir="$1"
-  local tmp_tar
-  tmp_tar="$(mktemp)"
-
-  # Create tar of changed/new files
-  cd "$stage_dir" || return 1
-  local file_list=()
-  for path in "${DEPLOY_PATHS[@]}"; do
-    if [[ -e "$path" ]]; then
-      file_list+=("$path")
+    local stage="$1" remote changed removed
+    (cd "$stage" && find . -type f ! -name deployed.sha256 -printf '%P\n' | sort | xargs -r -d '\n' sha256sum) > "$stage/deployed.sha256"
+    helper_ssh "\$d='$HELPER_LOCALLLM'; New-Item -ItemType Directory -Force -Path \$d | Out-Null; icacls.exe \$d /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' /Q | Out-Null" \
+        || die "Couldn't prepare $HELPER_LOCALLLM on the helper."
+    remote="$(helper_ssh "if (Test-Path '$HELPER_LOCALLLM\\deployed.sha256') { Get-Content '$HELPER_LOCALLLM\\deployed.sha256' }" | tr -d '\r')"
+    changed="$(comm -23 <(sort "$stage/deployed.sha256") <(printf '%s\n' "$remote" | sort) | awk '{ print $2 }')"
+    removed="$(comm -13 <(awk '{ print $2 }' "$stage/deployed.sha256" | sort) <(printf '%s\n' "$remote" | awk 'NF { print $2 }' | sort) \
+        | grep -E '^(repo|chat-types)/' || true)"
+    mapfile -t DEPLOYED < <(printf '%s\n' "$changed" | sed '/^$/d')
+    if [[ ${#DEPLOYED[@]} -eq 0 && -z "$removed" ]]; then
+        echo "The helper is up to date."
+        return 0
     fi
-  done
-
-  if (( ${#file_list[@]} > 0 )); then
-    tar --pax-option="exthdr.name=%d/%P" -cf "$tmp_tar" "${file_list[@]}" 2>/dev/null
-    scp "$tmp_tar" "${HELPER_HOST}:${HELPER_LOCALLLM}/deploy.tar"
-  fi
-
-  rm -f "$tmp_tar"
-  cd - >/dev/null || return 1
-
-  # Record deployed files
-  DEPLOYED=("${file_list[@]}")
+    if [[ ${#DEPLOYED[@]} -gt 0 ]]; then
+        (cd "$stage" && tar --format=pax -cf - "${DEPLOYED[@]}") | helper_ssh "tar -xf - -C '$HELPER_LOCALLLM'" \
+            || die "Sending the files to the helper failed."
+        printf '  sent    %s\n' "${DEPLOYED[@]}"
+    fi
+    if [[ -n "$removed" ]]; then
+        local f
+        while IFS= read -r f; do
+            helper_ssh "Remove-Item -Force -ErrorAction SilentlyContinue '$HELPER_LOCALLLM\\${f//\//\\}'"
+            echo "  removed $f"
+        done <<< "$removed"
+    fi
+    (cd "$stage" && tar -cf - deployed.sha256) | helper_ssh "tar -xf - -C '$HELPER_LOCALLLM'" || die "Recording the deploy failed."
 }
 
 # --- deploy_files [--no-checks]: the checks first (stops on a failure), then the changed files. ---
