@@ -55,8 +55,7 @@ function parseToolList(value: unknown): string[] | undefined {
 	const tools = raw
 		.filter((t): t is string => typeof t === "string")
 		.map((t) => t.trim())
-		.filter(Boolean)
-		.filter((name) => /^[a-zA-Z0-9_-]+$/.test(name)); // reject names with spaces, slashes, or other chars that break tool resolution
+		.filter(Boolean);
 	return tools.length > 0 ? tools : undefined;
 }
 
@@ -88,7 +87,7 @@ function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig
 
 		const { frontmatter, body } = parseFrontmatter<AgentFrontmatter>(content);
 
-		if (typeof frontmatter.name !== "string" || typeof frontmatter.description !== "string" || !frontmatter.name.trim()) {
+		if (typeof frontmatter.name !== "string" || typeof frontmatter.description !== "string") {
 			continue;
 		}
 
@@ -145,10 +144,6 @@ export function discoverAgents(cwd: string, scope: AgentScope): AgentDiscoveryRe
 	}
 
 	return { agents: Array.from(agentMap.values()), projectAgentsDir };
-}
-
-export function getAgentByName(agents: AgentConfig[], name: string): AgentConfig | undefined {
-	return agents.find((a) => a.name === name);
 }
 
 export function formatAgentList(agents: AgentConfig[], maxItems: number): { text: string; remaining: number } {

@@ -65,19 +65,6 @@ const reconstructState = (ctx: ExtensionContext) => {
 	return { todos, nextId };
 };
 
-function formatTodoList(todos: Todo[]): string {
-  if (todos.length === 0) {
-    return "No todos yet.";
-  }
-  const lines: string[] = [];
-  for (const t of todos) {
-    const prefix = t.done ? "[x]" : "[ ]";
-    const display = truncateToWidth(t.text, 60);
-    lines.push(`${prefix} #${t.id} ${display}`);
-  }
-  return lines.join("\n");
-}
-
 class TodoListComponent {
   private todos: Todo[];
   private theme: Theme;

@@ -65,7 +65,8 @@ function textOf(content: any): string {
   return "";
 }
 
-// The person's own latest message comes from Pi's `input` event (see personText); its place in the
+// Hidden messages other extensions add (the Plannotator Inbox reminder, the end-of-answer checks) reach the model as
+// user messages too. The person's own latest message comes from Pi's `input` event (see personText); its place in the
 // request is the last user message that holds its text. Without it (a skill or template expanded the text), the last
 // user message that isn't an end-of-answer check.
 const FINISH_TAG = "[Automatic check, not from the user.";
@@ -73,6 +74,11 @@ const FINISH_TAG = "[Automatic check, not from the user.";
 export function personText(text: string): string {
   const t = String(text ?? "").trim();
   if (!t) return "";
+  // Strip Plannotator Inbox prefix added by other extensions
+  if (t.startsWith("Plannotator Inbox: ")) {
+    const nl = t.indexOf("\n");
+    if (nl >= 0) return t.slice(nl + 1).trim();
+  }
   if (t.includes(FINISH_TAG)) return t.split(FINISH_TAG)[0].trim();
   return t;
 }
