@@ -1,6 +1,7 @@
 {
   "filesystem": {
     "allowRead": [
+      "~/.pi/agent/sessions/**/.pi-agent-browser-artifacts/**",
       "~/.pi/agent/skills/**"
     ],
     "denyWrite": [
@@ -8,7 +9,8 @@
       ".env.*",
       "*.pem",
       "*.key",
-      "~/.ssh"
+      "~/.ssh",
+      "~/.gnupg"
     ]
   }
 }
