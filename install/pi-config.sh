@@ -70,11 +70,15 @@ RESERVE=$((MAX_TOKENS + 4096)) KEEP=$(((CTX_PER_SLOT - MAX_TOKENS) / 5)) python3
 import json, os, sys
 
 settings_path = sys.argv[1]
+try:
+    with open(settings_path) as f:
+        settings = json.load(f)
+except FileNotFoundError:
+    settings = {}
+except ValueError as e:
+    sys.exit(f"ERROR: {settings_path} is not valid JSON ({e}); fix it, then run this again.")
 reserve = int(os.environ["RESERVE"])
 keep = int(os.environ["KEEP"])
-
-with open(settings_path) as f:
-    settings = json.load(f)
 
 # Compaction settings
 settings.setdefault("compaction", {})
