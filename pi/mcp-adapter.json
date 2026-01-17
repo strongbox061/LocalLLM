@@ -8,6 +8,16 @@
     "oauthCredentialStore": "encrypted-file"
   },
   "mcpServers": {
+    "gitmcp": {
+      "url": "https://gitmcp.io/docs",
+      "description": "Live docs of any GitHub project (llms.txt, README, docs folder), read when asked",
+      "includeTools": [
+        "match_common_libs_owner_repo_mapping",
+        "fetch_generic_documentation",
+        "search_generic_documentation"
+      ],
+      "directTools": true
+    },
     "context7": {
       "command": "npx",
       "args": ["-y", "@earendil-works/mcp-context7"],
