@@ -1,5 +1,5 @@
-// search-proxy.ts
-// Location: ~/.pi/agent/extensions/search-proxy.ts
+// search-gateway.ts
+// Location: ~/.pi/agent/extensions/search-gateway.ts
 //
 // Pi's web_search tool. Every search goes to the search gateway
 // (services/search_gateway.py, 127.0.0.1:8090, or the helper PC in split mode), which Open WebUI searches
@@ -8,9 +8,15 @@
 // Pi never searches SearXNG, DuckDuckGo or another engine directly.
 //
 // The gateway enforces per-user caps (daily budget, max queries), tracks usage,
-// and caches recent results to avoid redundant calls. Repeats: the same words
-// searched again in one task mean the results weren't useful, so the repeat
-// skips the cache and every service that answered them before.
+// and caches recent results to avoid redundant calls.
+//
+// agent-browser-fix.ts corrects queries before they get here (site: filters,
+// unasked years, the search budget).
+//
+// Repeats: the same words searched again in one task mean the results weren't
+// useful, so the repeat skips the cache and every service that answered them
+// before, plus the rest of their group (the gateway's retry_groups setting). After
+// MAX_RETRIES the same words are refused.
 //
 
 import { readFileSync } from "node:fs";
