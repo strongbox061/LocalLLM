@@ -72,6 +72,31 @@ function fakePi() {
 }
 
 const load = async (file) => (await import(pathToFileURL(file).href));
+
+// ---------------------------------------------------------------- agent-browser-fix.ts
+console.log("agent-browser-fix.ts: web_search queries");
+{
+  const p = fakePi();
+  (await load(join(EXT, "agent-browser-fix.ts"))).default(p.pi);
+  await p.say("Find the pi-agent-browser-native repository");
+  let r = await p.call("web_search", { query: "!gh pi-agent-browser-native", backend: "duckduckgo", compact: true });
+  check("bang !gh becomes site:github.com", r.input.query === "pi-agent-browser-native site:github.com", r.input.query);
+  check("backend and compact are dropped", !("backend" in r.input) && !("compact" in r.input), JSON.stringify(r.input));
+  r = await p.call("web_search", { query: "!ddg kokoro tts" });
+  check("an engine bang (!ddg) is removed", r.input.query === "kokoro tts", r.input.query);
+  r = await p.call("web_search", { query: "what is !important in css" });
+  check("a ! in the middle of the query is left alone", r.input.query === "what is !important in css", r.input.query);
+  // dropUnaskedYears: strip unasked years on current/latest queries, keep them on historical/date-sensitive ones
+  await p.say("What is the latest version of Vite?");
+  r = await p.call("web_search", { query: "vite latest release 2024 2025" });
+  check("unasked years dropped on latest/current queries", r.input.query === "vite latest release", r.input.query);
+  r = await p.call("web_search", { query: "open-webui first commit created date 2022 2023" });
+  check("years kept when query asks for historical/creation dates", r.input.query === "open-webui first commit created date 2022 2023", r.input.query);
+  await p.say("When were Open WebUI and Pi released?");
+  r = await p.call("web_search", { query: "aider coding agent 2023 2024" });
+  check("years kept when user's question is historical (released)", r.input.query === "aider coding agent 2023 2024", r.input.query);
+}
+
 const PKG = join(TMP, "pkg");
 
 const log = (o) => appendFileSync(join(TMP, "log.jsonl"), JSON.stringify({ t: Date.now(), ...o }) + "\n");
