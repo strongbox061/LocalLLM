@@ -128,31 +128,28 @@ push_stage() {
     (cd "$stage" && tar -cf - deployed.sha256) | helper_ssh "tar -xf - -C '$HELPER_LOCALLLM'" || die "Recording the deploy failed."
 }
 
-# --- deploy_files [--no-checks]: the checks first (stops on a failure), then the changed files. ---
+# deploy_files [--no-checks]: the checks first (stops on a failure), then the changed files.
 deploy_files() {
-  local skip_checks=false
-  [[ "${1:-}" == "--no-checks" ]] && skip_checks=true && shift
-
-  if ! $skip_checks; then
-    # Check helper is reachable
-    if ! ssh -o ConnectTimeout=10 "$HELPER_HOST" "echo ok" >/dev/null 2>&1; then
-      echo "error: helper PC not reachable at $HELPER_HOST" >&2
-      return 1
+    load_helper_env    # without HELPER_DATA_DIR the stage would lack chat-types\ and the helper would delete them
+    if [[ "${1:-}" != --no-checks ]]; then
+        log "Checks before the deploy"
+        python3 "$REPO_DIR/lang/build.py" --check >/dev/null || die "lang/phrases.json changed: run python3 lang/build.py first."
+        local checks
+        checks="$(mktemp)"
+        if ! node --experimental-strip-types "$REPO_DIR/tests/guard-tests.mjs" > "$checks" 2>&1; then
+            grep -A3 'FAIL' "$checks" | head -20
+            die "The guard checks failed (full output: $checks): nothing sent."
+        fi
+        echo "Guard checks: $(tail -1 "$checks")"
+        rm -f "$checks"
     fi
-
-    # Check we have the helper env loaded
-    if [[ -z "${HELPER_HOST:-}" ]]; then
-      echo "error: HELPER_HOST not set, run load_helper_env first" >&2
-      return 1
-    fi
-  fi
-
-  local stage_dir
-  stage_dir="$(build_stage "$(mktemp -d)")"
-  push_stage "$stage_dir"
-  rm -rf "$stage_dir"
-
-  apply_deployed
+    log "Files to the helper PC"
+    local stage
+    stage="$(mktemp -d)"
+    chmod 700 "$stage"
+    build_stage "$stage"
+    push_stage "$stage"
+    rm -rf "$stage"
 }
 
 # --- apply_deployed: what the sent files change on the helper, when it runs. ---
