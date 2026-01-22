@@ -45,6 +45,11 @@ def build(env, endpoints, model, versions):
 
     svc = endpoints["services"]
     apps = env.get("LOCALLLM_APPS", "").strip() or endpoints.get("apps") or "pi,owui"
+    if apps:
+        valid_apps = {"pi", "owui", "search-gateway", "comfyui", "kokoro", "whisper", "docling", "voice-router", "small-model"}
+        for a in apps.split(","):
+            if a.strip() not in valid_apps:
+                raise ValueError(f"Unknown app '{a.strip()}' in LOCALLLM_APPS: must be one of {','.join(sorted(valid_apps))}.")
     services = []
     for name in HELPER_ORDER:
         s = svc.get(name)
