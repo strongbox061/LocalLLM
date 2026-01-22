@@ -7,4 +7,5 @@ Description=LocalLLM helper PC Tailscale keepalive ping
 
 [Service]
 Type=oneshot
+SuccessExitStatus=0 1
 ExecStart=/usr/bin/tailscale ping -c 1 --timeout 5s @HELPER_HOST@
