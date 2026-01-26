@@ -1,5 +1,5 @@
-// patch-guard.ts
-// Location: ~/.pi/agent/extensions/patch-guard.ts
+// edit-guard.ts
+// Location: ~/.pi/agent/extensions/edit-guard.ts
 //
 // Pi may only change files when your latest message asks for a change.
 // Otherwise `edit`, `write`, and file-changing bash commands are blocked,
@@ -30,7 +30,7 @@ const PLAN_ASK_RE = /\b(?:plan(?:s|ned|ning)?|planea\w*|planifi\w*|planej\w*|pia
 export function allowsChanges(text: string): boolean {
   const t = text.trim();
   if (ALLOW_RE.test(t)) return true;
-  return FILE_RE.test(t);
+  return FILE_RE.test(t) && !has(QUESTION_START, t);
 }
 
 // bash commands that change files.

@@ -143,9 +143,10 @@ const MODEL_OUTPUT_LIMITS = { maxLines: 400, maxBytes: 12 * 1024 }; // LocalLLM:
 const TRUNCATION_NOTICE_RESERVE = 256;
 
 function formatTokens(count: number): string {
-  if (count < 1000) return String(count);
-  if (count < 1_000_000) return `${(count / 1000).toFixed(1)}k`;
-  return `${(count / 1_000_000).toFixed(2)}M`;
+	if (count < 1000) return count.toString();
+	if (count < 10000) return `${(count / 1000).toFixed(1)}k`;
+	if (count < 1000000) return `${Math.round(count / 1000)}k`;
+	return `${(count / 1000000).toFixed(1)}M`;
 }
 
 interface UsageStats {
