@@ -83,6 +83,7 @@ function clip(line: string): string {
   return line.length > MAX_LINE_CHARS ? line.slice(0, MAX_LINE_CHARS) + "\u2026" : line;
 }
 
+// Why `oldText` can't be applied, with what to do instead; undefined when Pi will find it (exact, or fixed above).
 export function explainMiss(
   file: string,
   oldText: string,
@@ -94,50 +95,50 @@ export function explainMiss(
   const content = fs.readFileSync(resolvedPath, "utf-8");
   const fileLines = content.split("\n");
   const want = wantedLines(oldText);
+  if (want.every((l) => l.trim() === "")) return undefined;
 
-  if (want.length === 0) return undefined;
+  const hits = formatMatches(fileLines, want);
+  if (hits.length === 1) return undefined; // fixOldText handles it
+  if (hits.length > 1) {
+    return `The old text matches more than one place in ${filePath || resolvedPath} (for example lines ${hits[0] + 1} and ${hits[1] + 1}). ` +
+      "Add a nearby line that is different in each place, so it matches only one.";
+  }
 
-  // Find the best matching position
-  let bestStart = 0;
-  let bestScore = -1;
-
-  for (let i = 0; i <= Math.min(fileLines.length, want.length) - 1; i++) {
-    const limit = Math.min(want.length, fileLines.length - i);
-    let score = 0;
-    for (let j = 0; j < limit; j++) {
-      score += lineSimilarity(fileLines[i + j], want[j]);
+  // The closest block of the same number of lines.
+  let best = -1, bestScore = 0, bestCount = 0;
+  if (want.length <= fileLines.length) {
+    for (let i = 0; i + want.length <= fileLines.length; i++) {
+      let score = 0;
+      for (let j = 0; j < want.length; j++) score += lineSimilarity(fileLines[i + j], want[j]);
+      if (score > bestScore + 1e-9) { best = i; bestScore = score; bestCount = 1; }
+      else if (Math.abs(score - bestScore) <= 1e-9) bestCount++;
     }
-    if (score > bestScore) {
-      bestScore = score;
-      bestStart = i;
+  }
+  const readHow = inCodemode ? "tools.read" : "the read tool";
+  const editHow = inCodemode ? "tools.edit" : "a new edit call";
+  const reread = `Read the lines you want to change again with ${readHow} and copy the old text exactly from that output. ` +
+    "Keep the old text short: only the lines that change, plus one unchanged line around them if needed.";
+  if (best < 0 || bestCount > 1 || bestScore < want.length * 0.5) {
+    return `The old text is not in ${filePath || resolvedPath}, and no part of the file is close to it. ${reread}`;
+  }
+
+  const block = fileLines.slice(best, best + want.length);
+  const diffs: string[] = [];
+  for (let j = 0; j < want.length && diffs.length < 3; j++) {
+    if (norm(block[j]) !== norm(want[j])) {
+      diffs.push(`  line ${best + j + 1}\n    file has:  ${clip(block[j])}\n    you wrote: ${clip(want[j])}`);
     }
   }
-
-  const startLine = Math.max(0, bestStart - 2);
-  const endLine = Math.min(fileLines.length, bestStart + want.length + 2);
-  const shownLines = fileLines.slice(startLine, endLine);
-
-  let explanation = "";
-  if (partial) {
-    explanation += "Some edits succeeded but this one did not.\n\n";
-  }
-
-  explanation += `The \`oldText\` does not match any location in the file.\n\n`;
-  explanation += `Closest match around line ${startLine + 1}:\n\n`;
-
-  for (let i = 0; i < shownLines.length; i++) {
-    const lineNum = startLine + 1 + i;
-    const marker =
-      i >= 2 && i < 2 + want.length ? ">>>" : "   ";
-    explanation += `${marker} ${lineNum}: ${clip(shownLines[i])}\n`;
-  }
-
-  explanation += `\nCopy this exact text for \`oldText\`:\n\n\`\`\`\n`;
-  const realText = fileLines.slice(bestStart, bestStart + want.length).join("\n");
-  explanation += clip(realText);
-  explanation += "\n```";
-
-  return explanation;
+  const shown = block.length <= MAX_SHOWN_LINES
+    ? `The file's exact text there (lines ${best + 1}-${best + block.length}):\n${block.map(clip).join("\n")}`
+    : `Read lines ${best + 1}-${best + block.length} again to copy them.`;
+  const tail = partial
+    ? `This edit was not applied, so fix its old text and send it in ${editHow}.`
+    : "Nothing was changed, so fix the old text and try again.";
+  return `The old text is not in ${filePath || resolvedPath}. The closest place is lines ${best + 1}-${best + block.length}, ` +
+    `where these lines differ:\n${diffs.join("\n")}\n` +
+    "Your old text was retyped from memory. Copy it exactly from the file instead (keep only the lines that change). " +
+    `${tail}\n${shown}`;
 }
 
 function resolvePath(p: string, cwd?: string): string {
