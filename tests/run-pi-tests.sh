@@ -154,16 +154,33 @@ prepare() {   # prepare <folder>: a fresh copy of that fixture, printed as a pat
     echo "$folder"
 }
 
-# --- llama-server check ---
+# llama-server busy with another client (another Pi session, an Open WebUI chat)? Pi's sessions share its slot, so a
+# test then waits for every step and runs into its time limit (run 17: B3, C1 and D2 while a Pi session worked).
 LLAMA_AUTH=()
+[[ -f "$LLAMA_API_KEY_FILE" ]] && LLAMA_AUTH=(-H "Authorization: Bearer $(<"$LLAMA_API_KEY_FILE")")
 llama_busy() {
-    if command -v curl &>/dev/null; then
-        if curl -s --max-time 2 "http://127.0.0.1:8080/" &>/dev/null; then
-            return 0
-        fi
-    fi
-    return 1
+    curl -fsS -m 3 "${LLAMA_AUTH[@]}" http://127.0.0.1:8081/slots 2>/dev/null |
+        python3 -c 'import json,sys; sys.exit(0 if any(s.get("is_processing") for s in json.load(sys.stdin)) else 1)' 2>/dev/null
 }
+MAX_IDLE_WAIT=1800
+wait_for_idle_model() {   # before each test: until no slot is working, at most MAX_IDLE_WAIT seconds
+    local waited=0
+    while llama_busy; do
+        (( waited == 0 )) && echo "    llama-server is busy with another client (a Pi session or an Open WebUI chat): waiting..."
+        if (( waited >= MAX_IDLE_WAIT )); then
+            warn "llama-server still busy after $((MAX_IDLE_WAIT / 60)) minutes: starting anyway (this test will be slow)."
+            return
+        fi
+        sleep 5
+        waited=$((waited + 5))
+    done
+    (( waited > 0 )) && echo "    ...free after ${waited} s."
+}
+# Checked before the first test, when no Pi of this script runs yet.
+other_pi="$(pgrep -x pi | tr '\n' ' ')"
+if [[ -n "$other_pi" ]]; then
+    warn "Another Pi session is open (pid ${other_pi% }). If it works during the run, it shares the model with the tests and slows them down; each test waits until the model is free before it starts."
+fi
 
 # --- run a single test ---
 run_test() {
