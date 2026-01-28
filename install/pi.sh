@@ -8,6 +8,13 @@ set -euo pipefail
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
 
+command -v npm >/dev/null || sudo pacman -S --needed nodejs npm
+command -v uv >/dev/null || sudo pacman -S --needed uv
+
+npm config set prefix "$HOME/.local"
+
+# pi, plannotator and agent-browser live in ~/.local/bin, which Arch doesn't put on PATH. This puts it there for the
+# whole desktop session (terminals included) from the next login.
 ENV_FILE="$HOME/.config/environment.d/60-localllm-path.conf"
 # Written literally: systemd expands ${HOME} and ${PATH} at login.
 # shellcheck disable=SC2016
@@ -18,13 +25,11 @@ DDGS_PTH="$(python3 -m site --user-site)/pi-ddgs.pth"
 
 # --- Helpers ---
 
-ensure_env_file() {
-  mkdir -p "$(dirname "$ENV_FILE")"
-  if [[ ! -f "$ENV_FILE" ]]; then
+if [[ "$(cat "$ENV_FILE" 2>/dev/null)" != "$ENV_LINE" ]]; then
+    mkdir -p "$(dirname -- "$ENV_FILE")"
     printf '%s\n' "$ENV_LINE" > "$ENV_FILE"
-    log_info "Created $ENV_FILE"
-  fi
-}
+    echo "Wrote $ENV_FILE (~/.local/bin on PATH from the next login)"
+fi
 
 write_models_entry() {
   local model_file="$1"
@@ -91,7 +96,6 @@ cleanup_ddgs() {
 # --- Main ---
 
 main() {
-  ensure_env_file
   install_pi "${1:-}"
   cleanup_ddgs
 
