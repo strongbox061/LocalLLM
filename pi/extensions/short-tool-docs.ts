@@ -5,14 +5,18 @@
 // through pi-mcp-adapter) bring long ones written for large general-purpose models: selection
 // steps, response formats, examples in every parameter. This swaps them for short versions just
 // before each request (about 1,700 tokens down to about 300). The rules they stated are kept where
-// they already live in the system prompt.
+// they matter: the call limits are enforced by agent-browser-fix.ts (rule 37).
 //
 // Our own todo tool (todo.ts, Pi's example kept unchanged) and subagent tool (subagent/) get their short texts here
 // too. The subagent tool loses agentScope and confirmProjectAgents: only our own agents (~/.pi/agent/agents) run, never
 // prompts from the project folder.
+//
+// A tool not listed here, or a parameter not listed for it, is sent unchanged.
 
 const DROPPED_TOOLS = new Set(["tool_search"]);
 
+// drop: parameters taken out of the schema (optional ones whose default is what we want). bare: array parameters
+// whose items lose their descriptions (the tool's description already says what they are).
 type Short = { description: string; params?: Record<string, string>; drop?: string[]; bare?: string[] };
 
 const SHORT: Record<string, Short> = {
@@ -40,24 +44,35 @@ const SHORT: Record<string, Short> = {
     bare: ["tasks", "chain"],
   },
   "context7_resolve-library-id": {
-    description: "Resolve a library name to its Context7-compatible ID for documentation lookup.",
+    description:
+      "Find a library's Context7 ID (/org/project) and its versions (/org/project/version). " +
+      "Once per library, then context7_query-docs.",
     params: {
-      "libraryName": "Name of the library (e.g. 'react', 'express')"
-    }
+      libraryName: "Official name, e.g. 'Next.js', 'Spring Boot'.",
+      query: "What you want to find in its docs.",
+    },
   },
   "context7_query-docs": {
-    description: "Query documentation for a resolved library ID. Returns relevant excerpts from the library docs.",
+    description:
+      "Docs and code examples for a library, from Context7. Use the version ID (/org/project/version) " +
+      "when the project pins a version.",
     params: {
-      "context7LibraryId": "The Context7-compatible library ID",
-      "topic": "What to look up in the docs"
-    }
+      libraryId: "From context7_resolve-library-id, e.g. '/vercel/next.js/v14.3.0'.",
+      query: "One specific topic, e.g. 'useEffect cleanup examples'. No secrets.",
+      language: "The project's language, e.g. 'TypeScript', 'C#'. Optional.",
+    },
   },
-  "gitmcp": {
-    description: "Query a GitHub repository's documentation, changelog, or source code via GitMCP.",
-    params: {
-      "repo": "Owner/repo (e.g. 'microsoft/vscode')",
-      "query": "What to search for"
-    }
+  gitmcp_match_common_libs_owner_repo_mapping: {
+    description: "Find the GitHub owner/repo for a library name.",
+    params: { library: "Library name." },
+  },
+  gitmcp_fetch_generic_documentation: {
+    description: "A GitHub project's main docs (llms.txt or README), current version.",
+    params: { owner: "GitHub owner.", repo: "Repository name." },
+  },
+  gitmcp_search_generic_documentation: {
+    description: "Search a GitHub project's current docs.",
+    params: { owner: "GitHub owner.", repo: "Repository name.", query: "What to find." },
   },
   "web_search": {
     description: "Search the web for information, documentation, or code.",
