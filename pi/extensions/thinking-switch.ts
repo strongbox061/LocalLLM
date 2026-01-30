@@ -72,15 +72,15 @@ function textOf(content: any): string {
 const FINISH_TAG = "[Automatic check, not from the user.";
 
 export function personText(text: string): string {
-  const t = String(text ?? "").trim();
-  if (!t) return "";
-  // Strip Plannotator Inbox prefix added by other extensions
+  const t = String(text ?? "");
+  // Strip Plannotator Inbox prefix added by other extensions.
+  // If the prefix exists but there's no newline, strip the prefix anyway (the rest may be empty).
   if (t.startsWith("Plannotator Inbox: ")) {
     const nl = t.indexOf("\n");
-    if (nl >= 0) return t.slice(nl + 1).trim();
+    return nl >= 0 ? t.slice(nl + 1).trim() : t.slice("Plannotator Inbox: ".length);
   }
   if (t.includes(FINISH_TAG)) return t.split(FINISH_TAG)[0].trim();
-  return t;
+  return t.trim();
 }
 
 function lastUserIndex(messages: any[], person = ""): number {
