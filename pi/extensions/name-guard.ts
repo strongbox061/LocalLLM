@@ -99,8 +99,7 @@ export default function (pi: any) {
   // Your messages (Pi's `input` event; an Inbox reply without its title line, which the model wrote).
   pi.on("input", (event: any) => {
     const t = String(event?.text ?? "");
-    const prefix = "Plannotator Inbox: ";
-    lastUser = t.startsWith(prefix) && t.includes("\n") ? t.slice(t.indexOf("\n") + 1) : t;
+    lastUser = t.startsWith("Plannotator Inbox: ") && t.includes("\n") ? t.slice(t.indexOf("\n") + 1) : t;
     learn(lastUser);
   });
 
