@@ -28,8 +28,22 @@
   {"id": "C2", "folder": "empty", "prompt": "Open https://arxiv.org/abs/1706.03762 and tell me the paper's title and authors, then open its PDF and tell me the first sentence of the abstract.",
    "expect": "reads the abstract page, opens the PDF; its text comes from pdftotext"},
 
+  {"id": "D1", "folder": "empty", "prompt": "What's new in the latest Ollama release?",
+   "expect": "general web_search; reads the release page or GitHub releases; dates in the answer"},
+  {"id": "D3", "folder": "empty", "prompt": "Search Mojeek for \"pi coding agent\".",
+   "expect": "no browser search: web_search with the same words, and the answer starts by saying Mojeek doesn't allow automated browsers; nothing invented"},
+
   {"id": "E1", "folder": "empty", "prompt": "What's a Python decorator?",
    "expect": "no tools, no reasoning, a few seconds"},
   {"id": "E2", "folder": "empty", "prompt": "What's the capital of Portugal?",
-   "expect": "no tools, no reasoning"}
+   "expect": "no tools, no reasoning"},
+  {"id": "E3", "folder": "empty", "prompt": "think: is 2^31 - 1 prime?",
+   "expect": "reasoning on, no web; answers yes (a Mersenne prime)"},
+  {"id": "E4", "folder": "edit", "prompt": "What files are in the current directory?",
+   "expect": "bash only (ls), no web; lists config.yml"},
+
+  {"id": "H1", "folder": "webapp", "prompt": "In this project, how do I read a dynamic route parameter (like [slug]) inside a page component? Check the docs for the version this project uses.",
+   "expect": "reads package.json; resolve-library-id (or the cached ID); query-docs with a v14 ID; at most 3 Context7 calls"},
+  {"id": "I1", "folder": "edit", "prompt": "In config.yml, change the port to 9090 and the logging level to debug.",
+   "expect": "reads the file first; one edit call with short old texts; config.yml has port 9090 and level debug"}
 ]
