@@ -1,0 +1,30 @@
+{
+  "_about": [
+    "What windows/setup.ps1 installs on the helper PC, pinned so a rebuild gets the same. Open WebUI's version is not",
+    "here: it is always the one the main PC runs (versions.env), so Open WebUI's data can move between the two PCs.",
+    "torch: one build for every Python environment (shared through uv's cache); cu126 is the newest CUDA build that",
+    "still has kernels for GTX 10 (Pascal) cards. torchvision and torchaudio must be the releases made with that torch",
+    "(a newer torchvision fails on import: 'operator torchvision::nms does not exist').",
+    ""
+  ],
+
+  "python": "3.11",
+  "uv": "0.13.7",
+  "winsw": "v2.12.0",
+  "torch": "2.8.0",
+  "torchvision": "0.23.0",
+  "torchaudio": "2.8.0",
+  "torch_index": "https://download.pytorch.org/whl/cu126",
+
+  "kokoro_fastapi": "v0.9.1",
+  "docling_serve": "1.38.2",
+  "comfyui": "v0.45.0",
+  "comfyui_checkpoint": [
+    "juggernautXL_v9Rundiffusion.safetensors"
+  ],
+  "comfyui_embeddings": [],
+
+  "llama_cpp": "b12503",
+  "model": "qwen3-30b-a3b-instruct-q4_k_m.gguf",
+  "helper_model": "qwen3-4b-instruct-q4_k_m.gguf"
+}
