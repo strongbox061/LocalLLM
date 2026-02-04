@@ -152,10 +152,35 @@ deploy_files() {
     rm -rf "$stage"
 }
 
-# --- apply_deployed: what the sent files change on the helper, when it runs. ---
+# apply_deployed: what the sent files change on the helper, when it runs.
 apply_deployed() {
-  # Extract and set up on the helper
-  ssh "$HELPER_HOST" "cd '${HELPER_LOCALLLM}' && tar xf deploy.tar && rm deploy.tar"
+    [[ ${#DEPLOYED[@]} -gt 0 ]] || return 0
+    local f restart_gateway="" restart_router="" restart_whisper="" loader="" sync="" config="" chat=""
+    for f in "${DEPLOYED[@]}"; do
+        case "$f" in
+            repo/services/search_gateway* | repo/services/chat_types* | repo/services/search-gateway-requirements.txt) restart_gateway=1 ;;
+            repo/services/voice_router.py) restart_router=1 ;;
+            repo/services/whisper_server.py) restart_whisper=1 ;;
+            repo/open-webui/loader.js | repo/open-webui/install_loader.py) loader=1 ;;
+            repo/open-webui/tools/* | repo/open-webui/functions/* | repo/open-webui/sync.py) sync=1 ;;
+            chat-types/*) chat=1 ;;
+            config.json | secrets/* | repo/windows/run-service.ps1 | repo/windows/common.ps1) config=1 ;;
+        esac
+    done
+    log "Applying on the helper"
+    [[ -n "$restart_gateway" ]] && helper_ps "$HELPER_WIN\\services.ps1" restart search-gateway
+    [[ -n "$restart_router" ]] && helper_ps "$HELPER_WIN\\services.ps1" restart voice-router
+    [[ -n "$restart_whisper" ]] && helper_ps "$HELPER_WIN\\services.ps1" restart whisper
+    # The voice fixes: in place at once (a reload of Open WebUI's page uses them).
+    [[ -n "$loader" ]] && helper_task loader
+    if [[ -n "$sync$chat" ]] && helper_ps "$HELPER_WIN\\services.ps1" status open-webui -Json 2>/dev/null | grep -q '"running"'; then
+        [[ -n "$sync" ]] && helper_task sync
+        [[ -n "$chat" ]] && helper_task chat-types
+    elif [[ -n "$sync$chat" ]]; then
+        echo "Open WebUI isn't running on the helper: its tools and chat types are pushed when it next starts (./localllm.sh deploy)."
+    fi
+    [[ -n "$config" ]] && echo "The helper's settings changed: ./localllm.sh restart helper uses them."
+    return 0
 }
 
 # --- run_setup [steps]: windows\setup.ps1 on the helper, with restarts when it asks for one (exit 3), at most 3. ---
