@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
+# Installs Pi's npm packages and agent-browser. Pi's web_search is this repo's own extension
 # (pi/extensions/search-gateway.ts, copied by install/pi-config.sh), so no search package is installed.
 #   install/pi-packages.sh            only what is missing
 #   install/pi-packages.sh --update   also update the installed packages
+#   A package or agent-browser installed new gets the version recorded by the last backup (versions.env), if any.
 
 set -euo pipefail
 
@@ -16,9 +18,9 @@ DEFAULT_PACKAGES=(
     npm:pi-sandbox
     npm:pi-metrics
     npm:pi-agent-browser-native
+    npm:pi-tool-repair
     npm:@plannotator/pi-extension
     npm:pi-mcp-adapter
-    npm:pi-tool-repair
     npm:awesome-pi-themes
     npm:pi-ui-extension
     npm:pi-clear-screen
@@ -75,6 +77,27 @@ for package in "${RETIRED_PACKAGES[@]}"; do
 done
 
 npm config set prefix "$HOME/.local"
+npm config set allow-scripts=agent-browser --location=user
+if [[ "${1:-}" == "--update" ]]; then
+    npm install -g agent-browser
+    pi update --extensions
+elif ! command -v agent-browser >/dev/null; then
+    npm install -g "agent-browser${AGENT_BROWSER_VERSION:+@$AGENT_BROWSER_VERSION}"
+fi
+
+# pi-agent-browser-native refuses an agent-browser older than its minimum (Pi can't open pages then). Pi updates its
+# packages with `pi update`, and a version recorded by an older backup can be too old: install the version it targets.
+BROWSER_TARGET="$PI_AGENT_DIR/npm/node_modules/pi-agent-browser-native/scripts/agent-browser-target.mjs"
+if [[ -f "$BROWSER_TARGET" ]]; then
+    minimum=$(sed -n 's/.*MINIMUM_AGENT_BROWSER_VERSION *= *"\([0-9.]*\)".*/\1/p' "$BROWSER_TARGET")
+    target=$(sed -n 's/.*TARGET_AGENT_BROWSER_VERSION *= *"\([0-9.]*\)".*/\1/p' "$BROWSER_TARGET")
+    installed=$(agent-browser --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
+    if [[ -n "$minimum" && -n "$installed" ]] &&
+        [[ "$(printf '%s\n' "$minimum" "$installed" | sort -V | head -1)" != "$minimum" ]]; then
+        echo "agent-browser $installed is older than pi-agent-browser-native needs ($minimum): installing ${target:-$minimum}"
+        npm install -g "agent-browser@${target:-$minimum}"
+    fi
+fi
 
 # pi-search-hub's config, no longer read by anything.
 if [[ -f "$PI_AGENT_DIR/extensions/search.json" ]]; then
