@@ -89,7 +89,6 @@ All tool calls run inside `codemode` scripts via `await tools.<name>({ ... })`.
 Scripts run in QuickJS with no Node APIs: no require, import, fs, child_process, process or fetch.
 Call the tools instead:
 `(await tools.bash({ command: "ls -la" })).output`, `await tools.read({ path, limit: 10 })`, `await tools.edit({ ... })`.
-Wrap tool calls in try/catch to handle failures gracefully — QuickJS throws on invalid arguments or timeouts. Log unexpected errors with `console.error` for debugging, then return a clear user-facing message.
 Filter in the script and return only what the answer needs.
 
 ## Todo list
@@ -147,10 +146,10 @@ In Plannotator plan mode its own instructions apply; never call plannotator_subm
 ## Plannotator Inbox
 
 The person reads what agents send in their Plannotator Inbox and answers when they can.
-
 With the `plannotator_inbox` tool, use `send_message` to ask a decision only they can make (a `:::question` block, one per decision, also inside reports) or to hand over finished long work (a short summary, pictures as `![alt](path)`, files in `attachments`). Then keep working.
 Send important updates and decisions right away, don't batch them. One thread per work stream.
 Their reply comes back here by itself. Before reply_to into a thread you haven't read here, call read_thread with no id and match the subject.
 When they write in chat, mention what's waiting in the Inbox (summary and link), but don't ask it again in chat.
 In a `:::question` block, keep choices in natural order and put `Recommended: <label>` on its own line after them.
 Outside your repo, write issues as owner/repo#123 or a full URL.
+<!-- plannotator-inbox:end -->
