@@ -121,19 +121,29 @@ export function subagentsMax(
   return 8;
 }
 
+// LocalLLM: the most subagents one message of the person's may start: model.json "subagentsMax" (from local.env), 8
+// without it.
+export function subagentsMax(file = process.env.LOCALLLM_MODEL_JSON || path.join(os.homedir(), ".config/localllm/model.json")): number {
+	try {
+		const n = Number(JSON.parse(fs.readFileSync(file, "utf8")).subagentsMax);
+		return Number.isInteger(n) && n >= 1 ? n : 8;
+	} catch {
+		return 8;
+	}
+}
 const AT_ONCE = subagentsAtOnce();
 const MAX_PER_MESSAGE = subagentsMax();
 
 let startedForMessage = 0; // LocalLLM: subagents started since the person's latest message
 const QUEUE = new SlotQueue(AT_ONCE, SLOTS);
 
-/** Markdown annotation shown when a subagent is dispatched. */
+// LocalLLM: what every child is told, before its agent's own prompt.
 export const SUBAGENT_NOTE = [
-  "A subagent task has been dispatched.",
-  "",
-  "This runs in its own process with a clean context. The agent's full answer will be folded back here.",
-];
-
+	"You are a subagent: another agent gave you this task and reads only your final answer.",
+	"Put everything it needs in that answer. You can't reach the person: don't ask questions, don't write PLAN.md,",
+	"don't send anything to an Inbox. If something is unclear or blocked, say so in the answer.",
+].join(" ");
+// LocalLLM: the person's latest message in this session (see edit-guard.ts), handed to each child.
 let personMessage = process.env.LOCALLLM_PERSON_MESSAGE ?? "";
 const MAX_PARALLEL_TASKS = 8;
 const MAX_CONCURRENCY = AT_ONCE; // LocalLLM: was 4 (QUEUE holds them to AT_ONCE anyway)
