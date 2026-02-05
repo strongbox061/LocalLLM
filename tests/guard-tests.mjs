@@ -97,6 +97,65 @@ console.log("agent-browser-fix.ts: web_search queries");
   check("years kept when user's question is historical (released)", r.input.query === "aider coding agent 2023 2024", r.input.query);
 }
 
+console.log("agent-browser-fix.ts: search budget, topic loop & consecutive searches");
+{
+  const p = fakePi();
+  (await load(join(EXT, "agent-browser-fix.ts"))).default(p.pi);
+  await p.say("Look up release dates for Open WebUI, Pi, Aider, Ollama, and vLLM");
+  // Same topic searched twice: allowed; 3rd similar search on same topic: blocked
+  let r = await p.call("web_search", { query: "Open WebUI release date first commit ollama webui fork github" });
+  check("1st search on topic A allowed", !r.blocked, r.reason);
+  r = await p.call("web_search", { query: "github open-webui/open-webui first commit created date 2022 2023" });
+  check("2nd similar search on topic A allowed", !r.blocked, r.reason);
+  r = await p.call("web_search", { query: "open-webui initial release history ollama-webui fork" });
+  check("3rd similar search on topic A blocked", r.blocked && /similar searches on this topic/.test(r.reason), r.reason);
+  // Different topics still allowed up to MAX_CONSECUTIVE_SEARCHES (8)
+  for (const [label, q] of [
+    ["3rd consecutive (topic B)", "Pi coding agent earendil release date github"],
+    ["4th consecutive (topic C)", "Aider Claude code agent release date 2023 2024"],
+    ["5th consecutive (topic D)", "Ollama initial launch date github"],
+    ["6th consecutive (topic E)", "vLLM paper arxiv publication date"],
+    ["7th consecutive (topic F)", "llama.cpp initial commit ggerganov"],
+    ["8th consecutive (topic G)", "ComfyUI initial release comfyanonymous"],
+  ]) {
+    r = await p.call("web_search", { query: q });
+    check(`${label} allowed`, !r.blocked, r.reason);
+  }
+  r = await p.call("web_search", { query: "TabbyAPI exllamav2 initial release" });
+  check("9th consecutive search without reading a page is blocked", r.blocked && /searches in a row/.test(r.reason), r.reason);
+  // Opening a page resets the consecutive search counter
+  r = await p.call("agent_browser", { args: ["open", "https://github.com/open-webui/open-webui/releases"] });
+  check("opening a page is allowed", !r.blocked, r.reason);
+  r = await p.call("web_search", { query: "TabbyAPI exllamav2 initial release" });
+  check("search allowed again after opening a page", !r.blocked, r.reason);
+
+  // Templated multi-entity queries (shared boilerplate like "search API public launch announcement") don't collide
+  const q = fakePi();
+  (await load(join(EXT, "agent-browser-fix.ts"))).default(q.pi);
+  for (const query of [
+    "Linkup search engine launch public announcement",
+    "Tavily search API public launch announcement tvly",
+    "Firecrawl web scraping API public launch announcement",
+    "Bright Data SERP API public launch announcement",
+    "You.com search API public launch announcement",
+    "SerpApi search API public launch announcement",
+  ]) {
+    r = await q.call("web_search", { query });
+    check(`templated entity query allowed: ${query.split(" ")[0]}`, !r.blocked, r.reason);
+  }
+  await q.call("agent_browser", { args: ["open", "https://tavily.com"] });
+  r = await q.call("web_search", { query: "Tavily search API launch date announcement" });
+  check("2nd search on same templated entity (Tavily) allowed", !r.blocked, r.reason);
+  // Repeatedly hitting the topic block must not burn MAX_TOOL_CALLS
+  for (let i = 0; i < 25; i++) {
+    r = await q.call("web_search", { query: "Tavily search API public launch date" });
+  }
+  check("3rd+ search on same templated entity (Tavily) still blocked by topic, not tool-call cap",
+    r.blocked && /similar searches on this topic/.test(r.reason), r.reason);
+  r = await q.call("web_search", { query: "Exa AI search engine launch date 2023 2024" });
+  check("distinct entity still allowed after many blocked searches (toolCalls not burned)", !r.blocked, r.reason);
+}
+
 const PKG = join(TMP, "pkg");
 
 const log = (o) => appendFileSync(join(TMP, "log.jsonl"), JSON.stringify({ t: Date.now(), ...o }) + "\n");
