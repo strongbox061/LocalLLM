@@ -1,31 +1,27 @@
 {
   "_about": [
     "The services of this setup: their ports, how to see that they answer, and where they run in each mode.",
-    "lib/services.py turns this and local.env (LOCALLLM_MODE, LOCALLLM_APPS, HELPER_HOST, MAIN_HOST, PLACE_<NAME>) into",
-    "~/.config/localllm/services.json (and services.env for the scripts), the one place clients read addresses from.",
+    "lib/endpoints.py turns this and local.env (LOCALLLM_MODE, LOCALLLM_APPS, HELPER_HOST, MAIN_HOST, PLACE_<NAME>) into",
+    "~/.config/localllm/endpoints.json (and endpoints.env for the scripts), the one place clients read addresses from.",
     "single: the service runs on the main PC in single mode (false: only on the helper PC, in split mode).",
-    "split: where it runs in split mode (main or helper); movable: PLACE_<NAME>=main|helper in local.env may change it."
+    "split: where it runs in split mode (main or helper); movable: PLACE_<NAME>=main|helper in local.env may change it.",
+    "owui_only: true for Open WebUI and services only it uses (off everywhere when LOCALLLM_APPS has no owui).",
+    "together: services that always run on the same PC (the search gateway reads Open WebUI's database).",
+    "split_url: the address clients use in split mode, when it isn't http://<host>:<port> ({helper} = HELPER_HOST).",
+    "Speech-to-text: on the helper its own service (whisper); in single mode Whisper runs inside Open WebUI. The",
+    "document search models always run inside Open WebUI, on whichever PC it runs."
   ],
-
-  "services": {
-    "llama_inference": {
-      "_comment": "llama.cpp server for GGML q4_0 models (Vicuna-7B)",
-      "port": 8080,
-      "mode": "single",
-      "split": "main"
-    },
-    "webui": {
-      "_comment": "local web interface for chatting with the model",
-      "port": 3000,
-      "mode": "single",
-      "split": "main"
-    }
-  },
-
-  "env": {
-    "LOCALLLM_MODE": "single",
-    "LOCALLLM_APPS": ["llama_inference", "webui"],
-    "HELPER_HOST": "192.168.1.100",
-    "MAIN_HOST": "localhost"
-  }
+  "services": [
+    {"name": "llama", "title": "llama-server", "env": "LLAMA_URL", "port": 8081, "health": "/health", "single": true, "split": "main", "movable": false},
+    {"name": "searxng", "title": "SearXNG", "env": "SEARXNG_URL", "port": 8080, "health": "/", "single": true, "split": "main", "movable": false},
+    {"name": "plannotator", "title": "Plannotator Inbox", "env": "", "port": null, "health": "", "single": true, "split": "main", "movable": false},
+    {"name": "search-gateway", "title": "Search gateway", "env": "SEARCH_GATEWAY_URL", "port": 8090, "health": "/healthz", "single": true, "split": "helper", "movable": true, "together": "open-webui"},
+    {"name": "open-webui", "title": "Open WebUI", "env": "WEBUI_URL", "port": 3000, "health": "/health", "single": true, "split": "helper", "movable": true, "together": "search-gateway", "split_url": "https://{helper}", "owui_only": true},
+    {"name": "kokoro", "title": "Kokoro (text-to-speech)", "env": "KOKORO_URL", "port": 8880, "health": "/health", "single": true, "split": "helper", "movable": true, "owui_only": true},
+    {"name": "voice-router", "title": "Voice router", "env": "VOICE_ROUTER_URL", "port": 8881, "health": "/health", "single": true, "split": "helper", "movable": true, "together": "kokoro", "owui_only": true},
+    {"name": "whisper", "title": "Whisper (speech-to-text)", "env": "WHISPER_URL", "port": 8882, "health": "/health", "single": false, "split": "helper", "movable": false, "owui_only": true},
+    {"name": "docling", "title": "Docling (PDF and scan reading)", "env": "DOCLING_URL", "port": 5001, "health": "/health", "single": false, "split": "helper", "movable": false, "owui_only": true},
+    {"name": "small-model", "title": "Small model (Open WebUI's titles and tags)", "env": "SMALL_MODEL_URL", "port": 8083, "health": "/health", "single": false, "split": "helper", "movable": false, "owui_only": true},
+    {"name": "comfyui", "title": "ComfyUI (images)", "env": "COMFYUI_URL", "port": 8188, "health": "/system_stats", "single": false, "split": "helper", "movable": false, "owui_only": true}
+  ]
 }
