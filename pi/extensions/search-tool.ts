@@ -1,5 +1,5 @@
-// search-gateway.ts
-// Location: ~/.pi/agent/extensions/search-gateway.ts
+// search-tool.ts
+// Location: ~/.pi/agent/extensions/search-tool.ts
 //
 // Pi's web_search tool. Every search goes to the search gateway
 // (services/search_gateway.py, 127.0.0.1:8090, or the helper PC in split mode), which Open WebUI searches
