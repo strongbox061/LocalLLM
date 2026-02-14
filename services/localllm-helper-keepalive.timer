@@ -1,4 +1,5 @@
 # Pings the helper PC over Tailscale every 60 seconds so the direct WireGuard tunnel stays warm.
+# Installed by install/helper-keepalive.sh; turn on with install/helper-keepalive.sh --enable.
 
 [Unit]
 Description=LocalLLM helper PC Tailscale keepalive every 60s
@@ -7,7 +8,6 @@ Description=LocalLLM helper PC Tailscale keepalive every 60s
 OnBootSec=30s
 OnUnitActiveSec=60s
 AccuracySec=10s
-Persistent=true
 
 [Install]
 WantedBy=timers.target
