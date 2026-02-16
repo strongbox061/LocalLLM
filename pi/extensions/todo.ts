@@ -46,24 +46,23 @@ const TodoParams = Type.Object({
  * UI component for the /todos command
  */
 
-class TodoListComponent {
-  private todos: Todo[];
-  private theme: Theme;
-  private onClose: () => void;
-  private cachedWidth?: number;
-  private cachedLines?: string[];
+	private todos: Todo[];
+	private theme: Theme;
+	private onClose: () => void;
+	private cachedWidth?: number;
+	private cachedLines?: string[];
 
-  constructor(todos: Todo[], theme: Theme, onClose: () => void) {
-    this.todos = todos;
-    this.theme = theme;
-    this.onClose = onClose;
-  }
+	constructor(todos: Todo[], theme: Theme, onClose: () => void) {
+		this.todos = todos;
+		this.theme = theme;
+		this.onClose = onClose;
+	}
 
-  handleInput(data: string): void {
-    if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) {
-      this.onClose();
-    }
-  }
+	handleInput(data: string): void {
+		if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) {
+			this.onClose();
+		}
+	}
 
   render(width: number): string[] {
     if (this.cachedLines && this.cachedWidth === width) {

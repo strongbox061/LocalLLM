@@ -28,7 +28,7 @@ function norm(line: string): string {
     .replace(/\r$/, "")
     .replace(/[ \t]/g, " ")
     .replace(/[''']/g, "'")
-    .replace(/[""/g, '"')
+    .replace(/["""/g, '"')
     .replace(/ {2,}/g, " ")
     .trim();
 }

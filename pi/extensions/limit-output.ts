@@ -23,10 +23,13 @@ const DEFAULT_WINDOW = 57344;
 const MIN_CAP = 4000;
 
 const NODE_API_RE =
-  /(?:node|npm|npx|yarn|pnpm|git|docker|curl|wget|ssh|rsync|make|gcc|python|pip)\b/i;
+  /\b(require|process|module|exports|Buffer|__dirname|__filename|fetch|setTimeout|setInterval) is not defined|Cannot find module|import (declarations|statements?) may only|Cannot use import statement/;
 
 export const CODEMODE_HINT =
-  "The full text has been saved to a file. Read it with `read` if you need more.";
+  "\n\n[codemode runs in a sandbox with no Node APIs: no require, import, fs, child_process, process or fetch. " +
+  "Call the tools instead: const r = await tools.bash({ command: \"ls -la\" }) gives { output, exit_code, truncated }; " +
+  "await tools.read({ path: \"file\", limit: 10 }) gives the text. Filter in the script and return only what you need. " +
+  "Fix the script and run codemode again.]";
 
 const IMAGE_MAGIC = [/^\x89PNG/, /^\xff\xd8\xff/, /^GIF8/, /^RIFF[\s\S]{4}WEBP/];
 
