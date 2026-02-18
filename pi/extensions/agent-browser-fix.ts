@@ -1,0 +1,93 @@
+import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+// Word rules in 35 languages (generated from lang/phrases.json).
+import {
+  ACTION_START, BOT_CHECK, ERROR, FROM_MEMORY, LATEST, LOOKUP, NAMED_SOURCE, OFFER, has as hasWords, namedEngine,
+} from "./lang-words.ts";
+
+const DEFAULT_SELECTOR = "body";
+
+// --- Configuration flags ---
+const ONLY_REFS_OR_BODY = true;
+const SCRUB_SESSION_FROM_RESULTS = true;
+const CONVERT_SPILLS = true;
+const WRAP_AT = 400; // max characters per line in the .txt
+const REDIRECT_READ_TOOLS = ["web_read", "agent_browser_code", "agent_browser_tools", "agent_browser_action", "agent_browser_qa"];
+const MAX_SEARCHES = 20;
+const MAX_TOPIC_SEARCHES = 2;
+const MAX_CONSECUTIVE_SEARCHES = 8;
+const MAX_TOOL_CALLS = 30;
+const WEB_TOOLS = new Set(["web_search", "agent_browser"]);
+const DOCS_TOOL_RE = /^(?:context7|gitmcp)_/;
+
+// --- Detection regexes ---
+const SEARCH_AROUND_RE = /\b(?:curl|wget|lynx|w3m|links|elinks|http(?:ie)?|xh)\b|https?:\/\//i;
+const SYSTEM_INSTALL_RE = new RegExp([
+  /\b(?:apt-get|apt|yum|dnf|pacman|pkg|brew|choco|snap|flatpak)\b/,
+  /\b(?:pip|npm|yarn|pnpm|cargo|gem|composer)\b/,
+].join("|"));
+const INSTALL_ASK_RE = /\binstal|\bsetup\b|\bset up\b/i;
+const MOUNT_RE = /(?:^|[;&|(]\s*|\s)(?:u?mount|fusermount3?|chattr|setfacl)\s/;
+const MOUNT_ASK_RE = /\b(?:un|u)?mount|démont|desmont|smont|chattr|setfacl/i;
+const FILE_CHANGE_RE = /\b(?:rm|mv|unlink|truncate|shred|chmod|chown|cp|tee|sed\s+-i)\b|>/;
+const PROTECTED_RE = /busy|occup|read-only|lecture seule|nur lesbar|sólo lectura|solo lectura|permission denied|permission non accordée|operation not permitted|opération non permise|keine berechtigung|not permitted|non permise|denied/i;
+const TEST_RUN_RE = /\b(?:unittest|pytest|tox|nox|(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?test|vitest|jest|mocha|cargo\s+test|go\s+test|mvn\s+test|gradle\w*\s+test|ctest|make\s+(?:check|test))\b/;
+const PLAN_ASK_RE = /\b(?:plan(?:s|ned|ning)?|planea\w*|planifi\w*|planej\w*|pianific\w*|planen)\b/i;
+const WEB_TOOL_RE = /^(?:web_search|agent_browser|(?:context7|gitmcp)_.*)$/;
+
+// --- Utility helpers ---
+const isWebTool = (name: string) => WEB_TOOLS.has(name) || DOCS_TOOL_RE.test(name);
+
+// --- Context7 ID caching ---
+const MAX_CONTEXT7_CALLS = 3;
+const CONTEXT7_ID_CACHE = process.env.PI_CONTEXT7_ID_CACHE || path.join(os.homedir(), ".pi", "agent", "context7-ids.json");
+const CONTEXT7_ID_DAYS = 30;
+const CONTEXT7_ID_MAX_CHARS = 6000;
+
+function readIdCache(): Record<string, { t: number; text: string }> {
+  try {
+    const raw = fs.readFileSync(CONTEXT7_ID_CACHE, "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+function cachedLibraryIds(name: string): string | undefined {
+  const cache = readIdCache();
+  const entry = cache[name];
+  if (!entry) return undefined;
+  if (Date.now() - entry.t > CONTEXT7_ID_DAYS * 24 * 60 * 60 * 1000) {
+    delete cache[name];
+    try { fs.writeFileSync(CONTEXT7_ID_CACHE, JSON.stringify(cache, null, 2)); } catch {}
+    return undefined;
+  }
+  return entry.text.length > CONTEXT7_ID_MAX_CHARS ? undefined : entry.text;
+}
+
+function saveLibraryIds(name: string, text: string) {
+  const cache = readIdCache();
+  cache[name] = { t: Date.now(), text };
+  try { fs.writeFileSync(CONTEXT7_ID_CACHE, JSON.stringify(cache, null, 2)); } catch {}
+}
+
+const libraryKey = (input: any) => String(input?.libraryName ?? "").trim().toLowerCase();
+
+// --- Manifest detection ---
+const MANIFEST_RE = /^(?:package\.json|.*\.csproj|.*\.fsproj|pom\.xml|build\.gradle(?:\.kts)?|pyproject\.toml|requirements.*\.txt|Cargo\.toml|go\.mod|Gemfile|composer\.json)$/;
+const VERSION_IN_TEXT_RE = /(?:\bv\d+|\b\d+\.\d+(?:\.\d+)?\b|\bversion\s*\d+|[A-Za-z][\w.+#-]*\s\d{1,3}\b)/i;
+
+function hasManifest(dir: string): boolean {
+  try {
+    return fs.readdirSync(dir).some(f => MANIFEST_RE.test(f));
+  } catch {
+    return false;
+  }
+}
+
+// --- File cache management ---
+const MAX_SAVED_FILES = 120;
+const KEEP_RECENT_MS = 10 * 60 * 1000;
