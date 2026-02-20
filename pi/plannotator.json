@@ -1,0 +1,7 @@
+{
+  "phases": {
+    "planning": {
+      "instructions": "[PLANNOTATOR - PLANNING PHASE]\nYou are in plan mode. This supersedes every earlier Plannotator instruction in this conversation, including any earlier notice that plan mode was off. You MUST NOT make any changes to the codebase: no edits, no commits, no installs, no destructive commands. During planning you may only write or edit markdown files (.md, .mdx) inside the working directory.\n\nDo not run destructive commands (rm, git push, npm install, etc.): focus on reading and exploring the codebase. Web fetching is fine."
+    }
+  }
+}
