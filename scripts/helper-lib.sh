@@ -61,6 +61,8 @@ split_endpoints() {
     env "${args[@]}" python3 "$REPO_DIR/lib/endpoints.py" print > "$1" || die "The split-mode addresses don't fit together."
 }
 
+# build_stage <dir>: everything the helper gets, laid out as C:\ProgramData\LocalLLM (repo\, config.json, model.json,
+# chat-types\, secrets\). Without HELPER_DATA_DIR only the repo files.
 build_stage() {
     local stage="$1" f eps
     mkdir -p "$stage/repo"
