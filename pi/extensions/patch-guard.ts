@@ -24,6 +24,7 @@ const ALLOW_RE =
 // in 35 languages (QUESTION_START, from lang-words.ts).
 const FILE_RE = /@?[\w./-]+\.(md|txt|ts|tsx|js|jsx|json|ya?ml|toml|py|sh|css|html|env|sql)\b/i;
 
+// A plan request (same words as agent-browser-fix.ts rule 48): allows writing/editing PLAN.md only,
 // so asking for a plan lets the model save PLAN.md without unlocking edits to other files.
 const PLAN_ASK_RE = /\b(?:plan(?:s|ned|ning)?|planea\w*|planifi\w*|planej\w*|pianific\w*|planen)\b/i;
 
@@ -50,12 +51,11 @@ export function filePath(input: any, cwd: string): string | undefined {
 }
 
 // What the person sent, from Pi's `input` event: typed text, `pi -p`, RPC, or an extension's sendUserMessage (the
-// end-of-answer checks) reach the model as user messages too, but never fire `input`. An Inbox reply's first line
+// Plannotator Inbox delivers the person's replies that way). Hidden messages other extensions add (the Inbox reminder,
+// the end-of-answer checks) reach the model as user messages too, but never fire `input`. An Inbox reply's first line
 export function personText(text: string): string {
   const t = String(text ?? "");
-  if (PLAN_ASK_RE.test(t)) return t;
-  if (ALLOW_RE.test(t) || FILE_RE.test(t)) return t;
-  return "";
+  return t.startsWith("Plannotator Inbox: ") ? t.slice(t.indexOf("\n") + 1 || t.length) : t;
 }
 
 export default function (pi: any) {
