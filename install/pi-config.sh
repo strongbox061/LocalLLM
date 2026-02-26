@@ -66,31 +66,29 @@ done
 # it starts when less than one full answer plus room for a tool result (MAX_TOKENS + 4096) is free, and keeps the
 # last fifth of the context as it is. 12288 and 11468 with the default profile's 57,344-token context.
 # The model profile and this PC's settings, also written as JSON for the extensions (SUBAGENTS_AT_ONCE...).
+source "$REPO_DIR/lib/model.sh"
+load_model_profile || exit 1
+write_model_json
 RESERVE=$((MAX_TOKENS + 4096)) KEEP=$(((CTX_PER_SLOT - MAX_TOKENS) / 5)) python3 - "$PI_AGENT_DIR/settings.json" <<'EOF_PY'
 import json, os, sys
-
-settings_path = sys.argv[1]
+path = sys.argv[1]
 try:
-    with open(settings_path) as f:
+    with open(path) as f:
         settings = json.load(f)
 except FileNotFoundError:
     settings = {}
 except ValueError as e:
-    sys.exit(f"ERROR: {settings_path} is not valid JSON ({e}); fix it, then run this again.")
-reserve = int(os.environ["RESERVE"])
-keep = int(os.environ["KEEP"])
-
-# Compaction settings
-settings.setdefault("compaction", {})
-settings["compaction"]["enabled"] = True
-settings["compaction"]["reserve"] = reserve
-settings["compaction"]["keep"] = keep
-
-with open(settings_path, "w") as f:
-    json.dump(settings, f, indent=2)
-    f.write("\n")
-
-print(f"Compaction: reserve={reserve}, keep={keep}")
+    sys.exit(f"ERROR: {path} is not valid JSON ({e}); fix it, then run this again.")
+want = {"enabled": True, "reserveTokens": int(os.environ["RESERVE"]), "keepRecentTokens": int(os.environ["KEEP"])}
+compaction = settings.get("compaction") if isinstance(settings.get("compaction"), dict) else {}
+if all(compaction.get(k) == v for k, v in want.items()):
+    print("Same: settings.json compaction")
+else:
+    settings["compaction"] = {**compaction, **want}
+    with open(path, "w") as f:
+        json.dump(settings, f, indent=2)
+        f.write("\n")
+    print(f"Set: settings.json compaction (on, reserve {want['reserveTokens']}, keep {want['keepRecentTokens']})")
 EOF_PY
 
 # --- pi-sandbox rules (sandbox.json): the repo's paths are added to what is there, nothing is removed ---
