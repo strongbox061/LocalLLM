@@ -7,3 +7,17 @@
 set -euo pipefail
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
+
+ACTION=""
+case "${1:-}" in
+    "") ;;
+    --enable) ACTION=enable ;;
+    --disable) ACTION=disable ;;
+    *) die "Usage: $0 [--enable|--disable]" ;;
+esac
+
+if [[ "$ACTION" == disable ]]; then
+    systemctl --user disable --now localllm-helper-keepalive.timer 2>/dev/null || true
+    echo "Helper keepalive timer disabled."
+    exit 0
+fi
