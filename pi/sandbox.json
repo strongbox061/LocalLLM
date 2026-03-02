@@ -10,7 +10,10 @@
       "*.pem",
       "*.key",
       "~/.ssh",
-      "~/.gnupg"
+      "~/.gnupg",
+      "~/.pi",
+      "~/.bashrc",
+      "~/.bash_profile"
     ]
   }
 }
