@@ -10,8 +10,12 @@ try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch { }
 $ProgressPreference = 'SilentlyContinue'   # Invoke-WebRequest is many times slower with its progress bar
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
+$LocalLLM = Join-Path $env:ProgramData 'LocalLLM'
+$ConfigFile = Join-Path $LocalLLM 'config.json'
+$SecretsDir = Join-Path $LocalLLM 'secrets'
+$RepoDir = Join-Path $LocalLLM 'repo'
+$StateDir = Join-Path $LocalLLM 'state'
 
-# --- Key declarations / sections / selectors (bodies omitted for v1) ---
 function Step($text) { Write-Host ""; Write-Host "==> $text" }
 function Info($text) { Write-Host "  $text" }
 function Warn($text) { Write-Host "WARNING: $text" }
@@ -20,19 +24,20 @@ function Fail($text, $code = 1) { Write-Host "ERROR: $text"; exit $code }
 # Runs a script block with Continue: with Stop, Windows PowerShell 5.1 treats any line a program writes to stderr as a
 # fatal error. Its stderr is kept in the output (as text). $LASTEXITCODE is the program's.
 function Native([scriptblock]$run) {
-    & $run
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { & $run 2>&1 | ForEach-Object { "$_" } } finally { $ErrorActionPreference = $saved }
 }
 
 function Read-Config {
-    $configPath = 'C:\ProgramData\LocalLLM\config.json'
-    if (-not (Test-Path $configPath)) { Fail "config.json not found at $configPath" }
-    return Get-Content $configPath -Raw | ConvertFrom-Json
+    if (-not (Test-Path $ConfigFile)) { Fail "No $ConfigFile yet: run ./localllm.sh install-helper on the main PC." }
+    return (Get-Content $ConfigFile -Raw | ConvertFrom-Json)
 }
 
 function Read-Secret($name) {
-    $secretPath = 'C:\ProgramData\LocalLLM\secrets\' + $name
-    if (-not (Test-Path $secretPath)) { Fail "Secret '$name' not found" }
-    return Get-Content $secretPath -Raw
+    $f = Join-Path $SecretsDir $name
+    if (Test-Path $f) { return (Get-Content $f -Raw).Trim() }
+    return ''
 }
 
 # Only Administrators and SYSTEM (by SID, any Windows language), nothing inherited.
