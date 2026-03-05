@@ -10,17 +10,45 @@ import {
 
 const DEFAULT_SELECTOR = "body";
 
-// --- Configuration flags ---
+// Change to "block" if in-place rewrites don't take effect in your Pi version.
+const MODE: "rewrite" | "block" = "rewrite";
+
+// For `get text`, allow only "body" or @eN refs. Set false if you
+// want the model to be able to use real CSS selectors.
 const ONLY_REFS_OR_BODY = true;
+
+// Remove pi-root-... session names from tool results before the model sees them.
+// Set false if it causes problems.
 const SCRUB_SESSION_FROM_RESULTS = true;
+
+// When a big result is saved to a .json file, also save the page text as a
+// plain .txt file (real line breaks, no metadata) and point the model to that.
+// Pi's read tool can't show the .json: the text is one 100KB+ line.
 const CONVERT_SPILLS = true;
 const WRAP_AT = 400; // max characters per line in the .txt
+
+// Redirect other page-reading tools (e.g. web_read from other packages) to
+// agent_browser, so pages are always read the same way. Empty to allow them.
+// agent_browser_tools turns on extra tools (action, qa, ...) that the model misuses.
 const REDIRECT_READ_TOOLS = ["web_read", "agent_browser_code", "agent_browser_tools", "agent_browser_action", "agent_browser_qa"];
+
+// Max web_search calls per task (reset on each new message from you).
+// Set 0 to disable.
 const MAX_SEARCHES = 20;
+// Max similar searches on the same topic in one task (stops rephrasing loops
+// while allowing multi-topic research). Set 0 to disable.
 const MAX_TOPIC_SEARCHES = 2;
+// Max consecutive web_search calls without opening a page or reading docs in
+// between (resets on agent_browser / gitmcp_ / context7_). Set 0 to disable.
 const MAX_CONSECUTIVE_SEARCHES = 8;
+
+// Max tool calls per task, then the model must answer with what it has. Stops runaway
+// loops that would otherwise hit a timeout with no answer. 0 to disable.
 const MAX_TOOL_CALLS = 30;
+// Only these count toward MAX_TOOL_CALLS. Local work (read, edit, grep, bash...)
+// isn't capped: a coding task can legitimately need many steps.
 const WEB_TOOLS = new Set(["web_search", "agent_browser"]);
+// 37. Docs tools from pi-mcp-adapter (pi/mcp-adapter.json), named <server>_<tool>.
 const DOCS_TOOL_RE = /^(?:context7|gitmcp)_/;
 
 // --- Detection regexes ---
