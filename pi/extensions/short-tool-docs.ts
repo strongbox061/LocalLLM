@@ -74,51 +74,16 @@ const SHORT: Record<string, Short> = {
     description: "Search a GitHub project's current docs.",
     params: { owner: "GitHub owner.", repo: "Repository name.", query: "What to find." },
   },
-  "web_search": {
-    description: "Search the web for information, documentation, or code.",
-    params: {
-      "query": "Search query"
-    }
-  },
-  "read": {
-    description: "Read the contents of a file. Supports text files and images.",
-    params: {
-      "path": "Path to the file to read",
-      "offset": "Line number to start from (1-indexed)",
-      "limit": "Maximum lines to read"
-    }
-  },
-  "edit": {
-    description: "Make precise text replacements in a file. Each edit matches exact text regions.",
-    params: {
-      "path": "Path to the file to edit",
-      "edits": "Array of {oldText, newText} pairs"
-    }
-  },
-  "write": {
-    description: "Write content to a file. Creates the file if it doesn't exist.",
-    params: {
-      "path": "Path to the file to write",
-      "content": "Content to write"
-    }
-  },
-  "bash": {
-    description: "Run a shell command and return its output.",
-    params: {
-      "command": "Shell command to execute"
-    }
-  }
 };
 
 function shorten(def: any): boolean {
-  const short = SHORT[def.name];
+  const short = def && SHORT[def.name];
   if (!short) return false;
-
-  // Schema-based: update parameter descriptions directly on the JSON schema
+  def.description = short.description;
   const schema = def.parameters ?? def.input_schema ?? def.inputSchema;
-  if (schema && typeof schema === "object" && short.params) {
+  if (schema && typeof schema === "object") {
     delete schema.$schema;
-    for (const [name, text] of Object.entries(short.params)) {
+    for (const [name, text] of Object.entries(short.params ?? {})) {
       if (schema.properties?.[name]) schema.properties[name].description = text;
     }
     for (const name of short.drop ?? []) {
@@ -127,15 +92,6 @@ function shorten(def: any): boolean {
     }
     for (const name of short.bare ?? []) {
       for (const item of Object.values<any>(schema.properties?.[name]?.items?.properties ?? {})) delete item.description;
-    }
-    return true;
-  }
-
-  // Text-based fallback for older tools that lack a structured schema
-  def.description = short.description;
-  if (short.drop) {
-    for (const drop of short.drop) {
-      def.description = def.description.split(drop).join("");
     }
   }
   return true;
