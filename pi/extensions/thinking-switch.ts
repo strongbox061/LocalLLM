@@ -133,8 +133,10 @@ export function decide(messages: any[], person = ""): { think: boolean; why: str
 // llama-server slot reserved for Pi (Open WebUI uses slot 1). A subagent's Pi gets its slot from subagent/index.ts
 // in LOCALLLM_SLOT, so it doesn't push this session out of slot 0.
 export function piSlot(value = process.env.LOCALLLM_SLOT): number {
-  const n = Number(value);
-  return value !== undefined && value.trim() !== "" && Number.isInteger(n) && n >= 0 ? n : 0;
+  const raw = String(value ?? "");
+  if (raw === "") return 0;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 0 ? n : 0;
 }
 
 // The request to send: pinned to Pi's slot, and with reasoning off when `think` is false, the way the profile says.
