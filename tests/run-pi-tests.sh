@@ -68,7 +68,6 @@ curl -fsS -m 3 -o /dev/null "$SEARCH_GATEWAY_URL/healthz" || warn "The search ga
 FIXTURES="$(mktemp -d "${TMPDIR:-/tmp}/pi-tests.XXXXXX")"
 MARKER="$FIXTURES/.marker"
 STOPPED_SEARCH_GATEWAY=false
-
 cleanup() {
     if $STOPPED_SEARCH_GATEWAY; then
         echo "Starting the search gateway again..."
@@ -79,70 +78,63 @@ cleanup() {
 trap cleanup EXIT
 
 make_app() {   # make_app <dir>: a small Python app (config, server, CLI, tests, README) for a task with several stages
-    local dir="$1"
-    mkdir -p "$dir/app"
-
-    cat > "$dir/config.yml" << 'EOF'
-app:
-  name: test-app
-  version: 0.1.0
-  debug: false
-EOF
-
-    cat > "$dir/app/__init__.py" << 'PYEOF'
+    mkdir -p "$1/app" "$1/tests"
+    : > "$1/app/__init__.py"
+    : > "$1/tests/__init__.py"
+    cat > "$1/app/config.py" <<'PY'
 DEFAULTS = {"host": "127.0.0.1", "port": 8080}
 
+
 def load(overrides=None):
-    import yaml
-    with open("config.yml") as f:
-        cfg = yaml.safe_load(f)
-    if overrides:
-        cfg["app"].update(overrides)
-    return cfg["app"]
-PYEOF
-
-    cat > "$dir/app/config.py" << 'PYEOF'
-from app.__init__ import load
-PYEOF
-
-    cat > "$dir/app/server.py" << 'PYEOF'
+    settings = dict(DEFAULTS)
+    settings.update(overrides or {})
+    return settings
+PY
+    cat > "$1/app/server.py" <<'PY'
 from app.config import load
 
-def start(port=None):
-    cfg = load({"port": port})
-    print(f"Starting on {cfg['host']}:{cfg['port']}")
-PYEOF
 
-    cat > "$dir/cli.py" << 'PYEOF'
+def start(port=None):
+    settings = load({"port": port} if port else None)
+    return f"serving on {settings['host']}:{settings['port']}"
+PY
+    cat > "$1/app/cli.py" <<'PY'
 import argparse
+
 from app.server import start
 
+
 def main(argv=None):
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--port", type=int)
+    parser = argparse.ArgumentParser(prog="app")
+    parser.add_argument("--port", type=int, help="port to listen on (default 8080)")
     args = parser.parse_args(argv)
-    start(args.port)
+    return start(port=args.port)
+
 
 if __name__ == "__main__":
-    main()
-PYEOF
-
-    cat > "$dir/tests/test_app.py" << 'PYEOF'
+    print(main())
+PY
+    cat > "$1/tests/test_app.py" <<'PY'
 import unittest
+
 from app.cli import main
+from app.config import load
 
-class AppTest(unittest.TestCase):
-    def test_main_runs(self):
-        main(["--port", "9999"])
-PYEOF
 
-    cat > "$dir/README.md" << 'EOF'
+class AppConfigTest(unittest.TestCase):
+    def test_default_config(self):
+        cfg = load()
+        self.assertEqual(cfg["host"], "127.0.0.1")
+        self.assertEqual(cfg["port"], 8080)
+
+    def test_override_port(self):
+        cfg = load({"port": 9999})
+        self.assertEqual(cfg["port"], 9999)
+        self.assertEqual(cfg["host"], "127.0.0.1")
+PY
+    cat > "$1/README.md" <<'EOF'
 # Test App
 A small Python application for testing.
-EOF
-
-    cat > "$dir/requirements.txt" << 'EOF'
-pyyaml
 EOF
 }
 

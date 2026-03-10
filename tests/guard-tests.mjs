@@ -137,8 +137,10 @@ console.log("agent-browser-fix.ts: search budget, topic loop & consecutive searc
     "Tavily search API public launch announcement tvly",
     "Firecrawl web scraping API public launch announcement",
     "Bright Data SERP API public launch announcement",
+    "Context.dev search API public launch announcement",
     "You.com search API public launch announcement",
     "SerpApi search API public launch announcement",
+    "Geekflare SERP API public launch announcement",
   ]) {
     r = await q.call("web_search", { query });
     check(`templated entity query allowed: ${query.split(" ")[0]}`, !r.blocked, r.reason);
