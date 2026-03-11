@@ -46,17 +46,17 @@ function Read-Secret($name) {
 # Any other entry on the folder is removed: e.g. the one Explorer adds for your account when you click "Continue" on
 # "You don't currently have permission to access this folder" (it would let every program you run read the chats).
 function Set-AdminOnly($path) {
-    $dir = Get-Item $path
-    $acl = Get-Acl $dir
-    $acl.SetOwner([System.Security.Principal.NTAccount]::new('BUILTIN\Administrators'))
-    $rules = @()
-    $rules += New-Object System.Security.AccessControl.FileSystemAccessRule(
-        'Administrators', 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
-    $rules += New-Object System.Security.AccessControl.FileSystemAccessRule(
-        'SYSTEM', 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
-    $acl.SetAccessRuleProtection($true, $false)
-    foreach ($r in $rules) { $acl.AddAccessRule($r) }
-    Set-Acl -Path $path -AclObject $acl
+    Native { icacls.exe $path /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' /Q } | Out-Null
+    foreach ($rule in (Get-Acl $path).Access) {
+        $sid = try { $rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value } catch { "$($rule.IdentityReference)" }
+        if ($sid -ne 'S-1-5-32-544' -and $sid -ne 'S-1-5-18') {
+            Native { icacls.exe $path /remove:g "*$sid" /Q } | Out-Null
+            Info "Removed $($rule.IdentityReference)'s access to $path (only Administrators and SYSTEM)."
+        }
+    }
+    if (Get-ChildItem -Force $path -ErrorAction SilentlyContinue | Select-Object -First 1) {
+        Native { icacls.exe (Join-Path $path '*') /reset /T /C /Q } | Out-Null
+    }
 }
 
 # The folders on the data drive (config.json "data_dir", chosen by install-helper; see the README).
