@@ -45,7 +45,7 @@ const TodoParams = Type.Object({
 /**
  * UI component for the /todos command
  */
-
+class TodoListComponent {
 	private todos: Todo[];
 	private theme: Theme;
 	private onClose: () => void;
@@ -111,6 +111,10 @@ const TodoParams = Type.Object({
 }
 
 export default function (pi: ExtensionAPI) {
+	// In-memory state (reconstructed from session on load)
+	let todos: Todo[] = [];
+	let nextId = 1;
+
 	/**
 	 * Reconstruct state from session entries.
 	 * Scans tool results for this tool and applies them in order.
@@ -133,8 +137,8 @@ export default function (pi: ExtensionAPI) {
 	};
 
 	// Reconstruct state on session events
-	 pi.on("session_start", async (_event, ctx) => reconstructState(ctx));
-	 pi.on("session_tree", async (_event, ctx) => reconstructState(ctx));
+	pi.on("session_start", async (_event, ctx) => reconstructState(ctx));
+	pi.on("session_tree", async (_event, ctx) => reconstructState(ctx));
 
 	// Register the todo tool for the LLM
 	pi.registerTool({
