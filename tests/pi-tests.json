@@ -30,8 +30,14 @@
 
   {"id": "D1", "folder": "empty", "prompt": "What's new in the latest Ollama release?",
    "expect": "general web_search; reads the release page or GitHub releases; dates in the answer"},
+  {"id": "D2", "folder": "empty", "prompt": "Compare the context lengths of Qwen3.5-35B-A3B and Llama 3.3 70B according to their model cards.",
+   "expect": "two model cards read, two numbers, two links; at most 4 searches"},
   {"id": "D3", "folder": "empty", "prompt": "Search Mojeek for \"pi coding agent\".",
    "expect": "no browser search: web_search with the same words, and the answer starts by saying Mojeek doesn't allow automated browsers; nothing invented"},
+  {"id": "D4", "folder": "empty", "prompt": "Is there an issue or pull request in fitchmultz/pi-agent-browser-native about browsers staying open after pi exits? Give its title and number.",
+   "expect": "#89, with its exact title read from the issue page"},
+  {"id": "D5", "folder": "empty", "prompt": "Find the GitHub issue in pi-search-hub about the DuckDuckGo uv lookup bug.",
+   "expect": "finds the related pull requests in ronnieops/pi-search-hub (#7, #8: ddgs installed with uv) read from GitHub, within the budget; invents no issue"},
 
   {"id": "E1", "folder": "empty", "prompt": "What's a Python decorator?",
    "expect": "no tools, no reasoning, a few seconds"},
