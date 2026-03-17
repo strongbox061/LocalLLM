@@ -51,18 +51,25 @@ const WEB_TOOLS = new Set(["web_search", "agent_browser"]);
 // 37. Docs tools from pi-mcp-adapter (pi/mcp-adapter.json), named <server>_<tool>.
 const DOCS_TOOL_RE = /^(?:context7|gitmcp)_/;
 
-// --- Detection regexes ---
+// 34. Tools that bring in the web: the finish check's source rules apply only after one of them.
+// 47. Ways around a stopped search gateway in bash (run 9's F1 went to the browser instead).
 const SEARCH_AROUND_RE = /\b(?:curl|wget|lynx|w3m|links|elinks|http(?:ie)?|xh)\b|https?:\/\//i;
+// 49. Installing software on the person's computer (run 9's J1 tried npm -g, pip and pi install for a missing tool).
 const SYSTEM_INSTALL_RE = new RegExp([
-  /\b(?:apt-get|apt|yum|dnf|pacman|pkg|brew|choco|snap|flatpak)\b/,
-  /\b(?:pip|npm|yarn|pnpm|cargo|gem|composer)\b/,
-].join("|"));
+  String.raw`\b(?:npm|pnpm|bun)\s+(?:i|install|add)\b[^|;&]*\s(?:-g|--global)\b`, String.raw`\byarn\s+global\s+add\b`,
+  String.raw`\bpip3?\s+install\b[^|;&]*--(?:user|break-system-packages)\b`, String.raw`\b(?:pipx|cargo|go|brew|pi)\s+install\b`,
+  String.raw`(?:^|[;&|]\s*)sudo\s`, String.raw`\bpacman\s+-[SU]`, String.raw`\b(?:apt|apt-get|dnf|yum|zypper)\s+install\b`,
+  String.raw`\b(?:curl|wget)\b[^|;&]*\|\s*(?:sudo\s+)?(?:ba|z)?sh\b`,
+].join("|"), "i");
 const INSTALL_ASK_RE = /\binstal|\bsetup\b|\bset up\b/i;
+// 51. A file the system protects (read-only, mounted, not ours) stays: run 10's K4 tried umount after rm failed.
 const MOUNT_RE = /(?:^|[;&|(]\s*|\s)(?:u?mount|fusermount3?|chattr|setfacl)\s/;
 const MOUNT_ASK_RE = /\b(?:un|u)?mount|démont|desmont|smont|chattr|setfacl/i;
 const FILE_CHANGE_RE = /\b(?:rm|mv|unlink|truncate|shred|chmod|chown|cp|tee|sed\s+-i)\b|>/;
 const PROTECTED_RE = /busy|occup|read-only|lecture seule|nur lesbar|sólo lectura|solo lectura|permission denied|permission non accordée|operation not permitted|opération non permise|keine berechtigung|not permitted|non permise|denied/i;
-const TEST_RUN_RE = /\b(?:unittest|pytest|tox|nox|(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?test|vitest|jest|mocha|cargo\s+test|go\s+test|mvn\s+test|gradle\w*\s+test|ctest|make\s+(?:check|test))\b/;
+// 52. Tests that fail: fix the code, not the request (run 10's K1 made --timeout default to None to pass its test).
+const TEST_RUN_RE = /\b(?:unittest|pytest|tox|nox|(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?test|vitest|jest|mocha|cargo\s+test|go\s+test|dotnet\s+test|mvn\s+test|gradle\w*\s+test|ctest|make\s+(?:check|test))\b/;
+// 48. The person asks for a plan (English, Spanish, French, German, Italian, Portuguese).
 const PLAN_ASK_RE = /\b(?:plan(?:s|ned|ning)?|planea\w*|planifi\w*|planej\w*|pianific\w*|planen)\b/i;
 const WEB_TOOL_RE = /^(?:web_search|agent_browser|(?:context7|gitmcp)_.*)$/;
 
