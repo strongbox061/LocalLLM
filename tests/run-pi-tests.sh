@@ -121,29 +121,35 @@ from app.cli import main
 from app.config import load
 
 
-class AppConfigTest(unittest.TestCase):
-    def test_default_config(self):
-        cfg = load()
-        self.assertEqual(cfg["host"], "127.0.0.1")
-        self.assertEqual(cfg["port"], 8080)
+class AppTest(unittest.TestCase):
+    def test_default(self):
+        self.assertEqual(load()["port"], 8080)
 
-    def test_override_port(self):
-        cfg = load({"port": 9999})
-        self.assertEqual(cfg["port"], 9999)
-        self.assertEqual(cfg["host"], "127.0.0.1")
+    def test_cli_port(self):
+        self.assertEqual(main(["--port", "9000"]), "serving on 127.0.0.1:9000")
+
+
+if __name__ == "__main__":
+    unittest.main()
 PY
-    cat > "$1/README.md" <<'EOF'
-# Test App
-A small Python application for testing.
-EOF
+    cat > "$1/README.md" <<'MD'
+# app
+
+Start it with `python3 -m app.cli --port 8080`. The `port` setting defaults to 8080.
+MD
 }
 
-prepare() {   # prepare <folder>: a fresh copy of that fixture, printed as a path
-    local folder="$1"
-    if [[ -f "$TESTS_FILE" ]]; then
-        cp "$REPO_DIR/tests/pi-tests.json" "$folder/" 2>/dev/null || true
-    fi
-    echo "$folder"
+prepare() {   # prepare <type>: a fresh copy of that fixture, printed as a path
+    local dir="$FIXTURES/$1"
+    rm -rf "$dir"
+    mkdir -p "$dir"
+    case "$1" in
+        webapp) echo '{"name": "demo", "private": true, "dependencies": {"next": "14.2.3", "react": "18.3.1", "react-dom": "18.3.1"}}' > "$dir/package.json" ;;
+        edit) printf 'server:\n  host: 127.0.0.1\n  port: 8080\n  workers: 2\nlogging:\n  level: info\n' > "$dir/config.yml" ;;
+        repo) git -C "$REPO_DIR" archive HEAD | tar -x -C "$dir" ;;
+        app) make_app "$dir" ;;
+    esac
+    echo "$dir"
 }
 
 # llama-server busy with another client (another Pi session, an Open WebUI chat)? Pi's sessions share its slot, so a
