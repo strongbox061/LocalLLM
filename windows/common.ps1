@@ -118,9 +118,7 @@ function Get-HelperServices($cfg) {
 
 function Test-Url($url, $timeoutSec = 3) {
     try {
-        $response = Invoke-WebRequest -Uri $url -TimeoutSec $timeoutSec -UseBasicParsing -ErrorAction Stop
-        return $response.StatusCode -eq 200
-    } catch {
-        return $false
-    }
+        $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec $timeoutSec
+        return ($r.StatusCode -ge 200 -and $r.StatusCode -lt 400)
+    } catch { return $false }
 }
