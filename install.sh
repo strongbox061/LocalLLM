@@ -42,6 +42,7 @@ if [[ "${free_gb:-0}" -lt 30 ]]; then
 fi
 
 log "System packages"
+# Includes ffmpeg (Open WebUI dictation in single mode) and Playwright/agent-browser Chromium runtime libraries so the
 # setup does not depend on a particular desktop environment pulling them in.
 PACKAGES=(
     base-devel cmake git cuda uv nodejs npm python diffutils sqlite openssl openssh curl gnupg rclone shellcheck bubblewrap libnotify dmidecode
@@ -94,11 +95,19 @@ log "SearXNG"
 log "Pi"
 "$REPO_DIR/install/pi.sh" $UPDATE
 
-log "Pi extra packages (plugins, extensions)"
+log "Pi packages and agent-browser"
 "$REPO_DIR/install/pi-packages.sh" $UPDATE
+
+log "Plannotator (the Inbox for Pi's plan reviews)"
+"$REPO_DIR/install/plannotator.sh"
 
 log "Pi extensions, AGENTS.md and skills from this repo"
 "$REPO_DIR/install/pi-config.sh"
+
+log "Pi's documentation sources (GitMCP, Context7)"
+"$REPO_DIR/install/pi-mcp.sh"
+
+log "Open WebUI"
 "$REPO_DIR/install/open-webui.sh" $UPDATE
 
 log "OCR for scanned PDFs (Tesseract, OCRmyPDF)"
