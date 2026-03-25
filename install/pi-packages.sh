@@ -4,7 +4,6 @@
 #   install/pi-packages.sh            only what is missing
 #   install/pi-packages.sh --update   also update the installed packages
 #   A package or agent-browser installed new gets the version recorded by the last backup (versions.env), if any.
-
 set -euo pipefail
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
@@ -99,10 +98,80 @@ if [[ -f "$BROWSER_TARGET" ]]; then
     fi
 fi
 
+# Sync custom browser executable, launch args, and extensions from local.env
+# (AGENT_BROWSER_EXECUTABLE_PATH, AGENT_BROWSER_ARGS, AGENT_BROWSER_EXTENSIONS) into ~/.agent-browser/config.json.
+AGENT_BROWSER_CONFIG_FILE="$HOME/.agent-browser/config.json"
+python3 - "$AGENT_BROWSER_CONFIG_FILE" "${AGENT_BROWSER_EXECUTABLE_PATH:-}" "${AGENT_BROWSER_ARGS:-}" "${AGENT_BROWSER_EXTENSIONS[@]}" <<'EOF_PY'
+import json, os, sys
+path = sys.argv[1]
+exe = sys.argv[2].strip()
+args = sys.argv[3].strip()
+exts = [os.path.expanduser(e.strip()) for e in sys.argv[4:] if e.strip()]
+try:
+    with open(path) as f:
+        cfg = json.load(f)
+except FileNotFoundError:
+    cfg = None
+except ValueError as e:
+    sys.exit(f"ERROR: {path} is not valid JSON ({e}); fix it, then run this again.")
+
+changed = False
+if exe:
+    cfg = cfg if isinstance(cfg, dict) else {}
+    if cfg.get("executablePath") == exe:
+        print(f"Same: {path} executablePath ({exe})")
+    else:
+        cfg["executablePath"] = exe
+        changed = True
+        print(f"Set: {path} executablePath ({exe})")
+elif isinstance(cfg, dict) and "executablePath" in cfg:
+    del cfg["executablePath"]
+    changed = True
+    print(f"Cleared: {path} executablePath (using agent-browser's own Chromium)")
+
+if args:
+    cfg = cfg if isinstance(cfg, dict) else {}
+    if cfg.get("args") == args:
+        print(f"Same: {path} args ({args})")
+    else:
+        cfg["args"] = args
+        changed = True
+        print(f"Set: {path} args ({args})")
+elif isinstance(cfg, dict) and "args" in cfg:
+    del cfg["args"]
+    changed = True
+    print(f"Cleared: {path} args")
+
+if exts:
+    for ext in exts:
+        if not os.path.isdir(ext):
+            print(f"WARNING: agent-browser extension directory does not exist: {ext}", file=sys.stderr)
+    cfg = cfg if isinstance(cfg, dict) else {}
+    if cfg.get("extensions") == exts:
+        print(f"Same: {path} extensions ({', '.join(exts)})")
+    else:
+        cfg["extensions"] = exts
+        changed = True
+        print(f"Set: {path} extensions ({', '.join(exts)})")
+elif isinstance(cfg, dict) and "extensions" in cfg:
+    del cfg["extensions"]
+    changed = True
+    print(f"Cleared: {path} extensions")
+
+if changed:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(cfg, f, indent=2)
+        f.write("\n")
+EOF_PY
+
+if [[ -z "${AGENT_BROWSER_EXECUTABLE_PATH:-}" ]]; then
+    agent-browser install
+fi
+agent-browser doctor || warn "agent-browser doctor reported problems (see above)."
+
 # pi-search-hub's config, no longer read by anything.
 if [[ -f "$PI_AGENT_DIR/extensions/search.json" ]]; then
     rm -f "$PI_AGENT_DIR/extensions/search.json"
     echo "Removed: $PI_AGENT_DIR/extensions/search.json"
 fi
-
-info "All dependencies installed successfully."
