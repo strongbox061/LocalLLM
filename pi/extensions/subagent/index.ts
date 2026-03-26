@@ -13,6 +13,8 @@
 //     (LOCALLLM_SLOT, read by thinking-switch.ts), the last slot first, so this session's cache in slot 0 stays.
 //   - Edit permission follows YOUR latest message, not the task text the model wrote: it is passed to the child in
 //     LOCALLLM_PERSON_MESSAGE, which edit-guard.ts uses there.
+//   - Children can't use the Plannotator tools or start subagents of their own, and are told they report to another
+//     agent (SUBAGENT_NOTE).
 //   - A child's answer is capped at 12 KB (about 3,000 tokens) instead of 50 KB, for the small main context.
 
 /**
