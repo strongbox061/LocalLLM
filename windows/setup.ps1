@@ -10,6 +10,15 @@
 param([string[]]$Only = @())
 . (Join-Path $PSScriptRoot 'common.ps1')
 # Over SSH (-File) "base,tools" arrives as one string.
+$Only = @($Only | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
+
+$cfg = Read-Config
+$v = $cfg.versions
+$paths = Get-Paths $cfg
+Set-ToolEnv $paths
+$uv = Join-Path $paths.Bin 'uv.exe'
+$wanted = @{}
+foreach ($s in $cfg.services) { $wanted[$s.name] = $true }
 
 function Want($step) { return ($Only.Count -eq 0) -or ($Only -contains $step) }
 
