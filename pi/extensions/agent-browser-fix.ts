@@ -73,11 +73,11 @@ const TEST_RUN_RE = /\b(?:unittest|pytest|tox|nox|(?:npm|pnpm|yarn|bun)\s+(?:run
 const PLAN_ASK_RE = /\b(?:plan(?:s|ned|ning)?|planea\w*|planifi\w*|planej\w*|pianific\w*|planen)\b/i;
 const WEB_TOOL_RE = /^(?:web_search|agent_browser|(?:context7|gitmcp)_.*)$/;
 
-// --- Utility helpers ---
 const isWebTool = (name: string) => WEB_TOOLS.has(name) || DOCS_TOOL_RE.test(name);
-
-// --- Context7 ID caching ---
+// Context7's free calls are limited: at most this many per question (cached answers don't count).
 const MAX_CONTEXT7_CALLS = 3;
+// resolve-library-id results are reused for this long (library IDs rarely change).
+// PI_CONTEXT7_ID_CACHE: another file, for tests (tests/guard-tests.mjs).
 const CONTEXT7_ID_CACHE = process.env.PI_CONTEXT7_ID_CACHE || path.join(os.homedir(), ".pi", "agent", "context7-ids.json");
 const CONTEXT7_ID_DAYS = 30;
 const CONTEXT7_ID_MAX_CHARS = 6000;
