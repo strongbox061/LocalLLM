@@ -1,5 +1,5 @@
-// search-tool.ts
-// Location: ~/.pi/agent/extensions/search-tool.ts
+// search-gateway.ts
+// Location: ~/.pi/agent/extensions/search-gateway.ts
 //
 // Pi's web_search tool. Every search goes to the search gateway
 // (services/search_gateway.py, 127.0.0.1:8090, or the helper PC in split mode), which Open WebUI searches
@@ -17,7 +17,6 @@
 // useful, so the repeat skips the cache and every service that answered them
 // before, plus the rest of their group (the gateway's retry_groups setting). After
 // MAX_RETRIES the same words are refused.
-//
 
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -42,11 +41,12 @@ const TIMEOUT_MS = 90_000;
 const MAX_SNIPPET = 500;
 const MAX_RETRIES = 2;
 
+// Same normalisation as the tool's: word order and case don't matter.
 const normalise = (q: string) => q.toLowerCase().split(/\s+/).filter(Boolean).sort().join(" ");
 
 function serverDown(g: { url: string; where: string }): string {
   const fix = g.where === "helper"
-    ? "it runs on the helper PC: tell the user to start it there, " +
+    ? "it runs on the helper PC: tell the user to start it there (./localllm.sh start helper in the LocalLLM folder), " +
       "or to run ./localllm.sh switch single"
     : "tell the user to run ./start.sh in the LocalLLM folder";
   return `The Search Gateway server (${g.url}) isn't running, so web_search can't search. ` +
@@ -54,8 +54,9 @@ function serverDown(g: { url: string; where: string }): string {
 }
 
 export default function (pi: any) {
-  // Services that answered each query in this task.
+  // Services that answered each query in this task (a new message from the user starts a new task).
   let answered = new Map<string, string[]>();
+  // Only the person's messages fire `input` (not the hidden ones other extensions add).
   pi.on?.("input", () => { answered = new Map(); });
 
   pi.registerTool({
@@ -90,16 +91,17 @@ export default function (pi: any) {
         };
       }
 
-      const g = gateway();
+      const retry = before.length > 0;
+      ctx?.ui?.setStatus?.("search", `🔍 Search Gateway: ${retry ? "searching again on another service" : "searching"}...`);
+      const server = gateway();
       const ask = new URLSearchParams({ q: query, format: "json" });
-      if (before.length > 0) ask.set("retry_after", before.join(","));
+      if (retry) ask.set("retry_after", before.join(","));
 
-      ctx?.ui?.setStatus?.("search", `🔍 Search Gateway: ${before.length > 0 ? "searching again on another service" : "searching"}...`);
       let attempts = 0;
       while (attempts <= MAX_RETRIES) {
         try {
           const timeout = AbortSignal.timeout(TIMEOUT_MS);
-          const res = await fetch(`${g.url}/search?${ask}`, {
+          const res = await fetch(`${server.url}/search?${ask}`, {
             headers: { Accept: "application/json" },
             signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
           });
@@ -116,7 +118,7 @@ export default function (pi: any) {
 
           const safeQuery = query.replace(/[\n\r]/g, " ");
           const lines = [`## Search Results: "${safeQuery}"`, `Service: ${service}  ·  Results: ${results.length}`];
-          if (before.length > 0) {
+          if (retry) {
             lines.push(results.length
               ? `A different search service than your earlier search with these words (${before.join(", ")}).`
               : "No other search service found anything for these words. Use the earlier results, or try different keywords.");
@@ -130,9 +132,8 @@ export default function (pi: any) {
             if (r.publishedDate) lines.push(`   Date: ${r.publishedDate}`);
             lines.push("");
           });
-          if (!results.length && !before.length && (data?.problems?.length)) {
-            lines.push(`No results. The tool reported: ${(data.problems as string[]).slice(0, 6).join("; ")}`);
-          }
+          const problems: string[] = Array.isArray(data?.problems) ? data.problems.map(String) : [];
+          if (!results.length && !retry && problems.length) lines.push(`No results. The tool reported: ${problems.slice(0, 6).join("; ")}`);
 
           return {
             content: [{ type: "text", text: lines.join("\n") }],
@@ -143,7 +144,7 @@ export default function (pi: any) {
           if (attempts > MAX_RETRIES) {
             if (signal?.aborted) throw err;
             return {
-              content: [{ type: "text", text: serverDown(g) }],
+              content: [{ type: "text", text: serverDown(server) }],
               details: { service: "none", resultCount: 0 },
             };
           }
