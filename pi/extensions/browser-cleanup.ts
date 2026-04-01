@@ -10,6 +10,11 @@
 // plain `agent-browser --session <name> close` can't reach them. Instead:
 //   - At load, this sets a unique owner value in Pi's environment. Every browser
 //     process Pi starts inherits it, which identifies exactly what this Pi owns.
+//   - Session names seen in results also count, for a browser restored from an
+//     earlier Pi that crashed.
+//   - Closing is a normal close through the socket directory the daemon really
+//     uses, then TERM, then KILL for anything still running.
+// Linux only (reads /proc).
 
 import { execFile } from "node:child_process";
 import * as fs from "node:fs";

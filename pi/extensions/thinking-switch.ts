@@ -73,14 +73,7 @@ const FINISH_TAG = "[Automatic check, not from the user.";
 
 export function personText(text: string): string {
   const t = String(text ?? "");
-  // Strip Plannotator Inbox prefix added by other extensions.
-  // If the prefix exists but there's no newline, strip the prefix anyway (the rest may be empty).
-  if (t.startsWith("Plannotator Inbox: ")) {
-    const nl = t.indexOf("\n");
-    return nl >= 0 ? t.slice(nl + 1).trim() : t.slice("Plannotator Inbox: ".length);
-  }
-  if (t.includes(FINISH_TAG)) return t.split(FINISH_TAG)[0].trim();
-  return t.trim();
+  return t.startsWith("Plannotator Inbox: ") ? t.slice(t.indexOf("\n") + 1 || t.length) : t;
 }
 
 function lastUserIndex(messages: any[], person = ""): number {
@@ -133,10 +126,8 @@ export function decide(messages: any[], person = ""): { think: boolean; why: str
 // llama-server slot reserved for Pi (Open WebUI uses slot 1). A subagent's Pi gets its slot from subagent/index.ts
 // in LOCALLLM_SLOT, so it doesn't push this session out of slot 0.
 export function piSlot(value = process.env.LOCALLLM_SLOT): number {
-  const raw = String(value ?? "");
-  if (raw === "") return 0;
-  const n = Number(raw);
-  return Number.isInteger(n) && n >= 0 ? n : 0;
+  const n = Number(value);
+  return value !== undefined && value.trim() !== "" && Number.isInteger(n) && n >= 0 ? n : 0;
 }
 
 // The request to send: pinned to Pi's slot, and with reasoning off when `think` is false, the way the profile says.
