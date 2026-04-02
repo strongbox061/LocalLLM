@@ -97,9 +97,28 @@ function Test-PendingRestart {
 # skips what is done). Returns the exit code; the caller checks the result itself (a step is done when its program
 # answers, never on an exit code alone).
 function Run-Installer($name, $exe, $arguments, $minutes = 30, $idleMinutes = 5) {
-    Step "Running $name"
-    $process = Start-Process -FilePath $exe -ArgumentList $arguments -NoNewWindow -PassThru -Wait
-    return $process.ExitCode
+    Info "Installing $name (time limit $minutes minutes)..."
+    $p = Start-Process -FilePath $exe -ArgumentList $arguments -PassThru -WindowStyle Hidden
+    $start = Get-Date
+    $lastCpu = -1
+    $lastChange = Get-Date
+    while (-not $p.HasExited) {
+        Start-Sleep -Seconds 10
+        $cpu = 0
+        try {
+            $ids = @($p.Id) + @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$($p.Id)" | ForEach-Object ProcessId)
+            foreach ($id in $ids) { $q = Get-Process -Id $id -ErrorAction SilentlyContinue; if ($q) { $cpu += $q.TotalProcessorTime.TotalSeconds } }
+        } catch { }
+        if ([math]::Abs($cpu - $lastCpu) -gt 0.5) { $lastCpu = $cpu; $lastChange = Get-Date }
+        if (((Get-Date) - $lastChange).TotalMinutes -ge $idleMinutes) {
+            Fail ("$name has been idle for $idleMinutes minutes: probably waiting on a dialog on the helper PC's screen. " +
+                  "Click it away there, then run ./localllm.sh install-helper again.") 4
+        }
+        if (((Get-Date) - $start).TotalMinutes -ge $minutes) {
+            Fail "$name didn't finish within $minutes minutes. Look at the helper PC's screen, then run install-helper again." 4
+        }
+    }
+    return $p.ExitCode
 }
 
 # The repo's services on this PC, from config.json: name, Windows service id, port, health path, whether it runs.
