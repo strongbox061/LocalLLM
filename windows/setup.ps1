@@ -24,14 +24,9 @@ function Want($step) { return ($Only.Count -eq 0) -or ($Only -contains $step) }
 
 # Uv <args...>: runs uv, its output shown only when it fails (then setup stops).
 function Uv {
-    $uv = Join-Path $env:LOCALAPPDATA 'Programs\uv\bin\uv.exe'
-    if (-not (Test-Path $uv)) { throw "uv not found at $uv" }
-    $out = & $uv @args 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "uv failed: $out"
-        exit 1
-    }
-    return $out
+    $uvArgs = $args   # $args inside the block below would be the block's own (none)
+    $out = Native { & $uv @uvArgs }
+    if ($LASTEXITCODE -ne 0) { $out | Select-Object -Last 25 | ForEach-Object { Write-Host "    $_" }; Fail "uv $($args -join ' ') failed." }
 }
 
 # New-Venv <name>: a Python environment in venv\<name> (Python from uv, on the data drive).
