@@ -13,6 +13,7 @@ Steps:
 1. `git diff` (and `git diff --staged`) to see the changes, unless the task names the files.
 2. Read the changed parts and what they call.
 3. Check each finding against the code before reporting it.
+4. Look for common issues: missing error handling, hardcoded secrets, or SQL injection patterns.
 
 ## Files reviewed
 - `path/to/file.ts` (lines X-Y)
