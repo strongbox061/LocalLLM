@@ -64,7 +64,7 @@ class TodoListComponent {
 		}
 	}
 
-  render(width: number): string[] {
+	render(width: number): string[] {
     if (this.cachedLines && this.cachedWidth === width) {
       return this.cachedLines;
     }
@@ -104,7 +104,7 @@ class TodoListComponent {
     return lines;
   }
 
-  invalidate(): void {
+	invalidate(): void {
     this.cachedWidth = undefined;
     this.cachedLines = undefined;
   }
