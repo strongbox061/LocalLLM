@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# install/pi-config.sh — Bootstrap Pi agent config from the repo.
+# Copies this repo's Pi files (pi/) into ~/.pi/agent: extensions, AGENTS.md, plannotator.json, agents, prompts and
+# skills (only what differs).
 # Run it again after editing anything in pi/.
 set -euo pipefail
 
@@ -9,6 +10,7 @@ PI_SOURCE_DIR="$REPO_DIR/pi"
 
 # The extensions' word rules (extensions/lang-words.ts, imported by the others) are generated from
 # lang/phrases.json: never install a stale copy.
+python3 "$REPO_DIR/lang/build.py" --check >/dev/null || die "lang/phrases.json changed: run python3 lang/build.py first."
 
 # --- Key declarations / sections / selectors (bodies omitted for v1) ---
 
@@ -45,6 +47,8 @@ copy_file() {    # copy_file <name in pi/ and in ~/.pi/agent>
 }
 
 copy_file AGENTS.md
+# Plannotator's plan mode: its planning instructions send plans to the Inbox instead of the review tab.
+copy_file plannotator.json
 
 # --- subagents (extensions/subagent) and the workflows that use them (/implement...): one .md file each ---
 for dir in agents prompts; do
@@ -96,79 +100,60 @@ EOF_PY
 # blocked). denyWrite blocks, without asking, secrets and ~/.ssh, ~/.gnupg, ~/.pi, ~/.config and the shell's startup
 # files even when Pi runs in a folder that contains them (e.g. ~). A denyWrite list replaces pi-sandbox's defaults, so
 # it repeats them (.env, *.pem...). Without a UI (pi -p, subagents) whatever would ask is blocked.
-
-install_sandbox_rules() {
-  local sandbox_cfg="$PI_AGENT_DIR/sandbox.json"
-
-  python3 - "$sandbox_cfg" <<'EOF_PY'
+python3 - "$PI_SOURCE_DIR/sandbox.json" "$PI_AGENT_DIR/sandbox.json" <<'EOF_PY'
 import json, os, sys
-
-config_path = sys.argv[1]
-existing = {}
-if os.path.isfile(config_path):
-    with open(config_path) as f:
-        existing = json.load(f)
-
-deny_write = existing.get("denyWrite", [])
-# Append known sensitive paths if not already present
-extra = [
-    ".env",
-    "*.pem",
-    "*.key",
-    str(os.path.expanduser("~/.ssh")),
-    str(os.path.expanduser("~/.gnupg")),
-    str(os.path.expanduser("~/.pi")),
-    str(os.path.expanduser("~/.config")),
-]
-for path in extra:
-    if path not in deny_write:
-        deny_write.append(path)
-
-config = existing.copy()
-config["denyWrite"] = deny_write
-
-with open(config_path, "w") as f:
-    json.dump(config, f, indent=2)
-    f.write("\n")
+source, path = sys.argv[1], sys.argv[2]
+with open(source) as f:
+    repo = json.load(f)
+try:
+    with open(path) as f:
+        live = json.load(f)
+except FileNotFoundError:
+    live = {}
+except ValueError as e:
+    sys.exit(f"ERROR: {path} is not valid JSON ({e}); fix it, then run this again.")
+home = os.path.expanduser("~")
+expand = lambda p: home + p[1:] if p == "~" or p.startswith("~/") else p
+added = []
+for section, values in repo.items():
+    if not isinstance(values, dict):
+        if section not in live:
+            live[section] = values
+            added.append(section)
+        continue
+    target = live.setdefault(section, {})
+    for key, value in values.items():
+        if isinstance(value, list):
+            have = target.setdefault(key, [])
+            known = {expand(p) for p in have}
+            for p in value:
+                if expand(p) not in known:
+                    have.append(p)
+                    known.add(expand(p))
+                    added.append(f"{key} {p}")
+        elif key not in target:
+            target[key] = value
+            added.append(f"{section}.{key}")
+if added:
+    with open(path, "w") as f:
+        json.dump(live, f, indent=2)
+        f.write("\n")
+    print("Added to sandbox.json: " + ", ".join(added))
+else:
+    print("Same: sandbox.json")
 EOF_PY
-}
 
 # --- skills: one directory per skill ---
-install_skill() {
-  local skill_name="$1"
-  local src="$PI_SOURCE_DIR/skills/$skill_name"
-  local dst="$PI_AGENT_DIR/skills/$skill_name"
+mkdir -p "$PI_AGENT_DIR/skills"
+for item in "$PI_SOURCE_DIR/skills"/*/; do
+    [[ -d "$item" ]] || continue
+    target="$PI_AGENT_DIR/skills/$(basename -- "$item")"
+    if [[ -d "$target" ]] && diff -rq "$item" "$target" >/dev/null 2>&1; then
+        echo "Same: skills/$(basename -- "$item")"
+    else
+        cp -a "$item" "$PI_AGENT_DIR/skills/"
+        echo "Copied: skills/$(basename -- "$item")"
+    fi
+done
 
-  [[ -d "$src" ]] || return 0
-  [[ -d "$dst" ]] && return 0
-
-  cp -r "$src" "$dst"
-  log_info "Installed skill: $skill_name"
-}
-
-# --- Main setup ---
-main() {
-  log_info "Configuring Pi agent from $PI_SOURCE_DIR"
-
-
-
-
-
-  # Configure compaction
-  log_info "Configuring context compaction"
-
-  # Install sandbox rules
-  install_sandbox_rules
-
-  # Install skills
-  if [[ -d "$PI_SOURCE_DIR/skills" ]]; then
-    for skill in "$PI_SOURCE_DIR"/skills/*/; do
-      [[ -d "$skill" ]] || continue
-      install_skill "$(basename "$skill")"
-    done
-  fi
-
-  log_info "Pi config complete"
-}
-
-main "$@"
+echo "Pi files copied to: $PI_AGENT_DIR"
