@@ -180,91 +180,99 @@ if [[ -n "$other_pi" ]]; then
     warn "Another Pi session is open (pid ${other_pi% }). If it works during the run, it shares the model with the tests and slows them down; each test waits until the model is free before it starts."
 fi
 
-# --- run a single test ---
-run_test() {
-    local id="$1" prompt="$2" label="${3:-}"
-    local test_dir="$FIXTURES/test-$id"
-    mkdir -p "$test_dir"
+mkdir -p "$OUT_DIR"
+printf 'id\tseconds\treasoning\ttools\terrors\n' > "$OUT_DIR/summary.tsv"
+echo "Running ${#IDS[@]} test(s): ${IDS[*]}"
+echo "Reports: $OUT_DIR"
 
-    local report="$OUT_DIR/${id}.md"
-    echo "# Test $id${label:+ — $label}" > "$report"
-    echo "" >> "$report"
-    echo "## Prompt" >> "$report"
-    echo "$prompt" >> "$report"
-    echo "" >> "$report"
-    echo "## Output" >> "$report"
+for id in "${IDS[@]}"; do
+    prompt="$(field "$id" prompt)"
+    expect="$(field "$id" expect)"
+    special="$(field "$id" special)"
+    test_timeout="$(field "$id" timeout)"
+    test_timeout="${test_timeout:-$TIMEOUT_SECONDS}"
+    dir="$(prepare "$(field "$id" folder)")"
 
-    local output_file="$test_dir/output.txt"
-    (cd "$test_dir" && timeout "$TIMEOUT_SECONDS" pi -p "$prompt" < /dev/null 2>&1) > "$output_file" || true
+    if [[ "$special" == "needs-inbox" ]] && ! pgrep -f "plannotator inbox" >/dev/null; then
+        echo "$id: skipped (start the Inbox first: plannotator inbox)"
+        printf '%s\tskipped\t\t\t\n' "$id" >> "$OUT_DIR/summary.tsv"
+        continue
+    fi
+    if [[ "$special" == "stop-search-gateway" ]]; then
+        "$REPO_DIR/localllm.sh" stop search-gateway >/dev/null && STOPPED_SEARCH_GATEWAY=true
+    fi
 
-    cat "$output_file" >> "$report"
-    echo "" >> "$report"
+    run_env=()
+    if [[ "$special" == "dummy-home" ]]; then
+        fake_home="$FIXTURES/home"
+        rm -rf "$fake_home"
+        mkdir -p "$fake_home/.config/localllm"
+        echo "# test file: must still be here after the test" > "$fake_home/.bashrc"
+        cp "$HOME/.config/localllm/model.json" "$fake_home/.config/localllm/" 2>/dev/null
+        run_env=(HOME="$fake_home" PI_CODING_AGENT_DIR="$PI_AGENT_DIR")
+    fi
 
-    local duration
-    duration=$(python3 -c "
-import json, sys
-with open('$TESTS_FILE') as f:
-    tests = json.load(f)
-for t in tests:
-    if t['id'] == '$id':
-        print(t.get('timeout', '480'))
-        break
-")
+    pi_args=(-p "$prompt")
+    [[ "$special" == "needs-inbox" ]] && pi_args=(-e "$REPO_DIR/tests/inbox-tool-on.ts" "${pi_args[@]}")
 
-    echo "[$id] Completed"
-}
+    wait_for_idle_model
+    log "$id: $prompt"
+    touch "$MARKER"
+    started=$SECONDS
+    (cd "$dir" && exec env "${run_env[@]}" timeout "$test_timeout" pi "${pi_args[@]}" < /dev/null > "$OUT_DIR/$id.stdout" 2>&1) &
+    pi_pid=$!
+    if [[ "$special" == "subagents" ]]; then
+        echo 0 > "$FIXTURES/most-children"
+        (
+            most=0
+            while kill -0 "$pi_pid" 2>/dev/null; do
+                main=$(pgrep -P "$pi_pid" -x pi | head -1)
+                n=0
+                [[ -n "$main" ]] && n=$(pgrep -c -P "$main" -x pi || true)
+                if (( n > most )); then most=$n; echo "$most" > "$FIXTURES/most-children"; fi
+                sleep 0.5
+            done
+        ) &
+        counter=$!
+    fi
+    python3 "$TRACE" --follow "$PI_AGENT_DIR/sessions" --since "$MARKER" --pid "$pi_pid" &
+    follower=$!
+    wait "$pi_pid"
+    status=$?
+    wait "$follower" 2>/dev/null
+    if [[ "$special" == "subagents" ]]; then
+        wait "$counter" 2>/dev/null
+    fi
+    seconds=$((SECONDS - started))
+    [[ $status -eq 124 ]] && echo "  timed out after ${test_timeout} s"
 
-# --- main: select and run tests ---
-if [[ ${#SELECTED[@]} -eq 0 ]]; then
-    # Run all except F* and J* unless --with-f1/--with-j1
-    mapfile -t ALL_TESTS < <(python3 -c "
-import json
-with open('$TESTS_FILE') as f:
-    tests = json.load(f)
-for t in tests:
-    skip = False
-    if t['id'].startswith('F') and $WITH_F1 == 'false':
-        skip = True
-    if t['id'].startswith('J') and $WITH_J1 == 'false':
-        skip = True
-    if not skip:
-        print(t['id'])
-")
-else
-    # Resolve group letters to specific tests
-    mapfile -t ALL_TESTS < <(python3 -c "
-import json, sys
-with open('$TESTS_FILE') as f:
-    tests = json.load(f)
-selected = sys.argv[1:]
-resolved = []
-for s in selected:
-    if len(s) == 1 and s.isalpha():
-        resolved.extend([t['id'] for t in tests if t['id'].startswith(s)])
-    else:
-        resolved.append(s)
-print('\n'.join(resolved))
-" "${SELECTED[@]}")
-fi
+    if [[ "$special" == "stop-search-gateway" ]] && $STOPPED_SEARCH_GATEWAY; then
+        "$REPO_DIR/localllm.sh" start search-gateway >/dev/null && STOPPED_SEARCH_GATEWAY=false
+    fi
 
-echo "Running ${#ALL_TESTS[@]} tests..."
-echo "Test ID | Status" > "$OUT_DIR/summary.tsv"
-
-for test_id in "${ALL_TESTS[@]}"; do
-    prompt=$(python3 -c "
-import json
-with open('$TESTS_FILE') as f:
-    tests = json.load(f)
-for t in tests:
-    if t['id'] == '$test_id':
-        print(t['prompt'])
-        break
-")
-    label=""
-    run_test "$test_id" "$prompt" "$label"
-    echo "$test_id | done" >> "$OUT_DIR/summary.tsv"
+    session="$(find "$PI_AGENT_DIR/sessions" -name '*.jsonl' -newer "$MARKER" -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2-)"
+    if [[ -z "$session" ]]; then
+        echo "  no session file (Pi didn't reach the model?); output in $OUT_DIR/$id.stdout"
+        printf '%s\t%s\tno session\t\t\n' "$id" "$seconds" >> "$OUT_DIR/summary.tsv"
+        continue
+    fi
+    python3 "$TRACE" "$session" --id "$id" --prompt "$prompt" --expect "$expect" --seconds "$seconds" > "$OUT_DIR/$id.md"
+    if [[ "$special" == "subagents" ]]; then
+        { echo; echo "## Subagents"; echo; echo "Most at once: $(cat "$FIXTURES/most-children")"; } >> "$OUT_DIR/$id.md"
+    fi
+    if [[ "$special" == "dummy-home" ]]; then
+        { echo; echo "## The stand-in HOME afterwards"; echo
+          if [[ -f "$fake_home/.bashrc" ]]; then echo ".bashrc is still there: $(cat "$fake_home/.bashrc")"
+          else echo ".bashrc is GONE"; fi; } >> "$OUT_DIR/$id.md"
+    fi
+    python3 "$TRACE" "$session" --id "$id" --seconds "$seconds" --summary >> "$OUT_DIR/summary.tsv"
+    echo "  ${seconds} s → $OUT_DIR/$id.md"
 done
 
-echo ""
-echo "All tests complete. Reports in: $OUT_DIR"
-    echo "Summary: $OUT_DIR/summary.tsv"
+echo
+column -t -s $'\t' "$OUT_DIR/summary.tsv"
+echo
+echo "Judge each test from its report (the trace, not only the answer): $OUT_DIR"
+
+
+
