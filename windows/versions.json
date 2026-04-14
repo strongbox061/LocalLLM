@@ -19,10 +19,23 @@
   "kokoro_fastapi": "v0.9.1",
   "docling_serve": "1.38.2",
   "comfyui": "v0.45.0",
-  "comfyui_checkpoint": [
-    "juggernautXL_v9Rundiffusion.safetensors"
+  "comfyui_checkpoint": {
+    "url": "https://huggingface.co/Lykon/DreamShaper/resolve/main/DreamShaper_8_pruned.safetensors",
+    "file": "DreamShaper_8_pruned.safetensors",
+    "sha256": "879db523c30d3b9017143d56705015e15a2cb5628762c11d086fed9538abd7fd"
+  },
+  "comfyui_embeddings": [
+    {
+      "url": "https://huggingface.co/Lykon/DreamShaper/resolve/main/BadDream.pt",
+      "file": "BadDream.pt",
+      "sha256": "758aac44351557ccfae2fc6bdf3a29670464e4e4eabb61f08c5b8531c221649c"
+    },
+    {
+      "url": "https://huggingface.co/Lykon/DreamShaper/resolve/main/UnrealisticDream.pt",
+      "file": "UnrealisticDream.pt",
+      "sha256": "a77451e7ea075c7f72d488d2b740b3d3970c671c0ac39dd3155f3c3b129df959"
+    }
   ],
-  "comfyui_embeddings": [],
 
   "llama_cpp": "b12503",
   "model": "qwen3-30b-a3b-instruct-q4_k_m.gguf",
