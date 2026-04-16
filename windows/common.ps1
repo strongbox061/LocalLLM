@@ -87,8 +87,10 @@ function Download-File($url, $file) {
 # (Not PendingFileRenameOperations: Windows keeps entries there that survive every restart, e.g. a DirectX
 # compatibility file, so it would ask for restarts forever.)
 function Test-PendingRestart {
-    $reg = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager'
-    return (Test-Path (Join-Path $reg 'PendingFileRenameOperations'))
+    $keys = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending',
+              'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired')
+    foreach ($k in $keys) { if (Test-Path $k) { return $true } }
+    return $false
 }
 
 # Run-Installer <name> <exe> <arguments> [minutes]: runs a silent installer with a time limit. While it runs, its CPU
