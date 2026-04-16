@@ -83,30 +83,17 @@ const CONTEXT7_ID_DAYS = 30;
 const CONTEXT7_ID_MAX_CHARS = 6000;
 
 function readIdCache(): Record<string, { t: number; text: string }> {
-  try {
-    const raw = fs.readFileSync(CONTEXT7_ID_CACHE, "utf-8");
-    return JSON.parse(raw);
-  } catch {
-    return {};
-  }
+  try { return JSON.parse(fs.readFileSync(CONTEXT7_ID_CACHE, "utf8")) ?? {}; } catch { return {}; }
 }
-
 function cachedLibraryIds(name: string): string | undefined {
-  const cache = readIdCache();
-  const entry = cache[name];
-  if (!entry) return undefined;
-  if (Date.now() - entry.t > CONTEXT7_ID_DAYS * 24 * 60 * 60 * 1000) {
-    delete cache[name];
-    try { fs.writeFileSync(CONTEXT7_ID_CACHE, JSON.stringify(cache, null, 2)); } catch {}
-    return undefined;
-  }
-  return entry.text.length > CONTEXT7_ID_MAX_CHARS ? undefined : entry.text;
+  const hit = readIdCache()[name];
+  return hit && Date.now() - hit.t < CONTEXT7_ID_DAYS * 86400_000 ? hit.text : undefined;
 }
-
 function saveLibraryIds(name: string, text: string) {
   const cache = readIdCache();
-  cache[name] = { t: Date.now(), text };
-  try { fs.writeFileSync(CONTEXT7_ID_CACHE, JSON.stringify(cache, null, 2)); } catch {}
+  for (const [k, v] of Object.entries(cache)) if (Date.now() - v.t >= CONTEXT7_ID_DAYS * 86400_000) delete cache[k];
+  cache[name] = { t: Date.now(), text: text.slice(0, CONTEXT7_ID_MAX_CHARS) };
+  try { fs.writeFileSync(CONTEXT7_ID_CACHE, JSON.stringify(cache)); } catch {}
 }
 
 const libraryKey = (input: any) => String(input?.libraryName ?? "").trim().toLowerCase();
