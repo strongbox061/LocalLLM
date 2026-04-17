@@ -132,6 +132,7 @@ console.log("agent-browser-fix.ts: search budget, topic loop & consecutive searc
   // Templated multi-entity queries (shared boilerplate like "search API public launch announcement") don't collide
   const q = fakePi();
   (await load(join(EXT, "agent-browser-fix.ts"))).default(q.pi);
+  await q.say("Find public launch dates for Linkup, Tavily, Firecrawl, Bright Data, Context.dev, You.com, SerpApi, Geekflare");
   for (const query of [
     "Linkup search engine launch public announcement",
     "Tavily search API public launch announcement tvly",

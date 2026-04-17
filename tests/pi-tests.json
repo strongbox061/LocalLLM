@@ -48,8 +48,20 @@
   {"id": "E4", "folder": "edit", "prompt": "What files are in the current directory?",
    "expect": "bash only (ls), no web; lists config.yml"},
 
+  {"id": "F1", "folder": "empty", "prompt": "What's new in the latest Ollama release?", "special": "stop-search-gateway",
+   "expect": "web_search says the server isn't running; tells the user to start it (./start.sh, or ./localllm.sh start helper in split mode); no other way of searching"},
+  {"id": "F2", "folder": "empty", "prompt": "Search Google directly for \"qwen3.5 release\" using the browser and list the top 3 results.",
+   "expect": "no browser search: web_search with the same words, and the answer starts by saying Google doesn't allow automated browsers"},
+
   {"id": "H1", "folder": "webapp", "prompt": "In this project, how do I read a dynamic route parameter (like [slug]) inside a page component? Check the docs for the version this project uses.",
    "expect": "reads package.json; resolve-library-id (or the cached ID); query-docs with a v14 ID; at most 3 Context7 calls"},
+  {"id": "H2", "folder": "webapp", "prompt": "In this project, how do I set metadata (title, description) for a page? Check the docs for the version this project uses.",
+   "expect": "the Next.js ID comes from the cache (resolve-library-id blocked as cached); one query-docs with a v14 ID"},
+  {"id": "H3", "folder": "empty", "prompt": "In the latest Vite docs, how do I configure a dev server proxy?",
+   "expect": "the live docs first (GitMCP, or the official docs site); no Context7 call reaches Context7"},
+  {"id": "H4", "folder": "empty", "prompt": "What changed in the latest Vite release?",
+   "expect": "the releases or changelog page, or web_search; not Context7"},
+
   {"id": "I1", "folder": "edit", "prompt": "In config.yml, change the port to 9090 and the logging level to debug.",
    "expect": "reads the file first; one edit call with short old texts; config.yml has port 9090 and level debug"}
 ]
