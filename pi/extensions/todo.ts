@@ -104,10 +104,10 @@ class TodoListComponent {
     return lines;
   }
 
-	invalidate(): void {
-    this.cachedWidth = undefined;
-    this.cachedLines = undefined;
-  }
+		invalidate(): void {
+			this.cachedWidth = undefined;
+			this.cachedLines = undefined;
+		}
 }
 
 export default function (pi: ExtensionAPI) {

@@ -19,6 +19,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 const DEBUG = false;
+// How much of the file's text the "closest match" message may show.
 const MAX_SHOWN_LINES = 40;
 const MAX_LINE_CHARS = 300;
 
@@ -27,8 +28,8 @@ function norm(line: string): string {
   return line
     .replace(/\r$/, "")
     .replace(/[ \t]/g, " ")
-    .replace(/[''']/g, "'")
-    .replace(/["""/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
     .replace(/ {2,}/g, " ")
     .trim();
 }
@@ -80,27 +81,20 @@ function lineSimilarity(a: string, b: string): number {
 }
 
 function clip(line: string): string {
-  return line.length > MAX_LINE_CHARS ? line.slice(0, MAX_LINE_CHARS) + "\u2026" : line;
+  return line.length > MAX_LINE_CHARS ? line.slice(0, MAX_LINE_CHARS) + "…" : line;
 }
 
 // Why `oldText` can't be applied, with what to do instead; undefined when Pi will find it (exact, or fixed above).
-export function explainMiss(
-  file: string,
-  oldText: string,
-  filePath?: string,
-  partial = false,
-  inCodemode = false
-): string | undefined {
-  const resolvedPath = filePath || resolvePath(file);
-  const content = fs.readFileSync(resolvedPath, "utf-8");
-  const fileLines = content.split("\n");
+export function explainMiss(file: string, oldText: string, filePath: string, partial = false, inCodemode = false): string | undefined {
+  if (file.includes(oldText)) return undefined;
+  const fileLines = file.split("\n");
   const want = wantedLines(oldText);
   if (want.every((l) => l.trim() === "")) return undefined;
 
   const hits = formatMatches(fileLines, want);
   if (hits.length === 1) return undefined; // fixOldText handles it
   if (hits.length > 1) {
-    return `The old text matches more than one place in ${filePath || resolvedPath} (for example lines ${hits[0] + 1} and ${hits[1] + 1}). ` +
+    return `The old text matches more than one place in ${filePath} (for example lines ${hits[0] + 1} and ${hits[1] + 1}). ` +
       "Add a nearby line that is different in each place, so it matches only one.";
   }
 
@@ -119,7 +113,7 @@ export function explainMiss(
   const reread = `Read the lines you want to change again with ${readHow} and copy the old text exactly from that output. ` +
     "Keep the old text short: only the lines that change, plus one unchanged line around them if needed.";
   if (best < 0 || bestCount > 1 || bestScore < want.length * 0.5) {
-    return `The old text is not in ${filePath || resolvedPath}, and no part of the file is close to it. ${reread}`;
+    return `The old text is not in ${filePath}, and no part of the file is close to it. ${reread}`;
   }
 
   const block = fileLines.slice(best, best + want.length);
@@ -135,7 +129,7 @@ export function explainMiss(
   const tail = partial
     ? `This edit was not applied, so fix its old text and send it in ${editHow}.`
     : "Nothing was changed, so fix the old text and try again.";
-  return `The old text is not in ${filePath || resolvedPath}. The closest place is lines ${best + 1}-${best + block.length}, ` +
+  return `The old text is not in ${filePath}. The closest place is lines ${best + 1}-${best + block.length}, ` +
     `where these lines differ:\n${diffs.join("\n")}\n` +
     "Your old text was retyped from memory. Copy it exactly from the file instead (keep only the lines that change). " +
     `${tail}\n${shown}`;
@@ -147,48 +141,95 @@ function resolvePath(p: string, cwd?: string): string {
 }
 
 export default function (pi: any) {
-  // Register hooks for the edit tool
-  pi.hook?.("edit", (args: any) => {
-    if (!Array.isArray(args)) return args;
-    if (args.length < 2) return args;
+  const pendingById = new Map<string, string>();
+  const pendingByInput = new WeakMap<object, string>();
 
-    const file = args[0];
-    const edits = args[1];
+  pi.on("session_start", () => { pendingById.clear(); });
 
-    if (!Array.isArray(edits)) return args;
+  pi.on("tool_call", (event: any, ctx: any) => {
+    if (event?.toolName !== "edit") return;
+    const input = event.input;
+    const p = input?.path ?? input?.file_path;
+    if (typeof p !== "string") return;
 
-    const fixedEdits: any[] = [];
-    let hadMisses = false;
+    let file: string;
+    try { file = fs.readFileSync(resolvePath(p, ctx?.cwd), "utf8"); } catch { return; }
 
-    for (const edit of edits) {
-      if (typeof edit.oldText !== "string") {
-        fixedEdits.push(edit);
-        continue;
-      }
+    // Both shapes: { oldText, newText } and { edits: [{ oldText, newText }] }
+    const many = Array.isArray(input.edits);
+    const items: any[] = many ? input.edits : [input];
+    const kept: any[] = [];
+    const missed: { index: number; oldText: string }[] = [];
 
-      const fixed = fixOldText(file, edit.oldText);
-      if (fixed !== undefined) {
-        fixedEdits.push({ ...edit, oldText: fixed });
-      } else {
-        hadMisses = true;
-        fixedEdits.push(edit);
-      }
-    }
-
-    if (hadMisses) {
-      // Check if all failed
-      const allFailed = edits.every(
-        (e: any) => typeof e.oldText === "string" && fixOldText(file, e.oldText) === undefined
-      );
-
-      if (allFailed) {
-        const explanation = explainMiss(file, edits[0].oldText, undefined, false);
-        if (explanation) {
-          return { error: explanation };
+    items.forEach((e: any, i: number) => {
+      let badOld: string | undefined;
+      for (const key of ["oldText", "old_text", "old_string"]) {
+        if (typeof e?.[key] !== "string") continue;
+        const real = fixOldText(file, e[key]);
+        if (real !== undefined) {
+          if (DEBUG) console.error(`[edit-fuzzy] fixed ${key} in ${p}`);
+          e[key] = real;
+          continue;
+        }
+        if (explainMiss(file, e[key], p)) {
+          badOld = e[key];
+          break;
         }
       }
+      if (badOld !== undefined) missed.push({ index: i, oldText: badOld });
+      else kept.push(e);
+    });
+
+    if (missed.length === 0) return;
+
+    const partial = many && kept.length > 0;
+    const inCodemode = Boolean(event?.parentToolCallId);
+    const problems = missed.map(({ index, oldText }) => {
+      const why = explainMiss(file, oldText, p, partial, inCodemode) ?? "";
+      return many ? `edits[${index}]: ${why}` : why;
+    });
+
+    if (partial) {
+      input.edits = kept;
+      const applied = kept.length;
+      const total = items.length;
+      const skipped = missed.length;
+      const note =
+        `Only ${applied} of ${total} edits were applied. ` +
+        `${skipped} ${skipped === 1 ? "edit was" : "edits were"} NOT applied because the old text wasn't found. ` +
+        `You must still apply ${skipped === 1 ? "this remaining edit" : "these remaining edits"} now ` +
+        `(do not re-send the ${applied} already applied):\n\n` +
+        problems.join("\n\n");
+      if (typeof event.toolCallId === "string") pendingById.set(event.toolCallId, note);
+      if (input && typeof input === "object") pendingByInput.set(input, note);
+      if (DEBUG) console.error(`[edit-fuzzy] kept ${applied}/${total} edit(s) in ${p}, skipped ${skipped}`);
+      return;
     }
 
-    return [file, fixedEdits];
+    if (DEBUG) console.error(`[edit-fuzzy] blocked ${problems.length} edit(s) in ${p}`);
+    return {
+      block: true,
+      reason: (many && items.length > 1
+        ? `None of the ${items.length} edits were applied, because ${problems.length} of them can't be found. ` +
+          "Fix those and send all the edits again.\n\n"
+        : "") + problems.join("\n\n"),
+    };
+  });
+
+  pi.on("tool_result", (event: any) => {
+    if (event?.toolName !== "edit") return;
+    let note: string | undefined;
+    if (typeof event.toolCallId === "string") {
+      note = pendingById.get(event.toolCallId);
+      pendingById.delete(event.toolCallId);
+    }
+    if (event.input && typeof event.input === "object") {
+      const byInput = pendingByInput.get(event.input);
+      pendingByInput.delete(event.input);
+      note ??= byInput;
+    }
+    if (!note || event.isError) return;
+    const parts: any[] = Array.isArray(event.content) ? event.content : [];
+    return { content: [...parts, { type: "text", text: `\n\n${note}` }] };
   });
 }
