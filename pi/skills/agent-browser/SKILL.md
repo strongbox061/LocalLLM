@@ -17,16 +17,16 @@ manages sessions automatically — sending one will cause errors.
 
 ## Commands
 
-The main commands are:
+| Goal | args |
+|---|---|
+| Open a page | `["open", "<url>"]` |
+| Whole/main page text | `["get", "text", "body"]` |
+| Page title | `["get", "title"]` |
+| List links, buttons, inputs | `["snapshot", "-i"]` |
+| Text of one element | `["get", "text", "@eN"]` (ref from the latest snapshot) |
 
-- **open** — Navigate to a URL. Accepts `["open", "https://example.com"]`.
-- **get** — Retrieve page content. Use `["get", "text", "body"]` for body text,
-  `["get", "url"]` for the current URL.
-- **snapshot** — Capture the interactive DOM. Use `["snapshot", "-i"]` to get
-  actionable element refs (`@eN`). This is how you find clickable elements.
-- **fill / press** — Interact with forms. Use `["fill", "@eN", "value"]` to set
-  input values, then `["press", "Enter"]` or click submit buttons from the snapshot.
-- **eval** — Run JavaScript in the page context. Useful for extracting specific data.
+`get text` always needs a selector. Never guess selectors like
+`#content`, `main`, or `h1`; use `body` or an `@eN` ref you've seen.
 
 
 ## Workflow
