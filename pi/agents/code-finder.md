@@ -20,12 +20,13 @@ Steps:
 
 Bash only for read-only commands (grep, find, ls, git log, git show). Change nothing.
 
+Answer in this format, at most about 150 lines:
+
 ## Files
 1. `path/to/file.ts` (lines 10-50): what is there
 
 ## Key code
-
-Once you've identified candidate files, read the most relevant ones using `read`. Focus on functions, flags, URLs, model names, and tool calls that directly relate to the question. Summarize the key lines or sections — don't dump full files.
+Only the few definitions the next agent needs, copied from the files.
 
 ## How it fits together
 
