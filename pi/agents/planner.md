@@ -26,6 +26,4 @@ Numbered, small, concrete steps, each naming the file and function:
 - Briefly describe its purpose and how it fits into the existing structure.
 
 ## Risks
-
-- Note any potential issues: breaking changes, edge cases, compatibility concerns.
-- Suggest mitigations where possible.
+What to watch out for.
