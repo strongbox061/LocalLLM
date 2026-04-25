@@ -1,4 +1,4 @@
-# bootstrap.ps1 - the one script run by hand on the helper PC (README, "Connecting the helper PC").
+# first-run.ps1 - the one script run by hand on the helper PC (README, "Connecting the helper PC").
 #
 # Don't run this file itself: ./localllm.sh setup-helper on the main PC writes ~/.cache/localllm/bootstrap.local.ps1, a copy with
 # the main PC's public SSH key filled in. Copy that one to the helper PC and run it in PowerShell as Administrator:
