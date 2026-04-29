@@ -1,5 +1,5 @@
 # legacy-start.ps1 — Early PowerShell service starter for LocalLLM
-# Starts the local LLM inference server (Qwen3-30B-A3B-Instruct-2507)
+# Starts the local LLM inference server (Qwen3.6-35B-A3B with vision)
 
 $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -20,14 +20,21 @@ if (-not (Test-Path $configFile)) {
 
 $config = Get-Content $configFile -Raw | ConvertFrom-Json
 $modelPath = $config.model.path
+$visionModel = $config.model.visionPath
 $port = $config.server.port
 
 Write-Log "Model: $modelPath"
+if ($visionModel) { Write-Log "Vision model: $visionModel" }
 Write-Log "Port: $port"
 
 if (-not (Test-Path $modelPath)) {
     Write-Log "ERROR: Model file not found: $modelPath"
     exit 1
+}
+
+if ($visionModel -and -not (Test-Path $visionModel)) {
+    Write-Log "WARNING: Vision model not found at $visionModel — running text-only"
+    $visionModel = $null
 }
 
 $llamaServer = Join-Path $scriptDir "llama-server.exe"
@@ -37,14 +44,21 @@ if (-not (Test-Path $llamaServer)) {
 }
 
 Write-Log "Launching inference server..."
+$llamaArgs = @(
+    "-m", $modelPath,
+    "-c", $config.model.contextLength,
+    "-t", $config.server.threads,
+    "--host", "127.0.0.1"
+)
+
+if ($visionModel) {
+    $llamaArgs += "--mmproj", $visionModel, "--vision-chunk-size", "512"
+}
+
+$llamaArgs += "-p", $port
+
 $process = Start-Process -FilePath $llamaServer `
-    -ArgumentList @(
-        "-m", $modelPath,
-        "-c", $config.model.contextLength,
-        "-t", $config.server.threads,
-        "-p", $port,
-        "--host", "127.0.0.1"
-    ) `
+    -ArgumentList $llamaArgs `
     -NoNewWindow -PassThru
 
 Write-Log "Server started (PID: $($process.Id)) on port $port"
