@@ -6,6 +6,8 @@
 #   A package or agent-browser installed new gets the version recorded by the last backup (versions.env), if any.
 set -euo pipefail
 
+[[ -n "${PI_AGENT_DIR:-}" ]] || { echo "ERROR: PI_AGENT_DIR is not set" >&2; exit 1; }
+
 source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
 
 SETTINGS="$PI_AGENT_DIR/settings.json"
