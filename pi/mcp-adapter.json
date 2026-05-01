@@ -19,12 +19,11 @@
       "directTools": true
     },
     "context7": {
-      "command": "npx",
-      "args": ["-y", "@earendil-works/mcp-context7"],
-      "env": {
-        "CONTEXT7_OAUTH_FLOW": "true",
-        "CREDENTIAL_STORE_PATH": "~/.pi/mcp-oauth/credentials.json"
-      }
+      "url": "https://mcp.context7.com/mcp/oauth",
+      "auth": "oauth",
+      "protocolVersion": "auto",
+      "description": "Indexed library docs for a specific version",
+      "directTools": true
     }
   },
   "toolGroups": {
