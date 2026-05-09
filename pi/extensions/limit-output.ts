@@ -1,5 +1,5 @@
-// limit-output.ts
-// Location: ~/.pi/agent/extensions/limit-output.ts
+// cap-output.ts
+// Location: ~/.pi/agent/extensions/cap-output.ts
 //
 // One tool result could fill half the context. Pi's own limit for bash and read is 2000 lines or 50 KB, written for
 // models with 200k-token windows; here the window is 57,344 tokens and compaction starts at about 45,000. A plain
@@ -13,6 +13,19 @@
 //   and edit-guard.ts (loaded after this file) sees that the file wasn't read whole;
 // - other tools keep the start and the last quarter.
 // Calls made inside a codemode script (parentToolCallId set) are left alone: the script gets everything and filters it.
+//
+// codemode scripts run in QuickJS, not Node: the local model sometimes writes require("child_process") anyway, then
+// gives up on codemode and falls back to a raw bash call (which is how the 30,000 tokens above came in). When a
+// script fails that way, the result says how to do it with tools.bash / tools.read instead.
+//
+// read on a binary file (a database, an index, an archive) returns its bytes as text: about 2,500 tokens of noise
+// for "the first 10 lines" of three backup databases. So read is refused before it runs on a file whose first 8 KB
+// hold a NUL byte, with its size, what it looks like (SQLite, ZIP...) and how to look inside instead. Images (PNG,
+// JPEG, GIF, WebP) are still read: Pi shows them to the model as pictures.
+// The same bytes also come in through bash (head or cat on a database, often from inside a codemode script). In bash
+// output, each run of binary lines (a NUL byte, or mostly control characters) becomes one line saying what it looks
+// like and how to look inside; text around it (head's "==> file <==" headers, readable schema lines) stays. This
+// applies inside codemode scripts too, so the script never prints the bytes.
 
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -33,11 +46,17 @@ export const CODEMODE_HINT =
 
 const IMAGE_MAGIC = [/^\x89PNG/, /^\xff\xd8\xff/, /^GIF8/, /^RIFF[\s\S]{4}WEBP/];
 
+const KINDS: [RegExp, string, string][] = [
+  [/^SQLite format 3\x00/, "an SQLite database", "sqlite3 -readonly FILE .tables (then .schema TABLE)"],
+  [/^PK\x03\x04/, "a ZIP archive (or docx/xlsx/jar)", "unzip -l FILE"],
+  [/^\x1f\x8b/, "a gzip file", "tar -tzf FILE | head, or zcat FILE | head"],
+  [/^\x7fELF/, "a program (ELF)", "file FILE"],
+  [/^%PDF/, "a PDF", "pdftotext FILE - | head -50"],
+];
+
 function kindOf(start: string): [string, string] {
-  for (const re of IMAGE_MAGIC) {
-    if (re.test(start)) return ["image", "image data"];
-  }
-  return ["text", "text"];
+  const k = KINDS.find(([re]) => re.test(start));
+  return k ? [k[1], k[2]] : ["a binary file", "file FILE, or xxd FILE | head -20"];
 }
 
 const REPLACEMENT = String.fromCharCode(0xfffd);

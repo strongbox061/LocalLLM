@@ -78,6 +78,7 @@ export function subagentsAtOnce(file = process.env.LOCALLLM_MODEL_JSON || path.j
 }
 // LocalLLM: the slots children may use, shared by every subagent call in this session. take() waits for a free one
 // (the highest first: slot 0 is the main session's) and gives undefined when aborted while waiting.
+export class SlotQueue {
 	private free: number[];
 	private waiting: Array<(slot: number) => void> = [];
 	constructor(atOnce: number, slots: number) {
@@ -104,23 +105,8 @@ export function subagentsAtOnce(file = process.env.LOCALLLM_MODEL_JSON || path.j
 		const next = this.waiting.shift();
 		if (next) return next(slot);
 		this.free.push(slot);
+		this.free.sort((a, b) => b - a);
 	}
-
-export function subagentsMax(
-  file = process.env.LOCALLLM_MODEL_JSON || path.join(os.homedir(), ".config/localllm/model.json"),
-): number {
-  const env = process.env.SUBAGENTS_MAX;
-  if (env) {
-    const n = Number(env);
-    if (Number.isFinite(n) && n > 0) return n;
-  }
-  try {
-    const raw = fs.readFileSync(file, "utf-8");
-    const cfg = JSON.parse(raw) as Record<string, unknown>;
-    const n = Number((cfg as any).subagentsMax ?? 8);
-    if (Number.isFinite(n) && n > 0) return n;
-  } catch { /* fall through */ }
-  return 8;
 }
 
 // LocalLLM: the most subagents one message of the person's may start: model.json "subagentsMax" (from local.env), 8
@@ -135,7 +121,6 @@ export function subagentsMax(file = process.env.LOCALLLM_MODEL_JSON || path.join
 }
 const AT_ONCE = subagentsAtOnce();
 const MAX_PER_MESSAGE = subagentsMax();
-
 let startedForMessage = 0; // LocalLLM: subagents started since the person's latest message
 const QUEUE = new SlotQueue(AT_ONCE, SLOTS);
 
@@ -147,6 +132,7 @@ export const SUBAGENT_NOTE = [
 ].join(" ");
 // LocalLLM: the person's latest message in this session (see edit-guard.ts), handed to each child.
 let personMessage = process.env.LOCALLLM_PERSON_MESSAGE ?? "";
+
 const MAX_PARALLEL_TASKS = 8;
 const MAX_CONCURRENCY = AT_ONCE; // LocalLLM: was 4 (QUEUE holds them to AT_ONCE anyway)
 const COLLAPSED_ITEM_COUNT = 10;
