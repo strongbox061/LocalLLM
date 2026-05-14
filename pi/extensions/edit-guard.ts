@@ -19,6 +19,7 @@ import { QUESTION_START, has } from "./lang-words.ts";
 // Words in your message that count as permission to change files.
 const ALLOW_RE =
   /\b(edit|change|modify|fix|update|write|create|add|remove|delete|rename|move|refactor|implement|apply|perform|execute|carry out|replace|install|save|patch|rewrite|put|insert|append|include|document|record|note down|fill( in)?|draft|generate|convert|format|reorgani[sz]e|clean up|set up|go with|let'?s|make (it|the|a|this|these|those)|yes|yep|ok(ay)?|go ahead|do (it|them|that|(the|those|these) (changes|edits|updates|fixes))|proceed|continue|resume|keep going|try again|retry|sure)\b/i;
+
 // A message that names a file (plan.md, @src/app.ts) and isn't a question
 // is treated as an instruction about that file. A question: ends with ? ¿ ؟ ？ or starts with a question word,
 // in 35 languages (QUESTION_START, from lang-words.ts).
@@ -53,6 +54,7 @@ export function filePath(input: any, cwd: string): string | undefined {
 // What the person sent, from Pi's `input` event: typed text, `pi -p`, RPC, or an extension's sendUserMessage (the
 // Plannotator Inbox delivers the person's replies that way). Hidden messages other extensions add (the Inbox reminder,
 // the end-of-answer checks) reach the model as user messages too, but never fire `input`. An Inbox reply's first line
+// ("Plannotator Inbox: <title> (<id>)") is the model's own thread title, so it is dropped.
 export function personText(text: string): string {
   const t = String(text ?? "");
   return t.startsWith("Plannotator Inbox: ") ? t.slice(t.indexOf("\n") + 1 || t.length) : t;

@@ -97,19 +97,13 @@ function saveLibraryIds(name: string, text: string) {
 }
 
 const libraryKey = (input: any) => String(input?.libraryName ?? "").trim().toLowerCase();
-
-// --- Manifest detection ---
+// Context7 goes first only for a pinned version: a project file in the folder, or a version in the user's message,
+// and not a question about the latest docs. Otherwise GitMCP or the official docs are tried first (they're free and live).
 const MANIFEST_RE = /^(?:package\.json|.*\.csproj|.*\.fsproj|pom\.xml|build\.gradle(?:\.kts)?|pyproject\.toml|requirements.*\.txt|Cargo\.toml|go\.mod|Gemfile|composer\.json)$/;
+// "v14", "14.2.3", "version 14", "Next.js 14", ".NET 8", "Spring Boot 3"
 const VERSION_IN_TEXT_RE = /(?:\bv\d+|\b\d+\.\d+(?:\.\d+)?\b|\bversion\s*\d+|[A-Za-z][\w.+#-]*\s\d{1,3}\b)/i;
-
 function hasManifest(dir: string): boolean {
-  try {
-    return fs.readdirSync(dir).some(f => MANIFEST_RE.test(f));
-  } catch {
-    return false;
-  }
+  try { return fs.readdirSync(dir).some((f) => MANIFEST_RE.test(f)); } catch { return false; }
 }
-
-// --- File cache management ---
 const MAX_SAVED_FILES = 120;
 const KEEP_RECENT_MS = 10 * 60 * 1000;
