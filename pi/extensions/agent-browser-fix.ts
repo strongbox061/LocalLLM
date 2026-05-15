@@ -49,8 +49,6 @@ const MAX_TOOL_CALLS = 30;
 // isn't capped: a coding task can legitimately need many steps.
 const WEB_TOOLS = new Set(["web_search", "agent_browser"]);
 // 37. Docs tools from pi-mcp-adapter (pi/mcp-adapter.json), named <server>_<tool>.
-const DOCS_TOOL_RE = /^(?:context7|gitmcp)_/;
-
 // 34. Tools that bring in the web: the finish check's source rules apply only after one of them.
 // 47. Ways around a stopped search gateway in bash (run 9's F1 went to the browser instead).
 const SEARCH_AROUND_RE = /\b(?:curl|wget|lynx|w3m|links|elinks|http(?:ie)?|xh)\b|https?:\/\//i;
@@ -95,7 +93,6 @@ function saveLibraryIds(name: string, text: string) {
   cache[name] = { t: Date.now(), text: text.slice(0, CONTEXT7_ID_MAX_CHARS) };
   try { fs.writeFileSync(CONTEXT7_ID_CACHE, JSON.stringify(cache)); } catch {}
 }
-
 const libraryKey = (input: any) => String(input?.libraryName ?? "").trim().toLowerCase();
 // Context7 goes first only for a pinned version: a project file in the folder, or a version in the user's message,
 // and not a question about the latest docs. Otherwise GitMCP or the official docs are tried first (they're free and live).
@@ -105,5 +102,72 @@ const VERSION_IN_TEXT_RE = /(?:\bv\d+|\b\d+\.\d+(?:\.\d+)?\b|\bversion\s*\d+|[A-
 function hasManifest(dir: string): boolean {
   try { return fs.readdirSync(dir).some((f) => MANIFEST_RE.test(f)); } catch { return false; }
 }
+
+// Saved pages to keep. pi-sandbox expands the read glob for these files into one
+// shell argument, and Linux caps that at 128 KB: past about 300 files, every bash
+// call fails with "spawn E2BIG". Files younger than KEEP_RECENT_MS always stay.
+const MAX_SAVED_FILES = 120;
+const KEEP_RECENT_MS = 10 * 60 * 1000;
+
+// !bangs the model knows from SearXNG, searched as site: filters instead. web_search goes
+// through the search gateway, whose services don't understand bangs.
+// Other bangs (engines like !go, !ddg, or invented ones) are removed.
+const BANG_SITES: Record<string, string> = {
+  gh: "github.com",
+  st: "stackoverflow.com",
+  su: "superuser.com",
+  mdn: "developer.mozilla.org",
+  man: "man.archlinux.org",
+  dh: "hub.docker.com",
+  npm: "npmjs.com",
+  pypi: "pypi.org",
+  al: "wiki.archlinux.org",
+  ge: "wiki.gentoo.org",
+  ubuntu: "askubuntu.com",
+  wp: "wikipedia.org",
+  wd: "wikipedia.org",
+  arx: "arxiv.org",
+  se: "semanticscholar.org",
+  pub: "pubmed.ncbi.nlm.nih.gov",
+};
+
+// web_search fields other tools have and the model sometimes copies; this web_search takes only query and numResults.
+const INVENTED_SEARCH_FIELDS = ["backend", "combine", "compact", "engine", "engines", "categories"];
+
+// A search engine's results page. Searches go through web_search, not the browser.
+const SEARCH_PAGES: Array<[RegExp, string]> = [
+  [/^https?:\/\/(?:www\.)?google\.[a-z.]+\/search\b/i, "google"],
+  [/^https?:\/\/(?:www\.)?bing\.com\/search\b/i, "bing"],
+  [/^https?:\/\/search\.brave\.com\/search\b/i, "brave"],
+  [/^https?:\/\/(?:www\.|html\.|lite\.)?duckduckgo\.com\/(?:html\/?|lite\/?)\?/i, "duckduckgo"],
+  [/^https?:\/\/(?:[a-z]+\.)?search\.yahoo\.com\/search\b/i, "yahoo"],
+  [/^https?:\/\/(?:www\.)?mojeek\.com\/search\b/i, "mojeek"],
+  [/^https?:\/\/(?:www\.)?startpage\.com\/(?:do\/|sp\/)?search\b/i, "startpage"],
+  [/^https?:\/\/(?:www\.)?ecosia\.org\/search\b/i, "ecosia"],
+  [/^https?:\/\/(?:www\.)?qwant\.com\/\?/i, "qwant"],
+  [/^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):(?:8080|8888|8090)\/search\b/i, "searxng"],
+];
+
+// 46. A search engine's home page (to type into its search box): web_search instead.
+const SEARCH_HOMES: Array<[RegExp, string, string]> = [
+  [/^https?:\/\/(?:www\.)?google\.[a-z.]+\/(?:[?#].*)?$/i, "google", "https://www.google.com/search?q="],
+  [/^https?:\/\/(?:www\.)?bing\.com\/(?:[?#].*)?$/i, "bing", "https://www.bing.com/search?q="],
+  [/^https?:\/\/search\.brave\.com\/(?:[?#].*)?$/i, "brave", "https://search.brave.com/search?q="],
+  [/^https?:\/\/(?:www\.)?duckduckgo\.com\/?$/i, "duckduckgo", "https://html.duckduckgo.com/html/?q="],
+  [/^https?:\/\/(?:www\.)?mojeek\.com\/(?:[?#].*)?$/i, "mojeek", "https://www.mojeek.com/search?q="],
+  [/^https?:\/\/(?:www\.)?startpage\.com\/(?:[?#].*)?$/i, "startpage", "https://www.startpage.com/do/search?q="],
+  [/^https?:\/\/(?:www\.)?ecosia\.org\/(?:[?#].*)?$/i, "ecosia", "https://www.ecosia.org/search?q="],
+  [/^https?:\/\/(?:www\.)?yahoo\.com\/?$|^https?:\/\/search\.yahoo\.com\/?$/i, "yahoo", "https://search.yahoo.com/search?p="],
+];
+
+// Text that marks a bot-protection / challenge page: names and codes here, the words in every language in BOT_CHECK.
+const BOT_CHECK_NAMES_RE = /Anubis|cf-chl|Attention Required! \| Cloudflare|DDoS protection by/i;
+const botCheckText = (text: string) => BOT_CHECK_NAMES_RE.test(text) || hasWords(BOT_CHECK, text);
+
+const PDF_URL_RE = /^https?:\/\/(?:\S+\.pdf(?:[?#]\S*)?|(?:\S+\.)?arxiv\.org\/pdf\/\S+)$/i;
+const MAX_PDF_BYTES = 50 * 1024 * 1024;
+
+// Tries of one identical bash call before it's blocked.
+const MAX_IDENTICAL_CALLS = 2;
 const MAX_SAVED_FILES = 120;
 const KEEP_RECENT_MS = 10 * 60 * 1000;
