@@ -139,7 +139,7 @@ Start it with `python3 -m app.cli --port 8080`. The `port` setting defaults to 8
 MD
 }
 
-prepare() {   # prepare <type>: a fresh copy of that fixture, printed as a path
+prepare() {   # prepare <folder>: a fresh copy of that fixture, printed as a path
     local dir="$FIXTURES/$1"
     rm -rf "$dir"
     mkdir -p "$dir"
@@ -190,7 +190,7 @@ for id in "${IDS[@]}"; do
     expect="$(field "$id" expect)"
     special="$(field "$id" special)"
     test_timeout="$(field "$id" timeout)"
-    test_timeout="${test_timeout:-$TIMEOUT_SECONDS}"
+    test_timeout="${test_timeout:-$TIMEOUT_SECONDS}"   # a test's own "timeout" (seconds), e.g. K3's queued subagents
     dir="$(prepare "$(field "$id" folder)")"
 
     if [[ "$special" == "needs-inbox" ]] && ! pgrep -f "plannotator inbox" >/dev/null; then
@@ -198,10 +198,13 @@ for id in "${IDS[@]}"; do
         printf '%s\tskipped\t\t\t\n' "$id" >> "$OUT_DIR/summary.tsv"
         continue
     fi
+    # localllm.sh, not systemctl: in split mode the search gateway runs on the helper PC.
     if [[ "$special" == "stop-search-gateway" ]]; then
         "$REPO_DIR/localllm.sh" stop search-gateway >/dev/null && STOPPED_SEARCH_GATEWAY=true
     fi
 
+    # A stand-in HOME (with a .bashrc to protect) for tests that touch ~; Pi's own folder and the model profile are
+    # the real ones, so nothing in the real HOME is in reach of the test.
     run_env=()
     if [[ "$special" == "dummy-home" ]]; then
         fake_home="$FIXTURES/home"
@@ -212,6 +215,7 @@ for id in "${IDS[@]}"; do
         run_env=(HOME="$fake_home" PI_CODING_AGENT_DIR="$PI_AGENT_DIR")
     fi
 
+    # Plannotator leaves its Inbox tool off in `pi -p`; an interactive session has it (tests/inbox-tool-on.ts).
     pi_args=(-p "$prompt")
     [[ "$special" == "needs-inbox" ]] && pi_args=(-e "$REPO_DIR/tests/inbox-tool-on.ts" "${pi_args[@]}")
 
@@ -221,6 +225,8 @@ for id in "${IDS[@]}"; do
     started=$SECONDS
     (cd "$dir" && exec env "${run_env[@]}" timeout "$test_timeout" pi "${pi_args[@]}" < /dev/null > "$OUT_DIR/$id.stdout" 2>&1) &
     pi_pid=$!
+    # Subagents are child `pi` processes of the test's pi (their command line shows only "pi", so count by parent):
+    # the most at once goes to $FIXTURES/most-children.
     if [[ "$special" == "subagents" ]]; then
         echo 0 > "$FIXTURES/most-children"
         (
@@ -235,6 +241,7 @@ for id in "${IDS[@]}"; do
         ) &
         counter=$!
     fi
+    # Live view: each tool call and result as Pi writes them (follow this script's output with tail -f).
     python3 "$TRACE" --follow "$PI_AGENT_DIR/sessions" --since "$MARKER" --pid "$pi_pid" &
     follower=$!
     wait "$pi_pid"
@@ -257,6 +264,17 @@ for id in "${IDS[@]}"; do
         continue
     fi
     python3 "$TRACE" "$session" --id "$id" --prompt "$prompt" --expect "$expect" --seconds "$seconds" > "$OUT_DIR/$id.md"
+    if [[ "$id" == K1 ]]; then
+        { echo; echo "## The project afterwards"; echo; echo '```'
+          (cd "$dir" && python3 -m unittest 2>&1 | tail -3)
+          echo "--- the old name left (should be none):"
+          grep -rnP '["'"'"'`]port["'"'"'`]|\bport=|--port\b|\[.port.\]' "$dir" --include=*.py --include=*.md || echo "none"
+          echo "--- timeout:"; grep -rn "timeout" "$dir" --include=*.py --include=*.md || echo "none"
+          echo '```'; } >> "$OUT_DIR/$id.md"
+    fi
+    if [[ "$id" == I1* ]]; then
+        { echo; echo "## config.yml afterwards"; echo; echo '```yaml'; cat "$dir/config.yml"; echo '```'; } >> "$OUT_DIR/$id.md"
+    fi
     if [[ "$special" == "subagents" ]]; then
         { echo; echo "## Subagents"; echo; echo "Most at once: $(cat "$FIXTURES/most-children")"; } >> "$OUT_DIR/$id.md"
     fi
@@ -264,6 +282,10 @@ for id in "${IDS[@]}"; do
         { echo; echo "## The stand-in HOME afterwards"; echo
           if [[ -f "$fake_home/.bashrc" ]]; then echo ".bashrc is still there: $(cat "$fake_home/.bashrc")"
           else echo ".bashrc is GONE"; fi; } >> "$OUT_DIR/$id.md"
+    fi
+    if [[ "$special" == "needs-inbox" ]]; then
+        # shellcheck disable=SC2012  # a listing for people to read, not parsed
+        { echo; echo "## Files in the project afterwards"; echo; ls -la "$dir" | sed 's/^/    /'; } >> "$OUT_DIR/$id.md"
     fi
     python3 "$TRACE" "$session" --id "$id" --seconds "$seconds" --summary >> "$OUT_DIR/summary.tsv"
     echo "  ${seconds} s → $OUT_DIR/$id.md"
@@ -273,6 +295,3 @@ echo
 column -t -s $'\t' "$OUT_DIR/summary.tsv"
 echo
 echo "Judge each test from its report (the trace, not only the answer): $OUT_DIR"
-
-
-
