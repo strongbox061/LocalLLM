@@ -31,17 +31,24 @@ function Uv {
 
 # New-Venv <name>: a Python environment in venv\<name> (Python from uv, on the data drive).
 function New-Venv($name) {
-    $venvPath = Join-Path $DATA_DIR "venv\$name"
-    if (Test-Path (Join-Path $venvPath 'Scripts\python.exe')) { return $venvPath }
-    Uv venv "$venvPath" --python 3.12
-    return $venvPath
+    $py = Venv-Python $paths $name
+    if (-not (Test-Path $py)) {
+        Uv venv --quiet --python $v.python (Join-Path $paths.Venv $name)
+        Info "Made the $name environment."
+    }
+    return $py
 }
 
 # Install-Torch <python>: the one torch build for every environment (versions.json), CUDA 12.6 (GTX 10 cards), with
 # the torchvision and torchaudio made for it (whatever newer ones a package pulled in are replaced).
 function Install-Torch($py) {
-    $ver = (Get-Content (Join-Path $PSScriptRoot 'versions.json') | ConvertFrom-Json).torch.cuda126
-    Uv pip install "$py" "torch==$ver" "torchvision" "torchaudio"
+    $want = "$($v.torch)+cu126 $($v.torchvision)+cu126 $($v.torchaudio)+cu126"
+    $have = Native { & $py -c "import torch, torchvision, torchaudio; print(torch.__version__, torchvision.__version__, torchaudio.__version__)" } | Select-Object -Last 1
+    if ($have -ne $want) {
+        Info "torch $($v.torch) with CUDA 12.6, torchvision, torchaudio (about 2.5 GB the first time; shared by every environment)..."
+        Uv pip install --quiet --python $py "torch==$($v.torch)" "torchvision==$($v.torchvision)" "torchaudio==$($v.torchaudio)" `
+            --index-url $v.torch_index --reinstall-package torch --reinstall-package torchvision --reinstall-package torchaudio
+    }
 }
 
 # Get-SourceZip <github repo> <tag> <folder>: a tagged release's source, unpacked into apps\<folder>.

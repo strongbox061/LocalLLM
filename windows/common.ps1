@@ -61,26 +61,50 @@ function Set-AdminOnly($path) {
 
 # The folders on the data drive (config.json "data_dir", chosen by install-helper; see the README).
 function Get-Paths($cfg) {
-    return @{
-        dataDir   = $cfg.data_dir
-        modelsDir = Join-Path $cfg.data_dir 'models'
-        cacheDir  = Join-Path $cfg.data_dir '.cache'
+    $d = [string]$cfg.data_dir
+    if (-not $d) { Fail "config.json has no data_dir: run ./localllm.sh install-helper on the main PC." }
+    $drive = Split-Path -Qualifier $d
+    if (-not (Test-Path "$drive")) {
+        Fail ("The data folder $d is on drive $drive, which isn't here (another disk, or its letter changed). " +
+              "On the main PC: fix HELPER_DATA_DIR in ~/.config/localllm/helper.env (or remove the line to choose " +
+              "again), then ./localllm.sh install-helper. Moving the data: README, 'Two-PC setup'.")
     }
+    $p = [ordered]@{
+        Data = $d
+        Bin = Join-Path $d 'bin'
+        Python = Join-Path $d 'python'
+        Cache = Join-Path $d 'cache'
+        Venv = Join-Path $d 'venv'
+        Apps = Join-Path $d 'apps'
+        Models = Join-Path $d 'models'
+        WebUIData = Join-Path $d 'open-webui'
+        GatewayData = Join-Path $d 'search-gateway'
+        Logs = Join-Path $d 'logs'
+        Services = Join-Path $d 'services'
+    }
+    return [pscustomobject]$p
 }
 
 # Environment for uv, Hugging Face and Playwright: everything on the data drive, also for the services, which run as
 # SYSTEM (no user profile).
 function Set-ToolEnv($paths) {
-    $env:UV_CACHE_DIR   = Join-Path $paths.cacheDir 'uv'
-    $env:HUGGINGFACE_HUB_CACHE = Join-Path $paths.modelsDir ''
-    $env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $paths.dataDir '.playwright'
+    $env:UV_PYTHON_INSTALL_DIR = $paths.Python
+    $env:UV_CACHE_DIR = Join-Path $paths.Cache 'uv'
+    $env:UV_LINK_MODE = 'hardlink'
+    $env:HF_HOME = Join-Path $paths.Cache 'huggingface'
+    $env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $paths.Cache 'ms-playwright'
+    # Python reads the repo's files as UTF-8 (without it, Windows' code page: cp1252 breaks on the tools' text).
+    $env:PYTHONUTF8 = '1'
+    $env:PATH = "$($paths.Bin);$env:PATH"
 }
 
 # Download-File <url> <file>: to a temporary name first, so a broken download never looks finished.
 function Download-File($url, $file) {
-    $temp = $file + '.tmp'
-    Invoke-WebRequest -Uri $url -OutFile $temp
-    Move-Item $temp $file -Force
+    $tmp = "$file.part"
+    Remove-Item $tmp -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force -Path (Split-Path $file) | Out-Null
+    Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing
+    Move-Item -Force $tmp $file
 }
 
 # Windows' pending-restart flags (an update, an installer or a renamed file waiting for the next start).
@@ -125,16 +149,9 @@ function Run-Installer($name, $exe, $arguments, $minutes = 30, $idleMinutes = 5)
 
 # The repo's services on this PC, from config.json: name, Windows service id, port, health path, whether it runs.
 function Get-HelperServices($cfg) {
-    if (-not $cfg.services) { return @() }
-    return $cfg.services | ForEach-Object {
-        [PSCustomObject]@{
-            name     = $_.name
-            service  = $_.service_name
-            port     = $_.port
-            health   = $_.health_path
-            enabled  = $_.enabled
-        }
-    }
+    $list = @()
+    foreach ($s in $cfg.services) { $list += $s }
+    return $list
 }
 
 function Test-Url($url, $timeoutSec = 3) {

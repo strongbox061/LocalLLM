@@ -11,21 +11,29 @@ param(
     [switch]$Json,
     [switch]$Pause
 )
+. (Join-Path $PSScriptRoot 'common.ps1')
 
-# How long each may take to answer after a start (the first start of Open WebUI loads its models).
-$StartupTimeouts = @{
-    Kokoro       = 30
-    Ollama        = 15
-    'Open WebUI'  = 60
+$cfg = Read-Config
+$all = @($cfg.services)
+if ($Service -eq 'all') { $chosen = $all } else {
+    $chosen = @($all | Where-Object name -eq $Service)
+    if (-not $chosen) { Fail "No service '$Service' on this PC. Services: $(($all | ForEach-Object name) -join ', ')" }
 }
+# How long each may take to answer after a start (the first start of Open WebUI loads its models).
+$StartSeconds = @{ 'open-webui' = 420; 'docling' = 240; 'kokoro' = 180; 'whisper' = 180; 'comfyui' = 180; 'small-model' = 120 }
+$failed = @()
+$appsList = @(([string]$cfg.apps) -split ',' | ForEach-Object { $_.Trim().ToLower() } | Where-Object { $_ })
 
 function State($s) {
-    $proc = Get-Process -Name $s.Name -ErrorAction SilentlyContinue
-    if ($proc) { return 'running' }
-    return 'stopped'
+    $svc = Get-Service -Name $s.id -ErrorAction SilentlyContinue
+    if (-not $svc) { return 'not installed' }
+    if ($svc.Status -ne 'Running') { return 'stopped' }
+    if (Test-Url "http://127.0.0.1:$($s.port)$($s.health)") { return 'running' }
+    return 'starting'
 }
 
 # Off in gaming mode (gaming.ps1): they leave the GPU to the game.
+$GamingOff = @('small-model', 'comfyui')
 
 function Start-One($s) {
     Write-Host "Starting $($s.Title)..."

@@ -15,47 +15,19 @@
 #   relocate                     points Open WebUI's uploads at this PC's uploads folder
 #   retire-data                  renames this PC's data to ...-moved-<date>, so it can't be used by mistake
 # Plain ASCII on purpose: Windows PowerShell 5.1 reads a script without a byte order mark as the local code page.
+param([Parameter(Mandatory = $true, Position = 0)][string]$Task, [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest = @())
+. (Join-Path $PSScriptRoot 'common.ps1')
 
-$ErrorActionPreference = 'Stop'
-
-# --- Configuration ---
-# Paths are resolved from config.json which lives next to this script's parent directory.
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$RepoRoot  = Split-Path -Parent $ScriptDir
-$configPath = Join-Path $RepoRoot 'config.json'
-
-function Read-Config {
-    if (Test-Path $configPath) {
-        return Get-Content $configPath | ConvertFrom-Json
-    }
-    return $null
-}
-
-# --- Python runner helper ---
-# Wraps a Python invocation so the calling shell gets stdout cleanly.
-$py = 'python3'
-if (-not (Get-Command python3 -ErrorAction SilentlyContinue)) {
-    $py = 'python'
-}
-
-function Py {
-    param([string[]]$Args)
-    $a = $Args
-    $out = Native { & $py @a }
-    $out | ForEach-Object { Write-Host $_ }
-    return $LASTEXITCODE
-}
-
-# --- Drive enumeration ---
 if ($Task -eq 'drives') {
-    $drives = Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Root -match '^\w:\\$' -and $_.Free -gt 0 } | ForEach-Object {
-        [PSCustomObject]@{
-            drive = $_.Root.TrimEnd('\')
-            free  = $_.Free
-            label = (Get-Volume -DriveLetter $_.Root[0]).FileSystemLabel -or ''
-        }
+    # Internal (not USB) NTFS volumes with a letter, most free space first.
+    $usb = @(Get-Disk | Where-Object BusType -eq 'USB' | ForEach-Object Number)
+    $rows = foreach ($p in (Get-Partition | Where-Object DriveLetter)) {
+        if ($usb -contains $p.DiskNumber) { continue }
+        $vol = Get-Volume -DriveLetter $p.DriveLetter -ErrorAction SilentlyContinue
+        if (-not $vol -or $vol.FileSystem -ne 'NTFS' -or $vol.DriveType -ne 'Fixed') { continue }
+        [pscustomobject]@{ letter = "$($p.DriveLetter)"; free_gb = [math]::Round($vol.SizeRemaining / 1GB); size_gb = [math]::Round($vol.Size / 1GB) }
     }
-    Write-Output ($drives | ConvertTo-Json -Compress)
+    Write-Output ('[' + (($rows | Sort-Object free_gb -Descending | ForEach-Object { $_ | ConvertTo-Json -Compress }) -join ',') + ']')
     exit 0
 }
 
