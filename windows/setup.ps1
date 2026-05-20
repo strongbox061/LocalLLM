@@ -51,43 +51,40 @@ function Install-Torch($py) {
     }
 }
 
-# Get-SourceZip <github repo> <tag> <folder>: a tagged release's source, unpacked into apps\<folder>.
+# Get-SourceZip <github repo> <tag> <folder>: a tagged release's source, unpacked into apps\<folder> (kept files:
+# models and outputs inside it stay when the version changes).
 function Get-SourceZip($repo, $tag, $folder) {
-    $apps = Join-Path $DATA_DIR 'apps'
-    $dest = Join-Path $apps $folder
-    if (Test-Path $dest) { return $dest }
-    New-Item -ItemType Directory -Force $apps | Out-Null
-    $zip = Join-Path $env:TEMP "$folder.zip"
-    (New-Object Net.WebClient).DownloadFile("https://github.com/$repo/archive/$tag.zip", $zip)
-    Expand-Archive -Path $zip -DestinationPath $apps -Force
-    Rename-Item (Join-Path $apps "$folder-$($tag -replace '^v','')") $folder -ErrorAction SilentlyContinue
-    Remove-Item $zip -ErrorAction SilentlyContinue
+    $dest = Join-Path $paths.Apps $folder
+    $mark = Join-Path $dest '.localllm-version'
+    if ((Test-Path $mark) -and ((Get-Content $mark -Raw).Trim() -eq $tag)) { return $dest }
+    $zip = Join-Path $paths.Cache "$folder-$tag.zip"
+    if (-not (Test-Path $zip)) { Info "Downloading $repo $tag..."; Download-File "https://github.com/$repo/archive/refs/tags/$tag.zip" $zip }
+    $tmp = Join-Path $paths.Cache "$folder-unpack"
+    Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+    Expand-Archive -Path $zip -DestinationPath $tmp
+    $inner = Get-ChildItem $tmp | Select-Object -First 1
+    New-Item -ItemType Directory -Force -Path $dest | Out-Null
+    Native { robocopy.exe $inner.FullName $dest /E /NFL /NDL /NJH /NJS /NP } | Out-Null
+    Remove-Item -Recurse -Force $tmp
+    Set-Content -Path $mark -Value $tag -Encoding ASCII
+    Info "$repo $tag in $dest"
     return $dest
 }
 
-# Get-Model <url> <file> [sha256]: a model file, no resume; broken downloads re-fetch on next run.
+# Get-Model <url> <file> [sha256]: a model file (resumes nothing; a broken download is fetched again on the next run).
+# With a SHA-256, the file is checked once after the download (a mismatch is deleted and setup stops).
 function Get-Model($url, $file, $sha256 = '') {
-    $path = Join-Path $DATA_DIR 'models' $file
-    if (Test-Path $path) {
-        if ($sha256) {
-            $hash = (Get-FileHash $path -Algorithm SHA256).Hash.ToLower()
-            if ($hash -ne $sha256) {
-                Write-Warning "SHA-256 mismatch for $file, re-downloading"
-                Remove-Item $path
-            } else { return $path }
-        } else { return $path }
-    }
-    New-Item -ItemType Directory -Force (Split-Path $path) | Out-Null
-    Write-Host "Downloading $file from $url"
-    (New-Object Net.WebClient).DownloadFile($url, $path)
+    if (Test-Path $file) { return }
+    Info "Downloading $(Split-Path -Leaf $file)..."
+    Download-File $url $file
     if ($sha256) {
-        $hash = (Get-FileHash $path -Algorithm SHA256).Hash.ToLower()
-        if ($hash -ne $sha256) {
-            Remove-Item $path
-            throw "SHA-256 mismatch for $file: expected $sha256, got $hash"
+        $got = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
+        if ($got -ne $sha256.ToLower()) {
+            Remove-Item -Force $file
+            Fail "$(Split-Path -Leaf $file) has SHA-256 $got, not the pinned $sha256 (windows/versions.json): deleted."
         }
+        Info "SHA-256 checked."
     }
-    return $path
 }
 
 # --- base: folders, permissions, Windows settings ---
