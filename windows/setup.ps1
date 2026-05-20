@@ -89,20 +89,57 @@ function Get-Model($url, $file, $sha256 = '') {
 
 # --- base: folders, permissions, Windows settings ---
 if (Want 'base') {
-    $DATA_DIR = (Get-Content (Join-Path $PSScriptRoot 'config.json') | ConvertFrom-Json).dataDir
-    if (-not (Test-Path $DATA_DIR)) {
-        New-Item -ItemType Directory -Force $DATA_DIR | Out-Null
+    Step "Folders and Windows settings"
+    foreach ($d in @($LocalLLM, $SecretsDir, $StateDir, $paths.Data, $paths.Bin, $paths.Cache, $paths.Venv, $paths.Apps,
+                     $paths.Models, $paths.WebUIData, $paths.GatewayData, $paths.Logs, $paths.Services)) {
+        New-Item -ItemType Directory -Force -Path $d | Out-Null
     }
-    # Ensure data drive is accessible and has enough free space (min 50 GB)
-    $drive = Get-PSDrive ($DATA_DIR[0])
-    if ($drive.Free / 1GB -lt 50) {
-        throw "Data drive $($drive.Name) has less than 50 GB free"
+    # Open WebUI's database (your chats), its signing key and the API keys: Administrators and SYSTEM only.
+    Set-AdminOnly $LocalLLM
+    Set-AdminOnly $paths.Data
+    Info "Data: $($paths.Data); settings: $LocalLLM (both Administrators and SYSTEM only)"
+    # Python packages have deep paths: allow paths over 260 characters.
+    Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' -Name LongPathsEnabled -Value 1 -Type DWord
+    # The repo's scripts may run (the shortcuts); scripts from the internet still need a signature.
+    # (Windows reports an "overridden" error when this session runs with Bypass; the machine's setting is still made.)
+    try { Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope LocalMachine -Force } catch { }
+    if ((Get-ExecutionPolicy -Scope LocalMachine) -ne 'RemoteSigned') { Fail "Couldn't set the execution policy to RemoteSigned." }
+    # Windows Defender: don't scan the models and environments on every read (much faster starts).
+    try {
+        $have = @((Get-MpPreference).ExclusionPath)
+        if ($have -notcontains $paths.Data) { Add-MpPreference -ExclusionPath $paths.Data; Info "Defender: $($paths.Data) excluded from scans." }
+    } catch { Warn "Couldn't set Defender's exclusion (another antivirus?): $($_.Exception.Message)" }
+    # Power: the Balanced plan, no sleep on mains power, closing the lid does nothing (the helper works lid-closed).
+    # The plan that was active before is kept for gaming mode (gaming.ps1 on switches to it).
+    $planFile = Join-Path $StateDir 'power-plan-before.txt'
+    $active = ((Native { powercfg.exe /getactivescheme }) -join ' ') -replace '.*([0-9a-f]{8}-[0-9a-f-]{27}).*', '$1'
+    $balanced = '381b4222-f694-41f0-9685-ff5bb260df2e'
+    if ($active -ne $balanced -and -not (Test-Path $planFile)) { Set-Content -Path $planFile -Value $active -Encoding ASCII }
+    Native { powercfg.exe /setactive $balanced } | Out-Null
+    Native { powercfg.exe /change standby-timeout-ac 0 } | Out-Null
+    Native { powercfg.exe /change hibernate-timeout-ac 0 } | Out-Null
+    Native { powercfg.exe /setacvalueindex $balanced SUB_BUTTONS LIDACTION 0 } | Out-Null
+    Native { powercfg.exe /setactive $balanced } | Out-Null
+    Info "Power: Balanced, no sleep on mains power, lid close does nothing."
+    # Microsoft's Visual C++ runtime (2015-2022, x64): PyTorch and llama-server.exe need its DLLs, and a fresh Windows
+    # may not have it (their error is only "a DLL can't be loaded"). Installed when the registry doesn't list it or
+    # vcruntime140_1.dll (2019 and newer) is missing; Microsoft's link always gives the newest, which replaces older ones.
+    $vcKey = 'HKLM:\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\X64'
+    function Test-VcRuntime {
+        $r = Get-ItemProperty -Path $vcKey -ErrorAction SilentlyContinue
+        return ($r -and $r.Installed -eq 1 -and (Test-Path (Join-Path $env:SystemRoot 'System32\vcruntime140_1.dll')))
     }
-    # Disable Windows Defender real-time scanning for the models directory
-    $modelsDir = Join-Path $DATA_DIR 'models'
-    if (Get-Command 'Set-MpPreference' -ErrorAction SilentlyContinue) {
-        Add-MpPreference -ExclusionPath $modelsDir
+    if (-not (Test-VcRuntime)) {
+        $vcExe = Join-Path $paths.Cache 'vc_redist.x64.exe'
+        Remove-Item $vcExe -ErrorAction SilentlyContinue   # always the newest
+        Download-File 'https://aka.ms/vs/17/release/vc_redist.x64.exe' $vcExe
+        $code = Run-Installer 'Visual C++ runtime' $vcExe '/install /quiet /norestart' 15
+        # 0 done, 1638 a newer one is already there, 3010 done but Windows wants a restart.
+        if (-not (Test-VcRuntime)) { Fail "The Visual C++ runtime didn't install (exit $code)." }
+        if ($code -eq 3010) { Info "Visual C++ runtime installed; Windows wants a restart."; Write-Host "RESTART NEEDED: the Visual C++ runtime asked for a restart."; exit 3 }
     }
+    Info "Visual C++ runtime: $((Get-ItemProperty -Path $vcKey).Version)"
+    if (Test-PendingRestart){ Write-Host "RESTART NEEDED: Windows has changes waiting for a restart."; exit 3 }
 }
 
 # --- tools: uv and WinSW ---
