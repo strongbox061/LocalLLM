@@ -49,6 +49,7 @@ const MAX_TOOL_CALLS = 30;
 // isn't capped: a coding task can legitimately need many steps.
 const WEB_TOOLS = new Set(["web_search", "agent_browser"]);
 // 37. Docs tools from pi-mcp-adapter (pi/mcp-adapter.json), named <server>_<tool>.
+const DOCS_TOOL_RE = /^(?:context7|gitmcp)_/;
 // 34. Tools that bring in the web: the finish check's source rules apply only after one of them.
 // 47. Ways around a stopped search gateway in bash (run 9's F1 went to the browser instead).
 const SEARCH_AROUND_RE = /\b(?:curl|wget|lynx|w3m|links|elinks|http(?:ie)?|xh)\b|https?:\/\//i;
@@ -70,7 +71,6 @@ const TEST_RUN_RE = /\b(?:unittest|pytest|tox|nox|(?:npm|pnpm|yarn|bun)\s+(?:run
 // 48. The person asks for a plan (English, Spanish, French, German, Italian, Portuguese).
 const PLAN_ASK_RE = /\b(?:plan(?:s|ned|ning)?|planea\w*|planifi\w*|planej\w*|pianific\w*|planen)\b/i;
 const WEB_TOOL_RE = /^(?:web_search|agent_browser|(?:context7|gitmcp)_.*)$/;
-
 const isWebTool = (name: string) => WEB_TOOLS.has(name) || DOCS_TOOL_RE.test(name);
 // Context7's free calls are limited: at most this many per question (cached answers don't count).
 const MAX_CONTEXT7_CALLS = 3;
