@@ -63,9 +63,9 @@ if [[ -x "$DOCTOR" ]]; then
 fi
 case "$state" in
     ok) echo "Context7: signed in. With llama-server running, tests/context7-check.sh does a real docs lookup." ;;
-    needs-auth) echo "Context7: not signed in yet. Run /mcp-auth context7 in an interactive Pi session (a new one) and"
+    needs-auth) echo "Context7: not signed in yet. Run /mcp-auth context7 in an interactive Pi session (a new one) and" \
                      "approve in the browser." ;;
-    *) echo "Context7: sign-in state unknown (${state:-no answer}). If Pi says it needs a sign-in, run"
+    *) echo "Context7: sign-in state unknown (${state:-no answer}). If Pi says it needs a sign-in, run" \
             "/mcp-auth context7 in an interactive Pi session." ;;
 esac
 echo "Start a new Pi session (or /reload) to load the servers."
