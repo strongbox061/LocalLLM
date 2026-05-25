@@ -21,3 +21,11 @@ if [[ "$ACTION" == disable ]]; then
     echo "Helper keepalive timer disabled."
     exit 0
 fi
+
+if [[ -z "${HELPER_HOST:-}" ]]; then
+    echo "No HELPER_HOST in $LOCAL_ENV_FILE yet: run ./localllm.sh setup-helper first."
+    exit 0
+fi
+
+install_user_unit localllm-helper-keepalive.service \
+    "$(sed "s|@HELPER_HOST@|$HELPER_HOST|g" "$REPO_DIR/services/localllm-helper-keepalive.service")"
