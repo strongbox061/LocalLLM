@@ -36,16 +36,21 @@ function State($s) {
 $GamingOff = @('small-model', 'comfyui')
 
 function Start-One($s) {
-    Write-Host "Starting $($s.Title)..."
-    Set-Location $s.Path
-    if ($s.Script) {
-        & $s.Script 2>&1 | Out-Null
-    } elseif ($s.Exe) {
-        Start-Process $s.Exe -WorkingDirectory $s.Path -WindowStyle Minimized
+    if ($s.owui_only -and ($appsList -notcontains 'owui')) { Info "$($s.title): off (LOCALLLM_APPS=$($cfg.apps))."; return }
+    if ((Test-Gaming) -and $GamingOff -contains $s.name) { Info "$($s.title): off in gaming mode (gaming.ps1 off)."; return }
+    $state = State $s
+    if ($state -eq 'not installed') { Warn "$($s.title) is not installed: run ./localllm.sh install-helper on the main PC."; $script:failed += $s.name; return }
+    if ($state -eq 'running') { Info "$($s.title): already running."; return }
+    if ($state -eq 'stopped') { Start-Service -Name $s.id }
+    $limit = if ($StartSeconds[$s.name]) { $StartSeconds[$s.name] } else { 60 }
+    $t0 = Get-Date
+    while (((Get-Date) - $t0).TotalSeconds -lt $limit) {
+        if ((State $s) -eq 'running') { Info "$($s.title): running (port $($s.port))."; return }
+        if ((Get-Service -Name $s.id).Status -eq 'Stopped') { break }
+        Start-Sleep -Seconds 2
     }
-    # brief wait so the process appears in Get-Process
-    Start-Sleep -Seconds 3
-    Write-Host "  $($(State $s))"
+    Warn "$($s.title) did not become ready within $limit s. Its log: $((Get-Paths $cfg).Logs)\$($s.id).out.log / .err.log"
+    $script:failed += $s.name
 }
 
 function Stop-One($s) {

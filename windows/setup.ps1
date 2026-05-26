@@ -144,20 +144,17 @@ if (Want 'base') {
 
 # --- tools: uv and WinSW ---
 if (Want 'tools') {
-    # Install uv (Python package manager)
-    $uv = Join-Path $env:LOCALAPPDATA 'Programs\uv\bin\uv.exe'
-    if (-not (Test-Path $uv)) {
-        Write-Host "Installing uv..."
-        powershell -Command "irm https://astral.sh/uv/install.ps1 | iex"
+    Step "uv and WinSW"
+    $have = if (Test-Path $uv) { ((Native { & $uv --version }) -join ' ') } else { '' }
+    if ($have -notmatch "^uv $([regex]::Escape($v.uv))\b") {
+        $zip = Join-Path $paths.Cache "uv-$($v.uv).zip"
+        Download-File "https://github.com/astral-sh/uv/releases/download/$($v.uv)/uv-x86_64-pc-windows-msvc.zip" $zip
+        Expand-Archive -Path $zip -DestinationPath $paths.Bin -Force
     }
-    # Install WinSW for service management
-    $winsw = Join-Path $DATA_DIR 'tools\WinSW.exe'
-    if (-not (Test-Path $winsw)) {
-        Write-Host "Installing WinSW..."
-        New-Item -ItemType Directory -Force (Split-Path $winsw) | Out-Null
-        (New-Object Net.WebClient).DownloadFile(
-            'https://github.com/winsw/winsw/releases/download/v4.0.5/WinSW-x64.exe', $winsw)
-    }
+    Info ((Native { & $uv --version }) -join ' ')
+    $winsw = Join-Path $paths.Bin "WinSW-$($v.winsw).exe"
+    if (-not (Test-Path $winsw)) { Download-File "https://github.com/winsw/winsw/releases/download/$($v.winsw)/WinSW-x64.exe" $winsw }
+    Info "WinSW $($v.winsw)"
 }
 
 # --- python ---

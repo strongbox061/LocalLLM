@@ -64,7 +64,7 @@ function Get-Paths($cfg) {
     $d = [string]$cfg.data_dir
     if (-not $d) { Fail "config.json has no data_dir: run ./localllm.sh install-helper on the main PC." }
     $drive = Split-Path -Qualifier $d
-    if (-not (Test-Path "$drive")) {
+    if (-not (Test-Path "$drive\")) {
         Fail ("The data folder $d is on drive $drive, which isn't here (another disk, or its letter changed). " +
               "On the main PC: fix HELPER_DATA_DIR in ~/.config/localllm/helper.env (or remove the line to choose " +
               "again), then ./localllm.sh install-helper. Moving the data: README, 'Two-PC setup'.")
