@@ -12,8 +12,10 @@
       "~/.ssh",
       "~/.gnupg",
       "~/.pi",
+      "~/.config",
       "~/.bashrc",
-      "~/.bash_profile"
+      "~/.bash_profile",
+      "~/.profile"
     ]
   }
 }
