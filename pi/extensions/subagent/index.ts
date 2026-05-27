@@ -147,15 +147,30 @@ function formatTokens(count: number): string {
 	return `${(count / 1000000).toFixed(1)}M`;
 }
 
-interface UsageStats {
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-}
-
-function formatUsageStats(stats: UsageStats | undefined): string {
-  if (!stats) return "";
-  return `[input: ${formatTokens(stats.inputTokens)} / output: ${formatTokens(stats.outputTokens)} / total: ${formatTokens(stats.totalTokens)} tokens]`;
+function formatUsageStats(
+	usage: {
+		input: number;
+		output: number;
+		cacheRead: number;
+		cacheWrite: number;
+		cost: number;
+		contextTokens?: number;
+		turns?: number;
+	},
+	model?: string,
+): string {
+	const parts: string[] = [];
+	if (usage.turns) parts.push(`${usage.turns} turn${usage.turns > 1 ? "s" : ""}`);
+	if (usage.input) parts.push(`↑${formatTokens(usage.input)}`);
+	if (usage.output) parts.push(`↓${formatTokens(usage.output)}`);
+	if (usage.cacheRead) parts.push(`R${formatTokens(usage.cacheRead)}`);
+	if (usage.cacheWrite) parts.push(`W${formatTokens(usage.cacheWrite)}`);
+	if (usage.cost) parts.push(`$${usage.cost.toFixed(4)}`);
+	if (usage.contextTokens && usage.contextTokens > 0) {
+		parts.push(`ctx:${formatTokens(usage.contextTokens)}`);
+	}
+	if (model) parts.push(model);
+	return parts.join(" ");
 }
 
 type ChildStatus = "pending" | "running" | "completed" | "failed" | "aborted";

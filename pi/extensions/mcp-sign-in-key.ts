@@ -24,7 +24,7 @@ function loadKey(): void {
   if (process.env[KEY_NAME]) return;
   try {
     const key = keyFromEnvFile(fs.readFileSync(LOCAL_ENV, "utf8"));
-    if (key.length > 0) process.env[KEY_NAME] = key;
+    if (key) process.env[KEY_NAME] = key;
   } catch {
     // No local.env yet: install/pi-mcp.sh makes the key; until then Context7 asks for a sign-in.
   }

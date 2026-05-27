@@ -12,6 +12,10 @@
 // prompts from the project folder.
 //
 // A tool not listed here, or a parameter not listed for it, is sent unchanged.
+//
+// tool_search is left out of the request: it finds Pi's hidden ("deferred") tools, which here are only the MCP tools
+// pi/mcp-adapter.json leaves out on purpose. (pi-mcp-adapter's own `mcp` proxy is hidden by its disableProxyTool
+// setting.)
 
 const DROPPED_TOOLS = new Set(["tool_search"]);
 
@@ -110,8 +114,12 @@ export default function (pi: any) {
         continue;
       }
 
-      if (call.tool?.description && SHORT[toolName]) {
-        shorten(call.tool);
+      try {
+        if (call.tool?.description && SHORT[toolName]) {
+          shorten(call.tool);
+        }
+      } catch {
+        // Silently skip shortening if the tool schema is malformed.
       }
     }
   });
