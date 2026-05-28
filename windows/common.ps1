@@ -149,6 +149,7 @@ function Run-Installer($name, $exe, $arguments, $minutes = 30, $idleMinutes = 5)
 
 # The repo's services on this PC, from config.json: name, Windows service id, port, health path, whether it runs.
 function Get-HelperServices($cfg) {
+    if (-not $cfg -or -not $cfg.services) { return @() }
     $list = @()
     foreach ($s in $cfg.services) { $list += $s }
     return $list
@@ -159,4 +160,93 @@ function Test-Url($url, $timeoutSec = 3) {
         $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec $timeoutSec
         return ($r.StatusCode -ge 200 -and $r.StatusCode -lt 400)
     } catch { return $false }
+}
+
+# --- the services ---
+
+$GamingFlag = Join-Path $StateDir 'gaming.on'
+function Test-Gaming { return (Test-Path $GamingFlag) }
+
+function Venv-Python($paths, $name) { return (Join-Path $paths.Venv "$name\Scripts\python.exe") }
+
+# Get-ServiceSpec <name> <cfg> <paths>: how a service runs: program, arguments, working folder and environment (the
+# secrets read here, at start, so they are never written into a service definition). Gaming mode (gaming.ps1 on)
+# moves the GPU users that keep running to the CPU.
+function Get-ServiceSpec($name, $cfg, $paths) {
+    if (-not $cfg) { Fail "Get-ServiceSpec called with null config." }
+    $gaming = Test-Gaming
+    $v = $cfg.versions
+    $common = @{ PYTHONUTF8 = '1'; HF_HOME = (Join-Path $paths.Cache 'huggingface');
+                 PLAYWRIGHT_BROWSERS_PATH = (Join-Path $paths.Cache 'ms-playwright') }
+    switch ($name) {
+        'kokoro' {
+            $root = Join-Path $paths.Apps 'kokoro-fastapi'
+            $gpu = ($cfg.kokoro_device -eq 'gpu') -and -not $gaming
+            return @{ exe = (Venv-Python $paths 'kokoro'); dir = $root
+                args = @('-m', 'uvicorn', 'api.src.main:app', '--host', '127.0.0.1', '--port', '8880')
+                env = $common + @{ USE_GPU = $(if ($gpu) { 'true' } else { 'false' }); USE_ONNX = 'false'
+                    PROJECT_ROOT = $root; PYTHONPATH = "$root;$root\api"; MODEL_DIR = 'src/models'
+                    VOICES_DIR = 'src/voices/v1_0'; WEB_PLAYER_PATH = "$root\web" } }
+        }
+        'voice-router' {
+            return @{ exe = (Venv-Python $paths 'open-webui'); dir = $paths.Data
+                args = @((Join-Path $RepoDir 'services\voice_router.py'))
+                env = $common + @{ VOICE_ROUTER_PORT = '8881'; KOKORO_URL = 'http://127.0.0.1:8880' } }
+        }
+        'whisper' {
+            return @{ exe = (Venv-Python $paths 'open-webui'); dir = $paths.Data
+                args = @((Join-Path $RepoDir 'services\whisper_server.py'))
+                env = $common + @{ WHISPER_PORT = '8882'; WHISPER_MODEL = [string]$v.whisper_model
+                    WHISPER_MODEL_DIR = (Join-Path $paths.Models 'whisper'); WHISPER_COMPUTE_TYPE = 'int8'
+                    WHISPER_DEVICE = $(if ($gaming) { 'cpu' } else { 'cuda' }) } }
+        }
+        'docling' {
+            return @{ exe = (Join-Path $paths.Venv 'docling\Scripts\docling-serve.exe'); dir = $paths.Data
+                args = @('run', '--host', '127.0.0.1', '--port', '5001')
+                env = $common + @{ DOCLING_DEVICE = $(if ($gaming) { 'cpu' } else { 'cuda' })
+                    } }
+        }
+        'small-model' {
+            $m = $v.small_model
+            return @{ exe = (Join-Path $paths.Apps 'llama.cpp\llama-server.exe'); dir = $paths.Data
+                args = @('-m', (Join-Path $paths.Models $m.file), '--alias', $m.alias, '--host', '127.0.0.1',
+                         '--port', '8083', '-c', "$($m.ctx)", '--device', 'none', '-ngl', '0', '--jinja')
+                env = @{} }
+        }
+        'comfyui' {
+            $root = Join-Path $paths.Apps 'comfyui'
+            return @{ exe = (Venv-Python $paths 'comfyui'); dir = $root
+                args = @('main.py', '--listen', '127.0.0.1', '--port', '8188', '--force-fp32', '--lowvram', '--disable-smart-memory')
+                env = $common }
+        }
+        'search-gateway' {
+            return @{ exe = (Venv-Python $paths 'search-gateway'); dir = $paths.Data
+                args = @((Join-Path $RepoDir 'services\search_gateway.py'))
+                env = $common + @{ SEARCH_GATEWAY_PORT = '8090'
+                    SEARCH_GATEWAY_SETTINGS = (Join-Path $paths.GatewayData 'search-gateway.json')
+                    SEARCH_GATEWAY_DB = (Join-Path $paths.GatewayData 'search-gateway.db')
+                    WEBUI_DB = (Join-Path $paths.WebUIData 'webui.db')
+                    CHAT_TYPES_DIR = (Join-Path $LocalLLM 'chat-types')
+                    CHAT_TYPES_ON_MAIN = '1'
+                    SEARCH_GATEWAY_SEARXNG = [string]$cfg.searxng_search } }
+        }
+        'open-webui' {
+            return @{ exe = (Join-Path $paths.Venv 'open-webui\Scripts\open-webui.exe'); dir = $paths.WebUIData
+                args = @('serve', '--host', '127.0.0.1', '--port', '3000')
+                env = $common + @{ DATA_DIR = $paths.WebUIData; WEBUI_SECRET_KEY = (Read-Secret 'webui-secret-key')
+                    OPENAI_API_BASE_URL = "$($cfg.llama_url)/v1"; OPENAI_API_KEY = (Read-Secret 'llama-api-key')
+                    USE_CUDA_DOCKER = $(if ($gaming) { 'false' } else { 'true' })
+                    WHISPER_MODEL = [string]$v.whisper_model; WHISPER_VAD_FILTER = 'true'
+                    BYPASS_PYDUB_PREPROCESSING = 'true'
+                    AUDIO_TTS_ENGINE = 'openai'; AUDIO_TTS_OPENAI_API_BASE_URL = 'http://127.0.0.1:8881/v1'
+                    AUDIO_TTS_OPENAI_API_KEY = 'not-needed'; AUDIO_TTS_MODEL = 'kokoro'; AUDIO_TTS_VOICE = 'auto'
+                    ENABLE_CONTEXT_COMPACTION = 'true'; CONTEXT_COMPACTION_TOKEN_THRESHOLD = "$($cfg.compaction_threshold)"
+                    ENABLE_TITLE_GENERATION = 'false'; ENABLE_TAGS_GENERATION = 'false'
+                    ENABLE_FOLLOW_UP_GENERATION = 'false'; ENABLE_AUTOCOMPLETE_GENERATION = 'false'
+                    WEB_LOADER_ENGINE = 'playwright'
+                    RAG_EMBEDDING_MODEL = [string]$v.embedding_model; RAG_RERANKING_MODEL = [string]$v.reranking_model
+                    ENABLE_RAG_HYBRID_SEARCH = 'true' } }
+        }
+    }
+    Fail "Unknown service: $name"
 }
