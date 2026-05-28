@@ -159,10 +159,9 @@ if (Want 'tools') {
 
 # --- python ---
 if (Want 'python') {
-    $venv = New-Venv 'localllm'
-    $pip = Join-Path $venv 'Scripts\pip.exe'
-    # Install common Python dependencies
-    Uv pip install "$pip" pywin32 requests
+    Step "Python $($v.python)"
+    Uv python install --quiet $v.python
+    Info ((Native { & $uv python find $v.python }) -join ' ')
 }
 
 # --- search gateway ---
