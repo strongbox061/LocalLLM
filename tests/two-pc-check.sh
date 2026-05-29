@@ -108,6 +108,45 @@ gen_split() {
 # Cleanup
 trap 'rm -rf "$TMP" "$P"' EXIT
 
-echo "=== Two-PC Setup Checks ==="
-echo "Repo: $REPO"
-echo "Temp: $TMP"
+echo "lib/endpoints.py"
+ep() { env -i PATH="$PATH" "$@" python3 "$REPO/lib/endpoints.py" print 2>&1; }
+field() { python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print(d["services"][sys.argv[2]][sys.argv[3]])' "$1" "$2" "$3" 2>/dev/null; }
+
+single="$(ep)"
+check "single mode: every service on the main PC, 127.0.0.1" \
+    test "$(field "$single" open-webui url)$(field "$single" llama url)" = "http://127.0.0.1:3000http://127.0.0.1:8081"
+check "single mode: helper-only services don't run" test "$(field "$single" comfyui where)" = "None"
+split="$(ep LOCALLLM_MODE=split HELPER_HOST=helper.example MAIN_HOST=main.example)"
+check "split: llama-server stays on the main PC (127.0.0.1 here, the main PC's name from the helper)" \
+    test "$(field "$split" llama url) $(field "$split" llama from_helper)" = "http://127.0.0.1:8081 http://main.example:8081"
+check "split: the search gateway on the helper" test "$(field "$split" search-gateway url)" = "http://helper.example:8090"
+check "split: Open WebUI over HTTPS on the helper's name (microphone needs a secure page)" \
+    test "$(field "$split" open-webui url)" = "https://helper.example"
+moved="$(ep LOCALLLM_MODE=split HELPER_HOST=h MAIN_HOST=m PLACE_KOKORO=main)"
+check "PLACE_KOKORO=main takes the voice router along" \
+    test "$(field "$moved" kokoro where)$(field "$moved" voice-router where)" = "mainmain"
+check "refused: Kokoro and the voice router apart" \
+    has "$(ep LOCALLLM_MODE=split HELPER_HOST=h MAIN_HOST=m PLACE_KOKORO=main PLACE_VOICE_ROUTER=helper)" "same PC"
+check "refused: llama-server on the helper" has "$(ep LOCALLLM_MODE=split HELPER_HOST=h MAIN_HOST=m PLACE_LLAMA=helper)" "always runs"
+check "refused: split without HELPER_HOST" has "$(ep LOCALLLM_MODE=split MAIN_HOST=m)" "needs HELPER_HOST"
+check "refused: a mode that doesn't exist" has "$(ep LOCALLLM_MODE=splitt)" "single or split"
+check "refused: invalid LOCALLLM_APPS (owui)" has "$(ep LOCALLLM_APPS=owui)" "pi or pi,owui"
+
+pi_single="$(ep LOCALLLM_MODE=single LOCALLLM_APPS=pi)"
+check "pi-only (single): llama, searxng, search-gateway, plannotator stay on main; OWUI + voice off" python3 -c '
+import json, sys; d = json.loads(sys.argv[1]); s = d["services"]
+assert d["apps"] == "pi"
+assert [n for n, v in s.items() if v["where"] == "main"] == ["llama", "searxng", "plannotator", "search-gateway"]
+assert all(s[n]["where"] is None for n in ("open-webui", "kokoro", "voice-router", "whisper", "docling", "small-model", "comfyui"))' "$pi_single"
+
+pi_split="$(ep LOCALLLM_MODE=split LOCALLLM_APPS=pi HELPER_HOST=helper.example MAIN_HOST=main.example)"
+check "pi-only (split): search-gateway stays on helper; all OWUI services off on both PCs" python3 -c '
+import json, sys; d = json.loads(sys.argv[1]); s = d["services"]
+assert d["apps"] == "pi"
+assert s["search-gateway"]["where"] == "helper" and s["llama"]["where"] == "main"
+assert all(s[n]["where"] is None for n in ("open-webui", "kokoro", "voice-router", "whisper", "docling", "small-model", "comfyui"))' "$pi_split"
+
+check "pi-only model profile: folds all slots into 1 with 2x context" bash -c '
+HOME="$1" LOCALLLM_APPS=pi bash -c "source \"$2/lib/model.sh\"; load_model_profile >/dev/null; echo \"\$SLOTS \$CTX_PER_SLOT\""' _ "$TMP" "$REPO"
+pi_slot_ctx="$(HOME="$TMP" LOCALLLM_APPS=pi bash -c 'source "$1/lib/model.sh"; load_model_profile >/dev/null; echo "$SLOTS $CTX_PER_SLOT"' _ "$REPO")"
+check "... 1 slot of 131072 tokens for the default profile" test "$pi_slot_ctx" = "1 131072"
