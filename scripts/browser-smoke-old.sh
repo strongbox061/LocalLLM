@@ -46,11 +46,7 @@ else
   echo "WARN    : Navigation check skipped (no page loaded)"
 fi
 
-# 4. Cleanup
-if [[ -n "${BGPID:-}" ]]; then
-  kill "${BGPID}" 2>/dev/null || true
-  wait "${BGPID}" 2>/dev/null || true
-  echo "Cleanup : Stopped session"
-fi
+# 4. Cleanup on exit
+trap '[[ -n "${BGPID:-}" ]] && { kill "${BGPID}" 2>/dev/null || true; wait "${BGPID}" 2>/dev/null || true; echo "Cleanup : Stopped session"; }' EXIT INT TERM
 
 echo "=== Smoke test passed ==="
