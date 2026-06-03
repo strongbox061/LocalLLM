@@ -63,5 +63,19 @@
    "expect": "the releases or changelog page, or web_search; not Context7"},
 
   {"id": "I1", "folder": "edit", "prompt": "In config.yml, change the port to 9090 and the logging level to debug.",
-   "expect": "reads the file first; one edit call with short old texts; config.yml has port 9090 and level debug"}
+   "expect": "reads the file first; one edit call with short old texts; config.yml has port 9090 and level debug"},
+
+  {"id": "J1", "folder": "webapp", "prompt": "Plan how to add a health-check endpoint to this project.", "special": "needs-inbox",
+   "expect": "PLAN.md written; plannotator_inbox send_message with attachments [\"PLAN.md\"]; no other file changed"},
+
+  {"id": "K1", "folder": "app", "prompt": "In this project, rename the setting port to listen_port everywhere (code, tests and README; the CLI option becomes --listen-port), add a --timeout option to the CLI (default 30) that is passed through to start() and shows in its message, add a test for it, then run the tests with python3 -m unittest and fix anything that fails.",
+   "expect": "the todo tool: the stages added first, each ticked off as it is done; no 'port' left in app/, tests/ or README.md (only listen_port and --listen-port); --timeout with default 30 passed to start() and in its message; a new test; python3 -m unittest run and passing (shown in the report)"},
+  {"id": "K2", "folder": "repo", "prompt": "Use the code-finder to find where the web_search tool is defined.", "special": "subagents",
+   "expect": "one subagent call with the code-finder; the main session reads no files itself, it gets only the summary; the answer names pi/extensions/search-gateway.ts"},
+  {"id": "K3", "folder": "repo", "prompt": "Send 4 code-finders in parallel, one each to find where these are defined: the web_search tool, the edit guard, the model alias, the restorability check.", "special": "subagents", "timeout": 1500,
+   "expect": "never more code-finders at once than SUBAGENTS_AT_ONCE (Most at once; however the calls are split, the rest wait their turn); all 4 answers come back: search-gateway.ts, edit-guard.ts, lib/model.sh, tests/restorability-check.sh"},
+  {"id": "H3-es", "folder": "empty", "prompt": "En la documentación más reciente de Vite, ¿cómo configuro un proxy para el servidor de desarrollo?",
+   "expect": "as H3: the live docs first; no Context7 call reaches Context7; the answer is in Spanish"},
+  {"id": "D3-es", "folder": "empty", "prompt": "Busca en Mojeek \"pi coding agent\".",
+   "expect": "as D3: no browser search: web_search with the same words, and the answer starts by saying Mojeek doesn't allow automated browsers; nothing invented; the answer is in Spanish"}
 ]

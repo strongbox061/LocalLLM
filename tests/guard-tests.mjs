@@ -230,6 +230,28 @@ async function runTests() {
     check("soft-edit: loads without error", false, e.message);
   }
 
+  // --- agent-browser-fix.ts: search engines in the browser ---
+  {
+    const p = fakePi();
+    (await load(join(EXT, "agent-browser-fix.ts"))).default(p.pi);
+    await p.say("What is kokoro tts?");
+    let r = await p.call("agent_browser", { args: ["open", "https://www.google.com/search?q=kokoro+tts"] });
+    check("Google's results page is blocked", r.blocked && /web_search/.test(r.reason), r.reason);
+    check("the block hands over the same words", /\"query\":\"kokoro tts\"/.test(r.reason ?? ""), r.reason);
+    r = await p.call("agent_browser", { args: ["open", "http://127.0.0.1:8080/search?q=x"] });
+    check("the local SearXNG is blocked too", r.blocked);
+    r = await p.call("agent_browser", { args: ["open", "https://github.com/ggml-org/llama.cpp"] });
+    check("normal pages are allowed", !r.blocked);
+    await p.say('Search Google directly for "qwen3.5 release" using the browser and list the top 3 results.');
+    r = await p.call("agent_browser", { args: ["open", "https://www.google.com"] });
+    check("a named engine's home page is refused, with web_search and the quoted words (run 8's F2)",
+      r.blocked && /web_search with the same words, \{\"query\":\"qwen3\\.5 release\"\}/.test(r.reason), r.reason);
+    r = await p.call("agent_browser", { args: ["open", "https://www.google.com/search?q=qwen3.5+release"] });
+    check("... and its results page too: named engines aren't opened (run 10's F2: always a CAPTCHA)",
+      r.blocked && /Not opened: Google doesn't allow automated browsers/.test(r.reason) && /\"query\":\"qwen3\\.5 release\"/.test(r.reason), r.reason);
+    check("... the answer is to say so first, in the person's language", /begin your answer, in the language of the person's message, by saying the results come from Search Gateway because Google doesn't allow automated browsers/.test(r.reason), r.reason);
+  }
+
   console.log(`\nResults: ${passed} passed, ${failed} failed`);
   if (failed > 0) {
     process.exit(1);
