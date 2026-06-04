@@ -31,19 +31,23 @@ if ($Task -eq 'drives') {
     exit 0
 }
 
+$cfg = Read-Config
+$paths = Get-Paths $cfg
+Set-ToolEnv $paths
+$py = Venv-Python $paths 'open-webui'
+$key = Join-Path $SecretsDir 'webui-secret-key'
+$db = Join-Path $paths.WebUIData 'webui.db'
+$url = 'http://127.0.0.1:3000'
+
+function Py { $a = $args; $out = Native { & $py @a }; $out | ForEach-Object { Write-Host $_ }; return $LASTEXITCODE }
+
+# The data that moves with Open WebUI: its folder (database, uploads, vector store) and the search gateway's
+# (state database and settings with the search API keys).
+$Moving = @(@{ src = $paths.WebUIData; name = 'open-webui' }, @{ src = $paths.GatewayData; name = 'search-gateway' })
+
 # --- Open WebUI version ---
 if ($Task -eq 'version') {
-    $webuiPath = Join-Path $RepoRoot 'open-webui'
-    if (Test-Path (Join-Path $webuiPath 'pyproject.toml')) {
-        $content = Get-Content (Join-Path $webuiPath 'pyproject.toml') -Raw
-        if ($content -match 'version\s*=\s*"([^"]+)"') {
-            Write-Output $Matches[1]
-        } else {
-            Write-Output ''
-        }
-    } else {
-        Write-Output ''
-    }
+    if (Test-Path $py) { Native { & $py -c "import importlib.metadata as m; print(m.version('open-webui'))" } | Select-Object -Last 1 }
     exit 0
 }
 
