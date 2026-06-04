@@ -13,17 +13,12 @@ REPO="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 
 TMP="$(mktemp -d)"
 PASS=0 FAIL=0
-check() {
-  local name="$1"; shift
-  if "$@" >/dev/null 2>&1; then
-    echo "PASS: $name"
-    PASS=$((PASS + 1))
-  else
-    echo "FAIL: $name"
-    FAIL=$((FAIL + 1))
-  fi
+check() {   # check <name> <command...>
+    local name="$1"; shift
+    if "$@" >/dev/null 2>&1; then PASS=$((PASS + 1)); echo "  ok    $name"
+    else FAIL=$((FAIL + 1)); echo "  FAIL  $name"; fi
 }
-has() { grep -q -- "$2" <<< "$1"; }
+has() { grep -q -- "$2" <<< "$1"; }       # has <text> <pattern>
 hasnt() { ! grep -q -- "$2" <<< "$1"; }
 
 ep() { env -i PATH="$PATH" "$@" python3 "$REPO/lib/endpoints.py" print 2>&1; }
