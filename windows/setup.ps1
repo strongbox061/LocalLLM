@@ -166,7 +166,14 @@ if (Want 'python') {
 
 # --- search gateway ---
 if ((Want 'gateway') -and $wanted['search-gateway']) {
-    Write-Host "Search gateway setup skipped on helper PC"
+    Step "Search gateway"
+    $py = New-Venv 'search-gateway'
+    Uv pip install --quiet --python $py -r (Join-Path $RepoDir 'services\search-gateway-requirements.txt')
+    $out = Native { & $py -m playwright install chromium }
+    if ($LASTEXITCODE -ne 0) { $out | Select-Object -Last 10 | ForEach-Object { Write-Host "    $_" }; Fail "Playwright's Chromium didn't install." }
+    $ok = Native { & $py -c "import aiohttp, pydantic, playwright; print('ok')" } | Select-Object -Last 1
+    if ($ok -ne 'ok') { Fail "The search gateway's packages don't import." }
+    Info "Ready ($py)."
 }
 
 # --- Open WebUI (with CUDA torch: Whisper and the document search models on the GPU) ---

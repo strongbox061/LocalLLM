@@ -149,7 +149,6 @@ function Run-Installer($name, $exe, $arguments, $minutes = 30, $idleMinutes = 5)
 
 # The repo's services on this PC, from config.json: name, Windows service id, port, health path, whether it runs.
 function Get-HelperServices($cfg) {
-    if (-not $cfg -or -not $cfg.services) { return @() }
     $list = @()
     foreach ($s in $cfg.services) { $list += $s }
     return $list
@@ -173,7 +172,6 @@ function Venv-Python($paths, $name) { return (Join-Path $paths.Venv "$name\Scrip
 # secrets read here, at start, so they are never written into a service definition). Gaming mode (gaming.ps1 on)
 # moves the GPU users that keep running to the CPU.
 function Get-ServiceSpec($name, $cfg, $paths) {
-    if (-not $cfg) { Fail "Get-ServiceSpec called with null config." }
     $gaming = Test-Gaming
     $v = $cfg.versions
     $common = @{ PYTHONUTF8 = '1'; HF_HOME = (Join-Path $paths.Cache 'huggingface');
@@ -194,6 +192,8 @@ function Get-ServiceSpec($name, $cfg, $paths) {
                 env = $common + @{ VOICE_ROUTER_PORT = '8881'; KOKORO_URL = 'http://127.0.0.1:8880' } }
         }
         'whisper' {
+            # Speech-to-text for Open WebUI (services\whisper_server.py), with Open WebUI's Python. The model is
+            # downloaded by setup.ps1 (step whisper) into models\whisper.
             return @{ exe = (Venv-Python $paths 'open-webui'); dir = $paths.Data
                 args = @((Join-Path $RepoDir 'services\whisper_server.py'))
                 env = $common + @{ WHISPER_PORT = '8882'; WHISPER_MODEL = [string]$v.whisper_model
@@ -207,6 +207,7 @@ function Get-ServiceSpec($name, $cfg, $paths) {
                     } }
         }
         'small-model' {
+            # On the CPU (the GPU is full with voice and document search; titles and tags are background work).
             $m = $v.small_model
             return @{ exe = (Join-Path $paths.Apps 'llama.cpp\llama-server.exe'); dir = $paths.Data
                 args = @('-m', (Join-Path $paths.Models $m.file), '--alias', $m.alias, '--host', '127.0.0.1',
@@ -215,6 +216,8 @@ function Get-ServiceSpec($name, $cfg, $paths) {
         }
         'comfyui' {
             $root = Join-Path $paths.Apps 'comfyui'
+            # Pascal cards are slow in FP16: FP32 throughout. Low-VRAM mode: the model is moved to the GPU part by part
+            # (the GPU is shared with Whisper, document search, Kokoro and Docling), and leaves it after each image.
             return @{ exe = (Venv-Python $paths 'comfyui'); dir = $root
                 args = @('main.py', '--listen', '127.0.0.1', '--port', '8188', '--force-fp32', '--lowvram', '--disable-smart-memory')
                 env = $common }
@@ -227,16 +230,21 @@ function Get-ServiceSpec($name, $cfg, $paths) {
                     SEARCH_GATEWAY_DB = (Join-Path $paths.GatewayData 'search-gateway.db')
                     WEBUI_DB = (Join-Path $paths.WebUIData 'webui.db')
                     CHAT_TYPES_DIR = (Join-Path $LocalLLM 'chat-types')
+                    # The chat types page only points to the main PC here (its files are there): chat_types_web.py.
                     CHAT_TYPES_ON_MAIN = '1'
                     SEARCH_GATEWAY_SEARXNG = [string]$cfg.searxng_search } }
         }
         'open-webui' {
+            # The same settings as services/open-webui.sh on the main PC (they count only for a brand-new database;
+            # afterwards Open WebUI's saved settings win, and ./localllm.sh switch sets those through its API).
             return @{ exe = (Join-Path $paths.Venv 'open-webui\Scripts\open-webui.exe'); dir = $paths.WebUIData
                 args = @('serve', '--host', '127.0.0.1', '--port', '3000')
                 env = $common + @{ DATA_DIR = $paths.WebUIData; WEBUI_SECRET_KEY = (Read-Secret 'webui-secret-key')
                     OPENAI_API_BASE_URL = "$($cfg.llama_url)/v1"; OPENAI_API_KEY = (Read-Secret 'llama-api-key')
                     USE_CUDA_DOCKER = $(if ($gaming) { 'false' } else { 'true' })
                     WHISPER_MODEL = [string]$v.whisper_model; WHISPER_VAD_FILTER = 'true'
+                    # Recordings go to the whisper service as the browser made them (it reads every format), without
+                    # Open WebUI's ffmpeg check and conversion first.
                     BYPASS_PYDUB_PREPROCESSING = 'true'
                     AUDIO_TTS_ENGINE = 'openai'; AUDIO_TTS_OPENAI_API_BASE_URL = 'http://127.0.0.1:8881/v1'
                     AUDIO_TTS_OPENAI_API_KEY = 'not-needed'; AUDIO_TTS_MODEL = 'kokoro'; AUDIO_TTS_VOICE = 'auto'
@@ -244,6 +252,7 @@ function Get-ServiceSpec($name, $cfg, $paths) {
                     ENABLE_TITLE_GENERATION = 'false'; ENABLE_TAGS_GENERATION = 'false'
                     ENABLE_FOLLOW_UP_GENERATION = 'false'; ENABLE_AUTOCOMPLETE_GENERATION = 'false'
                     WEB_LOADER_ENGINE = 'playwright'
+                    # Document search for a brand-new database (topology.py and sync.py set them on a moved one).
                     RAG_EMBEDDING_MODEL = [string]$v.embedding_model; RAG_RERANKING_MODEL = [string]$v.reranking_model
                     ENABLE_RAG_HYBRID_SEARCH = 'true' } }
         }

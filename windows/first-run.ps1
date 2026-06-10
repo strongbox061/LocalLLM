@@ -1,4 +1,4 @@
-# first-run.ps1 - the one script run by hand on the helper PC (README, "Connecting the helper PC").
+# bootstrap.ps1 - the one script run by hand on the helper PC (README, "Connecting the helper PC").
 #
 # Don't run this file itself: ./localllm.sh setup-helper on the main PC writes ~/.cache/localllm/bootstrap.local.ps1, a copy with
 # the main PC's public SSH key filled in. Copy that one to the helper PC and run it in PowerShell as Administrator:
@@ -15,6 +15,9 @@
 # Everything else on this PC is installed from the main PC afterwards (./localllm.sh install-helper), over SSH.
 # Plain ASCII on purpose: Windows PowerShell 5.1 reads a script without a byte order mark as the local code page.
 
+$ErrorActionPreference = 'Stop'
+$PublicKey = '@MAIN_PC_PUBLIC_KEY@'
+
 function Step($text) { Write-Host ""; Write-Host "==> $text" -ForegroundColor Cyan }
 function Fail($text) { Write-Host ""; Write-Host "ERROR: $text" -ForegroundColor Red; exit 1 }
 function Warn($text) { Write-Host "WARNING: $text" -ForegroundColor Yellow }
@@ -22,8 +25,9 @@ function Warn($text) { Write-Host "WARNING: $text" -ForegroundColor Yellow }
 # Runs a program and returns its output; its error messages are dropped (with 'Stop', Windows PowerShell 5.1 would
 # treat any line a program writes to stderr as a fatal error). $LASTEXITCODE is the program's.
 function Quiet([scriptblock]$run) {
-    & $run *>$null
-    return $LASTEXITCODE
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { & $run 2>$null } finally { $ErrorActionPreference = $saved }
 }
 
 # --- 1. Tailscale ---
