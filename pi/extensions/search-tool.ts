@@ -40,7 +40,6 @@ export function gateway(): { url: string; where: string; mode: string } {
 const TIMEOUT_MS = 90_000;
 const MAX_SNIPPET = 500;
 const MAX_RETRIES = 2;
-
 // Same normalisation as the tool's: word order and case don't matter.
 const normalise = (q: string) => q.toLowerCase().split(/\s+/).filter(Boolean).sort().join(" ");
 
@@ -107,7 +106,7 @@ export default function (pi: any) {
           });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-          const data = await res.json();
+          // Some services return relative redirect links ("/goto?url=..."), which can't be opened.
           const results: any[] = (Array.isArray(data?.results) ? data.results : [])
             .filter((r: any) => /^https?:\/\//i.test(String(r?.url ?? "")))
             .slice(0, count);
@@ -127,7 +126,7 @@ export default function (pi: any) {
           results.forEach((r, i) => {
             lines.push(`### ${i + 1}. ${r.title || "Untitled"}`);
             lines.push(`   URL: ${r.url}`);
-            const text = String(r.content ?? r.snippet ?? "");
+            const text = String(r.content ?? "");
             if (text) lines.push(`   ${text.slice(0, MAX_SNIPPET)}${text.length > MAX_SNIPPET ? "..." : ""}`);
             if (r.publishedDate) lines.push(`   Date: ${r.publishedDate}`);
             lines.push("");
