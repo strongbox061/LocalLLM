@@ -54,34 +54,22 @@ function Start-One($s) {
 }
 
 function Stop-One($s) {
-    Write-Host "Stopping $($s.Title)..."
-    Stop-Process -Name $s.Name -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 2
-    Write-Host "  $($(State $s))"
+    $svc = Get-Service -Name $s.id -ErrorAction SilentlyContinue
+    if (-not $svc) { return }
+    if ($svc.Status -ne 'Stopped') { Stop-Service -Name $s.id -Force; Info "$($s.title): stopped." } else { Info "$($s.title): already stopped." }
 }
 
 function Show-Status {
-    $services = @(
-        @{ Name='kokoro-fastapi';    Title='Kokoro TTS';       Port=8080; Path='.\kokoro-fastapi'; Script='start.bat' },
-        @{ Name='ollama';            Title='Ollama';           Port=11434; Path='.'; Exe='ollama.exe' },
-        @{ Name='open-webui';       Title='Open WebUI';       Port=3000; Path='.\open-webui'; Script='start.bat' }
-    )
-
-    if ($Json) {
-        $results = $services | ForEach-Object {
-            [ordered]@{
-                name  = $_.Name
-                title = $_.Title
-                port  = $_.Port
-                state = State $_
-            }
-        }
-        return $results | ConvertTo-Json -Compress
+    $rows = foreach ($s in $chosen) {
+        [pscustomobject]@{ name = $s.name; title = $s.title; port = $s.port; state = (State $s) }
     }
-
-    Write-Host "Service Status:"
-    foreach ($svc in $services) {
-        Write-Host "  $($svc.Title,-15)[$($svc.Port)] $(State $svc)"
+    if ($Json) {
+        # Always a list, also for one service (ConvertTo-Json would print a single object).
+        Write-Output ('[' + (($rows | ForEach-Object { $_ | ConvertTo-Json -Compress }) -join ',') + ']')
+    } else {
+        $rows | Format-Table -AutoSize title, port, state | Out-String -Width 120 | Write-Host
+        if ($appsList -notcontains 'owui') { Write-Host "Open WebUI services are off (LOCALLLM_APPS=$($cfg.apps))." }
+        if (Test-Gaming) { Write-Host "Gaming mode is on (gaming.ps1 off restores everything)." }
     }
 }
 

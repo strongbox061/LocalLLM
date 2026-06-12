@@ -178,9 +178,22 @@ if ((Want 'gateway') -and $wanted['search-gateway']) {
 
 # --- Open WebUI (with CUDA torch: Whisper and the document search models on the GPU) ---
 if ((Want 'webui') -and $wanted['open-webui']) {
-    $venv = New-Venv 'webui'
-    Install-Torch (Join-Path $venv 'Scripts\python.exe')
-    Uv pip install (Join-Path $venv 'Scripts\pip.exe') "open-webui==0.5.0"
+    Step "Open WebUI $($cfg.open_webui_version)"
+    $py = New-Venv 'open-webui'
+    $have = Native { & $py -c "import importlib.metadata as m; print(m.version('open-webui'))" } | Select-Object -Last 1
+    if ($have -ne $cfg.open_webui_version) {
+        Info "Installing Open WebUI $($cfg.open_webui_version) (about 3 GB, several minutes)..."
+        Uv pip install --quiet --python $py "open-webui==$($cfg.open_webui_version)" playwright
+    }
+    # The voice router (services/voice_router.py) runs with this Python too.
+    $ld = Native { & $py -c "import langdetect; print('ok')" } | Select-Object -Last 1
+    if ($ld -ne 'ok') { Uv pip install --quiet --python $py langdetect }
+    Install-Torch $py
+    $out = Native { & $py -m playwright install chromium }
+    if ($LASTEXITCODE -ne 0) { Fail "Playwright's Chromium didn't install for Open WebUI." }
+    $check = Native { & $py -c "import importlib.metadata as m, torch; print(m.version('open-webui'), torch.cuda.is_available())" } | Select-Object -Last 1
+    if ($check -ne "$($cfg.open_webui_version) True") { Fail "Open WebUI's environment isn't right (got '$check'; want version and CUDA True)." }
+    Info "Open WebUI $($cfg.open_webui_version), CUDA available."
 }
 
 # --- Whisper (speech-to-text, services\whisper_server.py with Open WebUI's Python) ---

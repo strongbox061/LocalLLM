@@ -7,32 +7,21 @@
 #   off: the GPU again for all of them, the Balanced plan.
 # Open WebUI and the search gateway keep running throughout (a short restart for Open WebUI).
 
-$ErrorActionPreference = 'Stop'
-$Pause = $args.Contains('-Pause')
-
 # Plain ASCII on purpose: Windows PowerShell 5.1 reads a script without a byte order mark as the local code page.
+param(
+    [Parameter(Mandatory = $true, Position = 0)][ValidateSet('on', 'off', 'status')][string]$Mode,
+    [switch]$Pause
+)
+. (Join-Path $PSScriptRoot 'common.ps1')
+
+$cfg = Read-Config
+$services = Join-Path $PSScriptRoot 'services.ps1'
+$names = @($cfg.services | ForEach-Object name)
+$gpuUsers = @('open-webui', 'whisper', 'kokoro', 'docling') | Where-Object { $names -contains $_ }
+$off = @('small-model', 'comfyui') | Where-Object { $names -contains $_ }
 
 function Run-Services($cmd, $name) { & $services $cmd $name | Out-Host }
 function Power($guid) { Native { powercfg.exe /setactive $guid } | Out-Null }
-
-# --- Service definitions (managed by this script) ---
-$services = "$PSScriptRoot\service-runner.ps1"
-$gpuServices = @(
-    @{ Name = 'llama.cpp';     Port = 8080; Stop = $true },
-    @{ Name = 'comfyui';       Port = 8188; Stop = $true }
-)
-$cpuServices = @(
-    @{ Name = 'open-webui';    Port = 3000; Stop = $false },
-    @{ Name = 'whisper';       Port = 9000; Stop = $false },
-    @{ Name = 'kokoro';        Port = 9001; Stop = $false },
-    @{ Name = 'docling';       Port = 9002; Stop = $false }
-)
-
-# --- Detect the active power plan before we change it ---
-$activePlan = (powercfg.exe /getactive)[1].Trim()
-
-# --- Modes ---
-$Mode = $args[0]
 
 switch ($Mode) {
     'on' {
