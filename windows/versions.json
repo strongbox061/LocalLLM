@@ -38,6 +38,6 @@
   ],
 
   "llama_cpp": "b12503",
-  "model": "qwen3-30b-a3b-instruct-q4_k_m.gguf",
-  "helper_model": "qwen3-4b-instruct-q4_k_m.gguf"
+  "whisper_model": "large-v3-turbo",
+  "embedding_model": "BAAI/bge-m3"
 }
