@@ -150,13 +150,13 @@ const SEARCH_PAGES: Array<[RegExp, string]> = [
 
 // 46. A search engine's home page (to type into its search box): web_search instead.
 const SEARCH_HOMES: Array<[RegExp, string, string]> = [
-  [/^https?:\/\/(?:www\.)?google\.[a-z.]+\/? (?:[?#].*)?$/i, "google", "https://www.google.com/search?q="],
-  [/^https?:\/\/(?:www\.)?bing\.com\/? (?:[?#].*)?$/i, "bing", "https://www.bing.com/search?q="],
-  [/^https?:\/\/search\.brave\.com\/? (?:[?#].*)?$/i, "brave", "https://search.brave.com/search?q="],
+  [/^https?:\/\/(?:www\.)?google\.[a-z.]+\/?(?:[?#].*)?$/i, "google", "https://www.google.com/search?q="],
+  [/^https?:\/\/(?:www\.)?bing\.com\/?(?:[?#].*)?$/i, "bing", "https://www.bing.com/search?q="],
+  [/^https?:\/\/search\.brave\.com\/?(?:[?#].*)?$/i, "brave", "https://search.brave.com/search?q="],
   [/^https?:\/\/(?:www\.)?duckduckgo\.com\/?$/i, "duckduckgo", "https://html.duckduckgo.com/html/?q="],
-  [/^https?:\/\/(?:www\.)?mojeek\.com\/? (?:[?#].*)?$/i, "mojeek", "https://www.mojeek.com/search?q="],
-  [/^https?:\/\/(?:www\.)?startpage\.com\/? (?:[?#].*)?$/i, "startpage", "https://www.startpage.com/do/search?q="],
-  [/^https?:\/\/(?:www\.)?ecosia\.org\/? (?:[?#].*)?$/i, "ecosia", "https://www.ecosia.org/search?q="],
+  [/^https?:\/\/(?:www\.)?mojeek\.com\/?(?:[?#].*)?$/i, "mojeek", "https://www.mojeek.com/search?q="],
+  [/^https?:\/\/(?:www\.)?startpage\.com\/?(?:[?#].*)?$/i, "startpage", "https://www.startpage.com/do/search?q="],
+  [/^https?:\/\/(?:www\.)?ecosia\.org\/?(?:[?#].*)?$/i, "ecosia", "https://www.ecosia.org/search?q="],
   [/^https?:\/\/(?:www\.)?yahoo\.com\/?$|^https?:\/\/search\.yahoo\.com\/?$/i, "yahoo", "https://search.yahoo.com/search?p="],
 ];
 
@@ -169,5 +169,23 @@ const MAX_PDF_BYTES = 50 * 1024 * 1024;
 
 // Tries of one identical bash call before it's blocked.
 const MAX_IDENTICAL_CALLS = 2;
-const MAX_SAVED_FILES = 120;
-const KEEP_RECENT_MS = 10 * 60 * 1000;
+
+// The user's words and the model's answer are checked with lang-words.ts: NAMED_SOURCE (the user named a source to
+// read, so snippets aren't enough), ERROR (asked for a fix), LOOKUP, ACTION_START, namedEngine ("Search Mojeek for
+// x": the answer has to say what happened with that engine), and in the answer FROM_MEMORY and OFFER (a closing offer,
+// in the last lines).
+const COMMANDS_RE = /```|\bsudo\s/;
+const MAX_SOURCE_CHARS = 8 * 1024 * 1024;
+// The model repeated a tool's status line instead of answering.
+const TOOL_ECHO_RE = /^\{[^\n]*"(?:success|resultCategory)"\s*:[^\n]*\}$/;
+// An answer that repeats these extensions' instructions instead of following them (run 10's F2 answered with the
+// CAPTCHA message: "...Search with web_search instead...").
+const GUARD_ECHO_RE = /Your next step is a tool call|Search with web_search instead|Start your answer by saying|^Not (?:run|sent to Context7):/m;
+// Most check messages per user message, not counting an empty answer.
+const MAX_FINISH_CHECKS = 3;
+// 45. Refused repeats of the same call in one task before every tool call is refused.
+const MAX_REFUSED_REPEATS = 3;
+
+// Finish-check messages reach the model as user messages. This tag keeps them
+// from counting as a new task, and tells the model nobody said them.
+const FINISH_TAG = "[Automatic check, not from the user.";
