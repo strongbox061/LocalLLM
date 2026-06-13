@@ -139,7 +139,7 @@ const SEARCH_PAGES: Array<[RegExp, string]> = [
   [/^https?:\/\/(?:www\.)?google\.[a-z.]+\/search\b/i, "google"],
   [/^https?:\/\/(?:www\.)?bing\.com\/search\b/i, "bing"],
   [/^https?:\/\/search\.brave\.com\/search\b/i, "brave"],
-  [/^https?:\/\/(?:www\.|html\.|lite\.)?duckduckgo\.com\/(?:html\/?|lite\/?)\?/i, "duckduckgo"],
+  [/^https?:\/\/(?:www\.|html\.|lite\.)?duckduckgo\.com\/(?:html\/?|lite\/?)?\?/i, "duckduckgo"],
   [/^https?:\/\/(?:[a-z]+\.)?search\.yahoo\.com\/search\b/i, "yahoo"],
   [/^https?:\/\/(?:www\.)?mojeek\.com\/search\b/i, "mojeek"],
   [/^https?:\/\/(?:www\.)?startpage\.com\/(?:do\/|sp\/)?search\b/i, "startpage"],
@@ -150,13 +150,13 @@ const SEARCH_PAGES: Array<[RegExp, string]> = [
 
 // 46. A search engine's home page (to type into its search box): web_search instead.
 const SEARCH_HOMES: Array<[RegExp, string, string]> = [
-  [/^https?:\/\/(?:www\.)?google\.[a-z.]+\/(?:[?#].*)?$/i, "google", "https://www.google.com/search?q="],
-  [/^https?:\/\/(?:www\.)?bing\.com\/(?:[?#].*)?$/i, "bing", "https://www.bing.com/search?q="],
-  [/^https?:\/\/search\.brave\.com\/(?:[?#].*)?$/i, "brave", "https://search.brave.com/search?q="],
+  [/^https?:\/\/(?:www\.)?google\.[a-z.]+\/? (?:[?#].*)?$/i, "google", "https://www.google.com/search?q="],
+  [/^https?:\/\/(?:www\.)?bing\.com\/? (?:[?#].*)?$/i, "bing", "https://www.bing.com/search?q="],
+  [/^https?:\/\/search\.brave\.com\/? (?:[?#].*)?$/i, "brave", "https://search.brave.com/search?q="],
   [/^https?:\/\/(?:www\.)?duckduckgo\.com\/?$/i, "duckduckgo", "https://html.duckduckgo.com/html/?q="],
-  [/^https?:\/\/(?:www\.)?mojeek\.com\/(?:[?#].*)?$/i, "mojeek", "https://www.mojeek.com/search?q="],
-  [/^https?:\/\/(?:www\.)?startpage\.com\/(?:[?#].*)?$/i, "startpage", "https://www.startpage.com/do/search?q="],
-  [/^https?:\/\/(?:www\.)?ecosia\.org\/(?:[?#].*)?$/i, "ecosia", "https://www.ecosia.org/search?q="],
+  [/^https?:\/\/(?:www\.)?mojeek\.com\/? (?:[?#].*)?$/i, "mojeek", "https://www.mojeek.com/search?q="],
+  [/^https?:\/\/(?:www\.)?startpage\.com\/? (?:[?#].*)?$/i, "startpage", "https://www.startpage.com/do/search?q="],
+  [/^https?:\/\/(?:www\.)?ecosia\.org\/? (?:[?#].*)?$/i, "ecosia", "https://www.ecosia.org/search?q="],
   [/^https?:\/\/(?:www\.)?yahoo\.com\/?$|^https?:\/\/search\.yahoo\.com\/?$/i, "yahoo", "https://search.yahoo.com/search?p="],
 ];
 

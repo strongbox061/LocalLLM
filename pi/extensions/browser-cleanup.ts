@@ -28,7 +28,7 @@ const OWNER_ENV = "PI_BROWSER_CLEANUP_OWNER";
 const DEBUG = false;
 const MANAGED_SESSION_RE = /^(?:pi-root-|piab-)[A-Za-z0-9_-]+$/;
 
-type BrowserProcess = { pid: number; sid: number; env: Map<string, string> };
+type BrowserProcess = { pid: number; sid: number; socketDir: string; env: Map<string, string> };
 
 function log(message: string) {
   if (DEBUG) console.error(`[browser-cleanup] ${message}`);
@@ -89,7 +89,8 @@ function readBrowserProcess(pid: number, custom?: CustomBrowserMatcher): Browser
       if (eqIdx > 0) env.set(chunk.slice(0, eqIdx), chunk.slice(eqIdx + 1));
     }
 
-    return { pid, sid, env };
+    const socketDir = env.get("PIAB_SOCKET_DIR") ?? env.get("AGENT_BROWSER_SOCKET_DIR") ?? "";
+    return { pid, sid, socketDir, env };
   } catch {
     return undefined;
   }
@@ -139,7 +140,8 @@ function signal(pids: number[], name: NodeJS.Signals) {
 
 function politeClose(daemon: BrowserProcess): Promise<void> {
   return new Promise((resolve) => {
-    execFile(BIN, ["--session", "unknown", "close"], { timeout: 5000 }, (err) => {
+    const opts = daemon.socketDir ? ["--socket-dir", daemon.socketDir, "close"] : ["--session", "unknown", "close"];
+    execFile(BIN, opts, { timeout: 5000 }, (err) => {
       log(`polite close attempt for pid ${daemon.pid}: ${err ? err.message : "ok"}`);
       resolve();
     });
