@@ -177,11 +177,11 @@ export default function (pi: ExtensionAPI) {
 					};
 				}
 
-				case "toggle": {
-					if (params.id === undefined) {
-						return {
-							content: [{ type: "text", text: "Error: id required for toggle" }],
-							details: { action: "toggle", todos: [...todos], nextId, error: "id required" } as TodoDetails,
+			case "toggle": {
+				if (params.id === undefined || params.id < 1) {
+					return {
+						content: [{ type: "text", text: "Error: id must be a positive number for toggle" }],
+						details: { action: "toggle", todos: [...todos], nextId, error: "invalid id" } as TodoDetails,
 						};
 					}
 					const todo = todos.find((t) => t.id === params.id);
