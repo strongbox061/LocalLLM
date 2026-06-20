@@ -189,3 +189,36 @@ const MAX_REFUSED_REPEATS = 3;
 // Finish-check messages reach the model as user messages. This tag keeps them
 // from counting as a new task, and tells the model nobody said them.
 const FINISH_TAG = "[Automatic check, not from the user.";
+
+// What the person sent, from Pi's `input` event: typed text, `pi -p`, RPC, or an extension's sendUserMessage (the
+// Plannotator Inbox delivers the person's replies that way). Hidden messages other extensions add (the Inbox reminder,
+// the end-of-answer checks) reach the model as user messages too, but never fire `input`. An Inbox reply's first line
+// ("Plannotator Inbox: <title> (<id>)") is the model's own thread title, so it is dropped.
+export function personText(text: string): string {
+  const t = String(text ?? "");
+  return t.startsWith("Plannotator Inbox: ") ? t.slice(t.indexOf("\n") + 1 || t.length) : t;
+}
+const FINISH_NOTE =
+  `${FINISH_TAG} The user can't see this check or your earlier reply. The answer you write next is the only ` +
+  "reply they will read, so make it complete, as if for the first time. Start it with a line saying only " +
+  "ANSWER: and put nothing before that line.]";
+const FINISH_NOTE_UI =
+  `${FINISH_TAG} The user already sees your previous reply above, so do NOT repeat the whole answer. ` +
+  "Write only a brief, clear correction or addendum.]";
+
+// After a check: the marker line, and the talk about corrections that the model may still write first.
+const ANSWER_MARK_RE = /^[*_#\s]*ANSWER:[*_]*[ \t]*\n*/m;
+const CORRECTION_TALK_RE =
+  /\b(?:you(?:'|')re right|you are right|the user\b|thank you for|my (?:previous|earlier|first|second|last) (?:answer|reply|response|attempt)|previous (?:answer|reply)|i was wrong|i apologi[sz]e|sorry|corrected (?:answer|version|comparison)|i(?:'|')ve now read|the claim that|this check|re-?check|let me (?:re|correct|fix|verify))/i;
+const MAX_TALK_CHARS = 500;
+
+function cleanCheckedAnswer(text: string): string {
+  const mark = text.match(ANSWER_MARK_RE);
+  if (mark && mark.index !== undefined) return text.slice(mark.index + mark[0].length).trim();
+  const paragraphs = text.split(/\n\s*\n/);
+  while (paragraphs.length > 1 && paragraphs[0].length <= MAX_TALK_CHARS &&
+         (CORRECTION_TALK_RE.test(paragraphs[0]) || /^\s*(?:---+|\*\*\*+)\s*$/.test(paragraphs[0]))) {
+    paragraphs.shift();
+  }
+  return paragraphs.join("\n\n");
+}
