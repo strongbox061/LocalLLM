@@ -10,8 +10,8 @@
 set -uo pipefail
 
 REPO="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-
 TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
 PASS=0 FAIL=0
 check() {   # check <name> <command...>
     local name="$1"; shift
