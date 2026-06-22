@@ -19,97 +19,38 @@ ENV_FILE="$HOME/.config/environment.d/60-localllm-path.conf"
 # Written literally: systemd expands ${HOME} and ${PATH} at login.
 # shellcheck disable=SC2016
 ENV_LINE='PATH=${HOME}/.local/bin:${PATH}'
-
-DDGS_PTH="$(python3 -m site --user-site)/pi-ddgs.pth"
-# Its command link can stay behind, pointing nowhere.
-
-# --- Helpers ---
-
 if [[ "$(cat "$ENV_FILE" 2>/dev/null)" != "$ENV_LINE" ]]; then
     mkdir -p "$(dirname -- "$ENV_FILE")"
     printf '%s\n' "$ENV_LINE" > "$ENV_FILE"
     echo "Wrote $ENV_FILE (~/.local/bin on PATH from the next login)"
 fi
 
-write_models_entry() {
-  local model_file="$1"
-  local model_name="$2"
-  local model_size="$3"
+if [[ "${1:-}" == "--update" ]] || ! command -v pi >/dev/null; then
+    rm -f "$HOME/.local/bin/pi"
+    version=""
+    [[ "${1:-}" == "--update" ]] || version="${PI_VERSION:-}"
+    npm install -g --ignore-scripts "@earendil-works/pi-coding-agent${version:+@$version}"
+    hash -r
+fi
+readlink -f "$(command -v pi)"
+pi --version
 
-  local models_json="$HOME/.config/pi/models.json"
-  mkdir -p "$(dirname "$models_json")"
-
-  if [[ ! -f "$models_json" ]]; then
-    printf '{}\n' > "$models_json"
-  fi
-
-  local size_bytes
-  size_bytes=$(numfmt --to=iec "$model_size" 2>/dev/null || echo "$model_size")
-
-  cat > "$models_json" <<EOF
-{
-  "models": [
-    {
-      "name": "${model_name}",
-      "provider": "llama.cpp",
-      "path": "${model_file}",
-      "parameters": {
-        "size": "${size_bytes}"
-      }
-    }
-  ]
-}
-EOF
-  log_info "Wrote llama.cpp provider entry for ${model_name} in $models_json"
-}
-
-install_pi() {
-  local target_dir="$HOME/.local/lib/node_modules/@earendil-works/pi-coding-agent"
-
-  if [[ -d "$target_dir/package.json" ]] || [[ -f "$target_dir/package.json" ]]; then
-    log_info "Pi already installed at $target_dir"
-    return 0
-  fi
-
-  local install_version=""
-  if [[ "${1:-}" == "--update" ]]; then
-    log_info "Installing latest Pi"
-  else
-    install_version="$(get_saved_version pi 2>/dev/null || true)"
-    if [[ -n "$install_version" ]]; then
-      log_info "Using saved Pi version: $install_version"
-    fi
-  fi
-
-  log_info "Installing Pi to $target_dir"
-  npm install --prefix "$HOME/.local/lib" "@earendil-works/pi-coding-agent${install_version:+@$install_version}"
-  log_info "Pi installed successfully"
-}
-
-cleanup_ddgs() {
-  if [[ -L "$DDGS_PTH" ]]; then
+# ddgs (DuckDuckGo search) from older versions of this kit: Pi no longer searches DuckDuckGo directly.
+DDGS_PTH="$(python3 -m site --user-site)/pi-ddgs.pth"
+if [[ -f "$DDGS_PTH" || -d "$HOME/.local/share/pi-ddgs" ]]; then
     rm -f "$DDGS_PTH"
-    log_info "Removed stale DDGS path file at $DDGS_PTH"
-  fi
-}
+    rm -rf "$HOME/.local/share/pi-ddgs"
+    echo "Removed the old ddgs environment."
+fi
+if uv tool list 2>/dev/null | grep -q '^ddgs '; then
+    uv tool uninstall ddgs
+fi
+if [[ -L "$HOME/.local/bin/ddgs" && ! -e "$HOME/.local/bin/ddgs" ]]; then
+    rm -f "$HOME/.local/bin/ddgs"
+    echo "Removed the leftover ddgs link."
+fi
 
-# --- Main ---
+# The llama.cpp provider in Pi's models.json (the model profile's size; split mode's API key).
+"$REPO_DIR/install/pi-models.sh"
 
-main() {
-  install_pi "${1:-}"
-  cleanup_ddgs
 
-  local model_file="${LOCALLLM_MODEL_FILE:-}"
-  local model_name="${LOCALLLM_MODEL_NAME:-Qwen3-30B-A3B-Instruct-2507}"
-  local model_size="${LOCALLLM_MODEL_SIZE:-}"
-
-  if [[ -n "$model_file" && -n "$model_size" ]]; then
-    write_models_entry "$model_file" "$model_name" "$model_size"
-  else
-    log_warn "Model file or size not set — skipping models.json entry (run with model config to add it)"
-  fi
-
-  log_info "Done. PATH updated for next login via $ENV_FILE"
-}
-
-main "$@"
