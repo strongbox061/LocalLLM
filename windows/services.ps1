@@ -74,18 +74,7 @@ function Show-Status {
 }
 
 switch ($Command) {
-    'start' {
-        if ($Service -eq 'all') {
-            foreach ($s in @(
-                @{ Name='kokoro-fastapi';    Title='Kokoro TTS';       Port=8080; Path='.\kokoro-fastapi'; Script='start.bat' },
-                @{ Name='ollama';            Title='Ollama';           Port=11434; Path='.'; Exe='ollama.exe' },
-                @{ Name='open-webui';       Title='Open WebUI';       Port=3000; Path='.\open-webui'; Script='start.bat' }
-            )) { Start-One $s }
-        } else {
-            $svc = $services | Where-Object { $_.Name -eq $Service }
-            if ($svc) { Start-One $svc }
-        }
-    }
+    'start' { foreach ($s in $chosen) { Start-One $s } }
     'stop' {
         $order = @(
             @{ Name='open-webui';       Title='Open WebUI';       Port=3000; Path='.\open-webui'; Script='start.bat' },
