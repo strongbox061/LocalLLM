@@ -1,4 +1,4 @@
-# exec-service.ps1 <name> - what each LocalLLM Windows service runs (WinSW starts it; see setup.ps1). Sets the service's
+# run-service.ps1 <name> - what each LocalLLM Windows service runs (WinSW starts it; see setup.ps1). Sets the service's
 # environment from config.json and secrets\ (read now, so no secret is in the service definition) and runs its
 # program in the foreground; WinSW stops the whole process tree.
 param([Parameter(Mandatory = $true)][string]$Name)
