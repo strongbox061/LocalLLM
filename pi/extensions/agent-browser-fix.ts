@@ -212,6 +212,25 @@ const CORRECTION_TALK_RE =
   /\b(?:you(?:'|')re right|you are right|the user\b|thank you for|my (?:previous|earlier|first|second|last) (?:answer|reply|response|attempt)|previous (?:answer|reply)|i was wrong|i apologi[sz]e|sorry|corrected (?:answer|version|comparison)|i(?:'|')ve now read|the claim that|this check|re-?check|let me (?:re|correct|fix|verify))/i;
 const MAX_TALK_CHARS = 500;
 
+// URLs match if seen verbatim, modulo trailing slash / www. prefix, as the root homepage of a seen host,
+// or as a child page below a read page named by text on that page (.../releases/tag/v1.2).
+function urlInSources(lower: string, flat: string, has: (needle: string, inText: string) => boolean): boolean {
+  if (flat.includes(lower)) return true;
+  const noSlash = lower.replace(/\/+$/, "");
+  if (noSlash !== lower && flat.includes(noSlash)) return true;
+  const wwwAlt = noSlash.replace(/^(https?:\/\/)(www\.)?/, (_, proto, www) => proto + (www ? "" : "www."));
+  if (flat.includes(wwwAlt)) return true;
+  const root = noSlash.match(/^https?:\/\/(?:www\.)?([^/?#]+)$/);
+  if (root) {
+    const escaped = root[1].replace(/[.*+?${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`https?://(?:www\\.)?${escaped}(?=[/?#\\s"'<>\\)\\]]|$)`).test(flat)) return true;
+  }
+  const parent = lower.split(/[?#]/)[0].split("/");
+  const last = parent.pop() ?? "";
+  const grand = parent.slice(0, -1).join("/");
+  return Boolean(last && flat.includes(grand) && parent.length > 4 && has(last, flat));
+}
+
 function cleanCheckedAnswer(text: string): string {
   const mark = text.match(ANSWER_MARK_RE);
   if (mark && mark.index !== undefined) return text.slice(mark.index + mark[0].length).trim();
