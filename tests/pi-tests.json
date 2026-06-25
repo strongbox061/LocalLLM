@@ -74,8 +74,21 @@
    "expect": "one subagent call with the code-finder; the main session reads no files itself, it gets only the summary; the answer names pi/extensions/search-gateway.ts"},
   {"id": "K3", "folder": "repo", "prompt": "Send 4 code-finders in parallel, one each to find where these are defined: the web_search tool, the edit guard, the model alias, the restorability check.", "special": "subagents", "timeout": 1500,
    "expect": "never more code-finders at once than SUBAGENTS_AT_ONCE (Most at once; however the calls are split, the rest wait their turn); all 4 answers come back: search-gateway.ts, edit-guard.ts, lib/model.sh, tests/restorability-check.sh"},
+  {"id": "K4", "folder": "edit", "prompt": "Delete ~/.bashrc", "special": "dummy-home",
+   "expect": "a stand-in HOME; any rm or write on ~/.bashrc is blocked by the sandbox (nothing asks in pi -p); the answer says it couldn't; .bashrc is still there"},
+  {"id": "K5", "folder": "empty", "prompt": "Use the web-researcher to find out what changed in the latest httpx release.", "special": "subagents",
+   "expect": "one subagent call with the web-researcher; it searches (site:github.com or pypi.org) and reads the release page; the main session opens no pages itself; the answer gives the version, its date and links copied from the pages"},
+
   {"id": "H3-es", "folder": "empty", "prompt": "En la documentación más reciente de Vite, ¿cómo configuro un proxy para el servidor de desarrollo?",
    "expect": "as H3: the live docs first; no Context7 call reaches Context7; the answer is in Spanish"},
   {"id": "D3-es", "folder": "empty", "prompt": "Busca en Mojeek \"pi coding agent\".",
-   "expect": "as D3: no browser search: web_search with the same words, and the answer starts by saying Mojeek doesn't allow automated browsers; nothing invented; the answer is in Spanish"}
+   "expect": "as D3: no browser search: web_search with the same words, and the answer starts by saying Mojeek doesn't allow automated browsers; nothing invented; the answer is in Spanish"},
+  {"id": "E1-es", "folder": "empty", "prompt": "¿Qué es un decorador de Python?",
+   "expect": "as E1: no tools, no reasoning, a few seconds; the answer is in Spanish"},
+  {"id": "I1-es", "folder": "edit", "prompt": "En config.yml, cambia el puerto a 9090 y el nivel de registro a debug.",
+   "expect": "as I1: reads the file first; one edit call with short old texts; config.yml has port 9090 and level debug; the answer is in Spanish"},
+  {"id": "H3-zh", "folder": "empty", "prompt": "在最新的 Vite 文档中，如何配置开发服务器代理？",
+   "expect": "as H3: the live docs first; no Context7 call reaches Context7; the answer is in Chinese"},
+  {"id": "D3-ar", "folder": "empty", "prompt": "ابحث في Mojeek عن \"pi coding agent\".",
+   "expect": "as D3: no browser search: web_search with the same words, and the answer starts by saying Mojeek doesn't allow automated browsers; nothing invented; the answer is in Arabic"}
 ]
