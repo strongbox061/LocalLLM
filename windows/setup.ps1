@@ -198,7 +198,24 @@ if ((Want 'webui') -and $wanted['open-webui']) {
 
 # --- Whisper (speech-to-text, services\whisper_server.py with Open WebUI's Python) ---
 if ((Want 'whisper') -and $wanted['whisper']) {
-    Write-Host "Whisper setup skipped on helper PC"
+    Step "Whisper $($v.whisper_model)"
+    $py = Venv-Python $paths 'open-webui'
+    if (-not (Test-Path $py)) { Fail "Whisper runs with Open WebUI's Python: run setup with the webui step first." }
+    $dir = Join-Path $paths.Models 'whisper'
+    # Open WebUI's own copy (from before this service), when it has the model: copied, not downloaded again.
+    $old = Join-Path $paths.WebUIData 'cache\whisper\models'
+    $repo = "models--*--faster-whisper-$($v.whisper_model)"
+    if (-not (Get-ChildItem $dir -Filter $repo -ErrorAction SilentlyContinue) -and (Get-ChildItem $old -Filter $repo -ErrorAction SilentlyContinue)) {
+        Info "Copying the model from Open WebUI's cache..."
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+        Copy-Item -Recurse -Force (Join-Path $old '*') $dir
+    }
+    # Downloads what's missing (nothing when it's all there).
+    # (No double quotes in the code: Windows PowerShell 5.1 drops them on the way to a program's arguments.)
+    $code = "import sys, faster_whisper as f; p = f.download_model(sys.argv[1], cache_dir=sys.argv[2]); print('ok', p)"
+    $out = Native { & $py -c $code $v.whisper_model $dir }
+    if (-not ($out | Where-Object { $_ -like 'ok *' })) { $out | Select-Object -Last 10 | ForEach-Object { Write-Host "    $_" }; Fail "Whisper's model didn't download." }
+    Info "Whisper ready (model in $dir)."
 }
 
 # --- Kokoro (text-to-speech) ---
