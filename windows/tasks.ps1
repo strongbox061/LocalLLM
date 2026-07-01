@@ -79,13 +79,19 @@ if ($Task -eq 'topology') {
         Write-Error "Usage: tasks.ps1 topology <single|split>"
         exit 1
     }
-    $topoScript = Join-Path $RepoRoot 'open-webui' 'topology.py'
-    if (Test-Path $topoScript) {
-        Py -Args @($topoScript, $args[0])
-        exit $LASTEXITCODE
-    }
-    Write-Error "Topology script not found: $topoScript"
-    exit 1
+    $mode = $args[0]
+    $names = @($cfg.services | ForEach-Object name)
+    $v = $cfg.versions
+    $settings = @{ llama_url = $cfg.llama_url; llama_key = (Read-Secret 'llama-api-key'); whisper_model = $v.whisper_model
+        reranking_model = $v.reranking_model
+        whisper_url = $(if ($names -contains 'whisper') { 'http://127.0.0.1:8882' } else { '' })
+        docling_url = $(if ($names -contains 'docling') { 'http://127.0.0.1:5001' } else { '' })
+        small_model = $(if ($names -contains 'small-model') { @{ url = 'http://127.0.0.1:8083'; alias = $v.small_model.alias } } else { $null })
+        comfyui = $(if ($names -contains 'comfyui') { @{ url = 'http://127.0.0.1:8188'; checkpoint = $v.comfyui_checkpoint.file; embeddings = @($v.comfyui_embeddings | ForEach-Object { [IO.Path]::GetFileNameWithoutExtension($_.file) }) } } else { $null }) }
+    $f = Join-Path $SecretsDir 'topology.json'
+    Set-Content -Path $f -Value ($settings | ConvertTo-Json -Depth 5) -Encoding ASCII
+    try { $code = Py (Join-Path $RepoDir 'open-webui\topology.py') $mode $url $db $key $f } finally { Remove-Item -Force $f }
+    exit $code
 }
 
 # --- Chat types ---
