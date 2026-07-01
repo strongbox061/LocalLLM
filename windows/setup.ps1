@@ -220,7 +220,24 @@ if ((Want 'whisper') -and $wanted['whisper']) {
 
 # --- Kokoro (text-to-speech) ---
 if ((Want 'kokoro') -and $wanted['kokoro']) {
-    Write-Host "Kokoro setup skipped on helper PC"
+    Step "Kokoro $($v.kokoro_fastapi)"
+    $root = Get-SourceZip 'remsky/Kokoro-FastAPI' $v.kokoro_fastapi 'kokoro-fastapi'
+    $py = New-Venv 'kokoro'
+    $have = Native { & $py -c "import importlib.metadata as m; print(m.version('kokoro-fastapi'))" } | Select-Object -Last 1
+    if ($have -ne $v.kokoro_fastapi.TrimStart('v')) {
+        Info "Installing Kokoro's packages (several minutes)..."
+        Push-Location $root
+        try { Uv pip install --quiet --python $py -e ".[gpu]" } finally { Pop-Location }
+    }
+    Install-Torch $py
+    $model = Join-Path $root 'api\src\models\v1_0'
+    if (-not (Get-ChildItem $model -Filter *.pth -ErrorAction SilentlyContinue)) {
+        Info "Downloading Kokoro's model..."
+        Push-Location $root
+        try { $out = Native { & $py docker\scripts\download_model.py --output api\src\models\v1_0 } } finally { Pop-Location }
+        if (-not (Get-ChildItem $model -Filter *.pth -ErrorAction SilentlyContinue)) { $out | Select-Object -Last 10 | ForEach-Object { Write-Host "    $_" }; Fail "Kokoro's model didn't download." }
+    }
+    Info "Kokoro ready (model in $model)."
 }
 
 # --- Docling (reads PDFs and scans for Open WebUI's documents) ---
