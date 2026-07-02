@@ -108,7 +108,6 @@ export class SlotQueue {
 		this.free.sort((a, b) => b - a);
 	}
 }
-
 // LocalLLM: the most subagents one message of the person's may start: model.json "subagentsMax" (from local.env), 8
 // without it.
 export function subagentsMax(file = process.env.LOCALLLM_MODEL_JSON || path.join(os.homedir(), ".config/localllm/model.json")): number {
@@ -123,7 +122,6 @@ const AT_ONCE = subagentsAtOnce();
 const MAX_PER_MESSAGE = subagentsMax();
 let startedForMessage = 0; // LocalLLM: subagents started since the person's latest message
 const QUEUE = new SlotQueue(AT_ONCE, SLOTS);
-
 // LocalLLM: what every child is told, before its agent's own prompt.
 export const SUBAGENT_NOTE = [
 	"You are a subagent: another agent gave you this task and reads only your final answer.",
