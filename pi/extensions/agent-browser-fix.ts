@@ -209,7 +209,7 @@ const FINISH_NOTE_UI =
 // After a check: the marker line, and the talk about corrections that the model may still write first.
 const ANSWER_MARK_RE = /^[*_#\s]*ANSWER:[*_]*[ \t]*\n*/m;
 const CORRECTION_TALK_RE =
-  /\b(?:you(?:'|')re right|you are right|the user\b|thank you for|my (?:previous|earlier|first|second|last) (?:answer|reply|response|attempt)|previous (?:answer|reply)|i was wrong|i apologi[sz]e|sorry|corrected (?:answer|version|comparison)|i(?:'|')ve now read|the claim that|this check|re-?check|let me (?:re|correct|fix|verify))/i;
+  /\b(?:you(?:'|’)re right|you are right|the user\b|thank you for|my (?:previous|earlier|first|second|last) (?:answer|reply|response|attempt)|previous (?:answer|reply)|i was wrong|i apologi[sz]e|sorry|corrected (?:answer|version|comparison)|i(?:'|’)ve now read|the claim that|this check|re-?check|let me (?:re|correct|fix|verify))/i;
 const MAX_TALK_CHARS = 500;
 
 // URLs match if seen verbatim, modulo trailing slash / www. prefix, as the root homepage of a seen host,
