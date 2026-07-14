@@ -102,25 +102,22 @@ function shorten(def: any): boolean {
 }
 
 export default function (pi: any) {
-  pi.on("before-tool-calls", async (context: any) => {
-    if (!context?.toolCalls) return;
+  pi.on("before_provider_request", (event: any) => {
+    let tools = event?.payload?.tools;
+    if (!Array.isArray(tools)) return;
 
-    for (const call of context.toolCalls) {
-      const toolName = call.tool?.name || call.tool_name;
-      if (!toolName) continue;
-
-      if (DROPPED_TOOLS.has(toolName)) {
-        call.tool = null;
-        continue;
-      }
+    const kept: any[] = [];
+    for (const tool of tools) {
+      const name = (tool?.function ?? tool)?.name;
+      if (!name || DROPPED_TOOLS.has(name)) continue;
 
       try {
-        if (call.tool?.description && SHORT[toolName]) {
-          shorten(call.tool);
-        }
+        shorten(tool?.function ?? tool);
       } catch {
         // Silently skip shortening if the tool schema is malformed.
       }
+      kept.push(tool);
     }
+    event.payload.tools = kept;
   });
 }
