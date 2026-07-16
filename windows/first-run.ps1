@@ -21,13 +21,19 @@ $PublicKey = '@MAIN_PC_PUBLIC_KEY@'
 function Step($text) { Write-Host ""; Write-Host "==> $text" -ForegroundColor Cyan }
 function Fail($text) { Write-Host ""; Write-Host "ERROR: $text" -ForegroundColor Red; exit 1 }
 function Warn($text) { Write-Host "WARNING: $text" -ForegroundColor Yellow }
-
 # Runs a program and returns its output; its error messages are dropped (with 'Stop', Windows PowerShell 5.1 would
 # treat any line a program writes to stderr as a fatal error). $LASTEXITCODE is the program's.
 function Quiet([scriptblock]$run) {
     $saved = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try { & $run 2>$null } finally { $ErrorActionPreference = $saved }
+}
+
+$admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
+    [Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $admin) { Fail "Run this in PowerShell as Administrator (Start, type powershell, right-click, Run as administrator)." }
+if ($PublicKey -notmatch '^ssh-ed25519 [A-Za-z0-9+/=]+') {
+    Fail "No public key in this file: run ./localllm.sh setup-helper on the main PC and use the bootstrap.local.ps1 it writes."
 }
 
 # --- 1. Tailscale ---

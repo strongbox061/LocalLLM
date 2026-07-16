@@ -107,3 +107,7 @@ switch ($Command) {
     }
     'status' { Show-Status }
 }
+
+if ($Pause) { Write-Host ""; Read-Host "Press Enter to close" | Out-Null }
+if ($failed.Count -gt 0) { Write-Host "Not done: $($failed -join ', ')"; exit 1 }
+exit 0
