@@ -25,9 +25,6 @@ ep() { env -i PATH="$PATH" "$@" python3 "$REPO/lib/endpoints.py" print 2>&1; }
 field() { python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print(d["services"][sys.argv[2]][sys.argv[3]])' "$1" "$2" "$3" 2>/dev/null; }
 
 echo "lib/endpoints.py"
-ep() { env -i PATH="$PATH" "$@" python3 "$REPO/lib/endpoints.py" print 2>&1; }
-field() { python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print(d["services"][sys.argv[2]][sys.argv[3]])' "$1" "$2" "$3" 2>/dev/null; }
-
 single="$(ep)"
 check "single mode: every service on the main PC, 127.0.0.1" \
     test "$(field "$single" open-webui url)$(field "$single" llama url)" = "http://127.0.0.1:3000http://127.0.0.1:8081"
