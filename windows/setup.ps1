@@ -247,7 +247,18 @@ if ((Want 'docling') -and $wanted['docling']) {
 
 # --- small model (llama.cpp for Windows, CUDA 12.4 build) ---
 if ((Want 'small') -and $wanted['small-model']) {
-    Write-Host "Small model setup skipped on helper PC"
+    Step "Small model (llama.cpp)"
+    $cpp = Join-Path $paths.Bin 'llama-server.exe'
+    if (Test-Path $cpp) {
+        $have = (Native { & $cpp --version }) -join ' '
+        if ($have) { Info "Small model: llama.cpp ready."; continue }
+    }
+    $zip = Join-Path $paths.Cache "llama-cuda124.zip"
+    Download-File 'https://github.com/ggerganov/llama.cpp/releases/latest/download/llama-bin-win-cuda-x64.zip' $zip
+    Expand-Archive -Path $zip -DestinationPath $paths.Cache\llama-tmp -Force
+    Copy-Item (Join-Path $paths.Cache\llama-tmp 'llama-server.exe') $cpp -Force
+    Remove-Item -Recurse -Force (Join-Path $paths.Cache 'llama-tmp')
+    Info "Small model: llama.cpp ready."
 }
 
 # --- ComfyUI (images, Stable Diffusion 1.5) ---
