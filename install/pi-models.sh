@@ -27,21 +27,14 @@ if [[ -n "${LOCALLLM_MODE:-}" ]] && [[ -f "$HOME/.config/localllm/llama-api-key"
 fi
 
 # Generate models.json using embedded Python
+# Generate models.json using embedded Python (heredoc to avoid quoting issues)
 MODEL_ID="$MODEL_ALIAS" MODEL_NAME="$MODEL_NAME" CONTEXT="$CONTEXT" MAX_TOKENS="$MAX_TOKENS" \
-API_KEY="$API_KEY" python3 -c '
+    API_KEY="$API_KEY" python3 - "$MODELS_JSON" <<'EOF_PY'
 import json, os, sys
 
-model_id = os.environ["MODEL_ID"]
-model_name = os.environ["MODEL_NAME"]
-context = int(os.environ["CONTEXT"])
-max_tokens = int(os.environ["MAX_TOKENS"])
-api_key = os.environ.get("API_KEY", "")
-
-models_json_path = os.environ.get("MODELS_JSON", os.path.expanduser("~/.config/pi/models.json"))
-
-# Load existing models.json if it exists
-if os.path.exists(models_json_path):
-    with open(models_json_path, "r") as f:
+path = sys.argv[1]
+if os.path.exists(path):
+    with open(path, "r") as f:
         config = json.load(f)
 else:
     config = {"providers": []}
@@ -49,13 +42,13 @@ else:
 # Build the llamacpp provider entry
 provider = {
     "name": "llamacpp",
-    "model_id": model_id,
-    "context_length": context,
-    "max_tokens": max_tokens
+    "model_id": os.environ["MODEL_ID"],
+    "context_length": int(os.environ["CONTEXT"]),
+    "max_tokens": int(os.environ["MAX_TOKENS"])
 }
 
-if api_key:
-    provider["api_key"] = api_key
+if os.environ.get("API_KEY", ""):
+    provider["api_key"] = os.environ["API_KEY"]
 
 # Replace or add the llamacpp provider
 providers = config.get("providers", [])
@@ -71,9 +64,9 @@ if not found:
 config["providers"] = providers
 
 # Write back
-with open(models_json_path, "w") as f:
+with open(path, "w") as f:
     json.dump(config, f, indent=2)
     f.write("\n")
 
-print(f"Updated {models_json_path}: llamacpp provider for {model_name} (ctx={context}, max_tokens={max_tokens})")
-'
+print(f"Updated {path}: llamacpp provider for {os.environ['MODEL_NAME']} (ctx={os.environ['CONTEXT']}, max_tokens={os.environ['MAX_TOKENS']})")
+EOF_PY
