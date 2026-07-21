@@ -6,25 +6,19 @@ param([Parameter(Mandatory = $true)][string]$Name)
 
 $cfg = Read-Config
 $paths = Get-Paths $cfg
-
-# Load secrets from the secrets sub-directory for this service name
-$secretsDir = Join-Path $paths.Root 'secrets' $Name
-if (Test-Path $secretsDir) {
-    Get-ChildItem $secretsDir -File | ForEach-Object {
-        $key = $_.BaseName.ToUpper()
-        $val = [System.IO.File]::ReadAllText($_.FullName).Trim()
-        [Environment]::SetEnvironmentVariable($key, $val)
-    }
+Set-ToolEnv $paths
+$spec = Get-ServiceSpec $Name $cfg $paths
+foreach ($k in $spec.env.Keys) { Set-Item -Path "env:$k" -Value ([string]$spec.env[$k]) }
+if (-not (Test-Path $spec.exe)) { Fail "$Name is not installed ($($spec.exe) is missing): run ./localllm.sh install-helper on the main PC." }
+Set-Location $spec.dir
+# The program's log lines on stderr are just output here (WinSW keeps both in the service's log).
+$ErrorActionPreference = 'Continue'
+if ($Name -eq 'open-webui') {
+    # Voice fixes for every browser, served as Open WebUI's /static/loader.js (open-webui\install_loader.py). Voice
+    # mode still works without them, so a failure here doesn't stop Open WebUI.
+    & (Venv-Python $paths 'open-webui') -I (Join-Path $RepoDir 'open-webui\install_loader.py')
+    if ($LASTEXITCODE -ne 0) { Write-Host "WARNING: Open WebUI's voice fixes (loader.js) weren't installed." }
 }
-
-# Resolve the program to run (default: ollama serve)
-$binDir = $paths.Bin ?: $paths.Root
-$exe = Join-Path $binDir 'ollama'
-if (-not (Test-Path $exe)) { $exe = Join-Path $binDir 'ollama.exe' }
-
-# Pass through any extra args meant for the service process
-$remainingArgs = @($args) | Where-Object { $_ -ne $Name }
-
-Write-Host "Starting LocalLLM service '$Name' from $($paths.Root)"
-& $exe @remainingArgs
+Write-Host "$(Get-Date -Format s) starting $Name$(if (Test-Gaming) { ' (gaming mode)' })"
+& $spec.exe @($spec.args)
 exit $LASTEXITCODE
