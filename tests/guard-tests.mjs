@@ -166,7 +166,7 @@ console.log("agent-browser-fix.ts: search engines in the browser");
   await p.say("What is kokoro tts?");
   let r = await p.call("agent_browser", { args: ["open", "https://www.google.com/search?q=kokoro+tts"] });
   check("Google's results page is blocked", r.blocked && /web_search/.test(r.reason), r.reason);
-  check("the block hands over the same words", /\"query\":\"kokoro tts\"/.test(r.reason ?? ""), r.reason);
+  check("the block hands over the same words", /"query":"kokoro tts"/.test(r.reason ?? ""), r.reason);
   r = await p.call("agent_browser", { args: ["open", "http://127.0.0.1:8080/search?q=x"] });
   check("the local SearXNG is blocked too", r.blocked);
   r = await p.call("agent_browser", { args: ["open", "https://github.com/ggml-org/llama.cpp"] });
@@ -174,10 +174,10 @@ console.log("agent-browser-fix.ts: search engines in the browser");
   await p.say('Search Google directly for "qwen3.5 release" using the browser and list the top 3 results.');
   r = await p.call("agent_browser", { args: ["open", "https://www.google.com"] });
   check("a named engine's home page is refused, with web_search and the quoted words (run 8's F2)",
-    r.blocked && /web_search with the same words, \{\"query\":\"qwen3\.5 release\"\}/.test(r.reason), r.reason);
+    r.blocked && /web_search with the same words, {"query":"qwen3\.5 release"}/.test(r.reason), r.reason);
   r = await p.call("agent_browser", { args: ["open", "https://www.google.com/search?q=qwen3.5+release"] });
   check("... and its results page too: named engines aren't opened (run 10's F2: always a CAPTCHA)",
-    r.blocked && /Not opened: Google doesn't allow automated browsers/.test(r.reason) && /\"query\":\"qwen3\.5 release\"/.test(r.reason), r.reason);
+    r.blocked && /Not opened: Google doesn't allow automated browsers/.test(r.reason) && /"query":"qwen3\.5 release"/.test(r.reason), r.reason);
   check("... the answer is to say so first, in the person's language", /begin your answer, in the language of the person's message, by saying the results come from Search Gateway because Google doesn't allow automated browsers/.test(r.reason), r.reason);
   await p.say("What's new in Vite?");
   r = await p.call("agent_browser", { args: ["open", "https://www.bing.com/"] });
@@ -195,7 +195,7 @@ console.log("agent-browser-fix.ts: search engines in the browser");
   const text = captcha?.content?.[0]?.text ?? "";
   check("a CAPTCHA page says the engine blocked it", /Google blocked the search/.test(text), text);
   check("... says the next step is a tool call, not the answer", /next step is a tool call, not the answer/.test(text), text);
-  check("... hands over web_search with the same words", /\"query\":\"kokoro tts\"/.test(text), text);
+  check("... hands over web_search with the same words", /"query":"kokoro tts"/.test(text), text);
   check("... and asks the answer to say so", /Once you have its results, answer, beginning with: google blocked the search/.test(text), text);
   await p.say("Search Mojeek for pi coding agent");
   await p.call("agent_browser", { args: ["open", "https://www.mojeek.com/search?q=pi+coding+agent"] });
@@ -203,7 +203,7 @@ console.log("agent-browser-fix.ts: search engines in the browser");
     "403 - Forbidden | https://www.mojeek.com/search?q=pi+coding+agent");
   const ftext = forbidden?.content?.[0]?.text ?? "";
   check("a 403 from a search engine counts as blocked, same words, no site:",
-    /Mojeek blocked the search/.test(ftext) && /\"query\":\"pi coding agent\"/.test(ftext) && /no site: filter/.test(ftext), ftext);
+    /Mojeek blocked the search/.test(ftext) && /"query":"pi coding agent"/.test(ftext) && /no site: filter/.test(ftext), ftext);
 }
 
 const PKG = join(TMP, "pkg");
