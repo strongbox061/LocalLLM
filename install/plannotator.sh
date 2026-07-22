@@ -10,87 +10,47 @@
 
 set -euo pipefail
 
-PI_AGENT_DIR="${PI_AGENT_DIR:-$HOME/.pi}"
-PLANNODATORDIR="$PI_AGENT_DIR/tools"
-EXT_PACKAGE="$PI_AGENT_DIR/npm/node_modules/@plannotator/pi-extension/package.json"
+source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
 
-# --- version ---
-if [ ! -f "$EXT_PACKAGE" ]; then
-  echo "ERROR: @plannotator/pi-extension not found at $EXT_PACKAGE" >&2
-  echo "Run install/pi-packages.sh first." >&2
-  exit 1
-fi
+EXT_PACKAGE="$PI_AGENT_DIR/npm/node_modules/@plannotator/pi-extension/package.json"
+[[ -f "$EXT_PACKAGE" ]] \
+    || die "Pi's Plannotator extension is not installed ($EXT_PACKAGE). Run install/pi-packages.sh first."
 
 VERSION="$(node -p 'require(process.argv[1]).version' "$EXT_PACKAGE")"
-echo "Installing plannotator v$VERSION"
 
 # --- the binary ---
-BINARY="$PLANNODATORDIR/plannotator"
-if [ -f "$BINARY" ]; then
-  echo "plannotator binary already installed, skipping."
+if command -v plannotator >/dev/null && plannotator --version 2>/dev/null | grep -qF "$VERSION"; then
+    echo "plannotator $VERSION is already installed."
 else
-  mkdir -p "$PLANNODATORDIR"
-  npm install -g --prefix /tmp/plando-install "@plannotator/pi-extension@$VERSION" --minimal 2>/dev/null || true
-  # The npm global bin puts the executable in node_modules/.bin/
-  BIN_SRC="/tmp/plando-install/lib/node_modules/@plannotator/pi-extension/dist/cli.js"
-  if [ -f "$BIN_SRC" ]; then
-    cp "$BIN_SRC" "$BINARY"
-    chmod +x "$BINARY"
-    echo "Installed binary to $BINARY"
-  else
-    # Fallback: link the npm bin directly
-    LINK="/tmp/plando-install/bin/plannotator"
-    if [ -f "$LINK" ]; then
-      cp "$LINK" "$BINARY"
-      chmod +x "$BINARY"
-      echo "Installed binary to $BINARY (npm bin)"
-    else
-      echo "WARNING: could not find plannotator binary in npm package, trying direct install..."
-      npm install -g --minimal "@plannotator/pi-extension@$VERSION" 2>/dev/null || true
-      NPM_BIN="$(npm config get prefix)/bin/plannotator"
-      if [ -f "$NPM_BIN" ]; then
-        cp "$NPM_BIN" "$BINARY"
-        chmod +x "$BINARY"
-        echo "Installed binary to $BINARY (global npm)"
-      else
-        echo "ERROR: plannotator binary not found after npm install." >&2
-        exit 1
-      fi
-    fi
-  fi
-  rm -rf /tmp/plando-install
+    # Downloaded first, not piped: in --minimal mode the installer exits before reading all of itself, which makes a
+    # piping curl fail ("Failure writing output").
+    INSTALLER="$(mktemp)"
+    trap 'rm -f "$INSTALLER"' EXIT
+    curl -fsSL https://plannotator.ai/install.sh -o "$INSTALLER"
+    bash "$INSTALLER" --version "v$VERSION" --minimal --non-interactive
+    command -v plannotator >/dev/null || die "plannotator was not installed in ~/.local/bin."
+    echo "Installed plannotator $VERSION."
 fi
 
 # --- Pi's plannotator_inbox tool ---
 # Off by default for Pi, because its definition adds about 3,200 tokens to every Pi request. Only this key is set; the
 # rest of config.json (the Inbox's own settings) is kept. Pi picks it up in sessions started after the Inbox has run
 # once (`plannotator inbox`), or after /reload.
-
-CONFIG_FILE="$PI_AGENT_DIR/config.json"
-TOOL_CODE='const fs = require("fs");
+node - "$(plannotator data-dir)/config.json" <<'EOF'
+const fs = require("fs");
 const path = require("path");
 const file = process.argv[2];
 let config = {};
+try { config = JSON.parse(fs.readFileSync(file, "utf8")); } catch {}
 const tool = config.inboxTool;
-if (tool === true || (tool && typeof tool === "object" && tool.pi === true)) {'
+if (tool === true || (tool && typeof tool === "object" && tool.pi === true)) {
+    console.log("The Inbox tool for Pi is already on.");
+} else {
+    config.inboxTool = { ...(tool && typeof tool === "object" ? tool : {}), pi: true };
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
+    console.log(`Turned on the Inbox tool for Pi in ${file}`);
+}
+EOF
 
-if [ ! -f "$CONFIG_FILE" ]; then
-  echo '{}' > "$CONFIG_FILE"
-fi
-
-# Check if inboxTool is already configured
-if node -e "const c=JSON.parse(require('fs').readFileSync('$CONFIG_FILE','utf8')); process.exit(c.inboxTool ? 0 : 1)" 2>/dev/null; then
-  echo "inboxTool already configured, skipping."
-else
-  # Add inboxTool: true to config.json using node for safe JSON manipulation
-  node -e "
-    const fs = require('fs');
-    let c = JSON.parse(fs.readFileSync('$CONFIG_FILE', 'utf8'));
-    c.inboxTool = true;
-    fs.writeFileSync('$CONFIG_FILE', JSON.stringify(c, null, 2) + '\n');
-  "
-  echo "Configured inboxTool in $CONFIG_FILE"
-fi
-
-echo "Plannotator v$VERSION installed successfully."
 echo "Start the Inbox with: plannotator inbox"
