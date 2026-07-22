@@ -11,8 +11,8 @@ schema is authoritative; don't use CLI syntax from memory.
 
 ## Session: never send it
 
-Never include a session ID in prompts or tool calls. The platform
-manages sessions automatically — sending one will cause errors.
+Pi manages the browser session. Never send `session`, `sessionName`,
+`--session`, or `--session-name`.
 
 
 ## Commands
@@ -52,12 +52,7 @@ If a CAPTCHA appears:
 
 ## Errors
 
-Common error handling:
-
-- **"open" timed out:** Run `["get", "url"]` to check if you're already on the
-  page. If the URL matches, continue. If it redirected, retry `open` once.
-- **"Full page text" output:** The tool returns a local file path with the page
-  content. Read that file with `offset/limit` instead of fetching the page again.
-- **Blank or empty page:** Retry the `open` once. If still blank, report it.
-- **Login walls / paywalls:** Note them and report to the user. Don't attempt
-  to bypass authentication mechanisms.
+Read the error and `nextActions`. Don't repeat the failed call or
+invent selectors or refs. For stale or unknown refs, run
+`["snapshot", "-i"]`. If the goal is page text, use
+`["get", "text", "body"]`.
