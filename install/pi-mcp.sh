@@ -58,7 +58,7 @@ DOCTOR="$PI_AGENT_DIR/npm/node_modules/.bin/pi-mcp-adapter"
 state=""
 if [[ -x "$DOCTOR" ]]; then
     state="$(cd "$HOME" && timeout 60 "$DOCTOR" doctor --json </dev/null 2>/dev/null \
-        | python3 -c 'import json,sys; print(next((s["state"] for s in json.load(sys.stdin) if s["name"]=="context7"), "'))' \
+        | python3 -c 'import json,sys; print(next((s["state"] for s in json.load(sys.stdin) if s["name"]=="context7"), ""))' \
         2>/dev/null)" || true
 fi
 case "$state" in
@@ -69,5 +69,3 @@ case "$state" in
             "/mcp-auth context7 in an interactive Pi session." ;;
 esac
 echo "Start a new Pi session (or /reload) to load the servers."
-
-
