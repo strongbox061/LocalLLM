@@ -1,5 +1,5 @@
-// cap-output.ts
-// Location: ~/.pi/agent/extensions/cap-output.ts
+// truncate-output.ts
+// Location: ~/.pi/agent/extensions/truncate-output.ts
 //
 // One tool result could fill half the context. Pi's own limit for bash and read is 2000 lines or 50 KB, written for
 // models with 200k-token windows; here the window is 57,344 tokens and compaction starts at about 45,000. A plain
