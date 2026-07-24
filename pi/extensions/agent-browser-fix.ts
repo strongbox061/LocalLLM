@@ -190,15 +190,7 @@ const MAX_REFUSED_REPEATS = 3;
 // from counting as a new task, and tells the model nobody said them.
 const FINISH_TAG = "[Automatic check, not from the user.";
 
-// What the person sent, from Pi's `input` event: typed text, `pi -p`, RPC, or an extension's sendUserMessage (the
-// Plannotator Inbox delivers the person's replies that way). Hidden messages other extensions add (the Inbox reminder,
-// the end-of-answer checks) reach the model as user messages too, but never fire `input`. An Inbox reply's first line
-// ("Plannotator Inbox: <title> (<id>)") is the model's own thread title, so it is dropped.
-export function personText(text: string): string {
-  const t = String(text ?? "");
-  return t.startsWith("Plannotator Inbox: ") ? t.slice(t.indexOf("\n") + 1 || t.length) : t;
-}
-const FINISH_NOTE =
+
   `${FINISH_TAG} The user can't see this check or your earlier reply. The answer you write next is the only ` +
   "reply they will read, so make it complete, as if for the first time. Start it with a line saying only " +
   "ANSWER: and put nothing before that line.]";
@@ -222,7 +214,7 @@ function urlInSources(lower: string, flat: string, has: (needle: string, inText:
   if (flat.includes(wwwAlt)) return true;
   const root = noSlash.match(/^https?:\/\/(?:www\.)?([^/?#]+)$/);
   if (root) {
-    const escaped = root[1].replace(/[.*+?${}()|[\]\\]/g, "\\$&");
+    const escaped = root[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     if (new RegExp(`https?://(?:www\\.)?${escaped}(?=[/?#\\s"'<>\\)\\]]|$)`).test(flat)) return true;
   }
   const parent = lower.split(/[?#]/)[0].split("/");
@@ -241,3 +233,5 @@ function cleanCheckedAnswer(text: string): string {
   }
   return paragraphs.join("\n\n");
 }
+
+// What the person sent, from Pi's `input` event: typed text, `pi -p`, RPC, or an extension's sendUserMessage (the
