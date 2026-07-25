@@ -45,238 +45,149 @@ function Py { $a = $args; $out = Native { & $py @a }; $out | ForEach-Object { Wr
 # (state database and settings with the search API keys).
 $Moving = @(@{ src = $paths.WebUIData; name = 'open-webui' }, @{ src = $paths.GatewayData; name = 'search-gateway' })
 
-# --- Open WebUI version ---
-if ($Task -eq 'version') {
-    if (Test-Path $py) { Native { & $py -c "import importlib.metadata as m; print(m.version('open-webui'))" } | Select-Object -Last 1 }
-    exit 0
-}
-
-# --- Voice loader ---
-if ($Task -eq 'loader') {
-    $loaderScript = Join-Path $RepoRoot 'open-webui' 'install_loader.py'
-    if (Test-Path $loaderScript) {
-        Py -Args @($loaderScript)
-        exit $LASTEXITCODE
-    }
-    Write-Error "Loader script not found: $loaderScript"
-    exit 1
-}
-
-# --- Sync Open WebUI tools ---
-if ($Task -eq 'sync') {
-    $syncScript = Join-Path $RepoRoot 'open-webui' 'sync.py'
-    if (Test-Path $syncScript) {
-        Py -Args @($syncScript)
-        exit $LASTEXITCODE
-    }
-    Write-Error "Sync script not found: $syncScript"
-    exit 1
-}
-
-# --- Topology settings ---
-if ($Task -eq 'topology') {
-    if ($args.Count -lt 1 -or @('single', 'split') -notcontains $args[0]) {
-        Write-Error "Usage: tasks.ps1 topology <single|split>"
-        exit 1
-    }
-    $mode = $args[0]
-    $names = @($cfg.services | ForEach-Object name)
-    $v = $cfg.versions
-    $settings = @{ llama_url = $cfg.llama_url; llama_key = (Read-Secret 'llama-api-key'); whisper_model = $v.whisper_model
-        reranking_model = $v.reranking_model
-        whisper_url = $(if ($names -contains 'whisper') { 'http://127.0.0.1:8882' } else { '' })
-        docling_url = $(if ($names -contains 'docling') { 'http://127.0.0.1:5001' } else { '' })
-        small_model = $(if ($names -contains 'small-model') { @{ url = 'http://127.0.0.1:8083'; alias = $v.small_model.alias } } else { $null })
-        comfyui = $(if ($names -contains 'comfyui') { @{ url = 'http://127.0.0.1:8188'; checkpoint = $v.comfyui_checkpoint.file; embeddings = @($v.comfyui_embeddings | ForEach-Object { [IO.Path]::GetFileNameWithoutExtension($_.file) }) } } else { $null }) }
-    $f = Join-Path $SecretsDir 'topology.json'
-    Set-Content -Path $f -Value ($settings | ConvertTo-Json -Depth 5) -Encoding ASCII
-    try { $code = Py (Join-Path $RepoDir 'open-webui\topology.py') $mode $url $db $key $f } finally { Remove-Item -Force $f }
-    exit $code
-}
-
-# --- Chat types ---
-if ($Task -eq 'chat-types') {
-    $ctScript = Join-Path $RepoRoot 'open-webui' 'chat_types.py'
-    if (Test-Path $ctScript) {
-        Py -Args @($ctScript) + $args
-        exit $LASTEXITCODE
-    }
-    Write-Error "Chat types script not found: $ctScript"
-    exit 1
-}
-
-# --- Chat types status ---
-if ($Task -eq 'chat-types-status') {
-    $ctStatusScript = Join-Path $RepoRoot 'open-webui' 'chat_types.py'
-    if (Test-Path $ctStatusScript) {
-        Py -Args @($ctStatusScript, '--status')
-        exit $LASTEXITCODE
-    }
-    Write-Error "Chat types script not found"
-    exit 1
-}
-
-# --- Settings status ---
-if ($Task -eq 'settings-status') {
-    $settingsScript = Join-Path $RepoRoot 'open-webui' 'settings_status.py'
-    if (Test-Path $settingsScript) {
-        Py -Args @($settingsScript)
-        exit $LASTEXITCODE
-    }
-    Write-Output '{}'
-    exit 0
-}
-
-# --- Check data integrity ---
-if ($Task -eq 'check') {
-    if ($args.Count -lt 1) {
-        Write-Error "Usage: tasks.ps1 check <folder>"
-        exit 1
-    }
-    $folder = $args[0]
-    if (-not (Test-Path $folder)) {
-        Write-Output '{"error": "folder not found"}'
-        exit 1
-    }
-
-    # Inline Python for database checks and file counts
-    $pythonCode = @'
-import hashlib, json, os, sqlite3, sys
-
-def q(con, sql):
-    try:
-        return con.execute(sql).fetchall()
-    except Exception:
-        return []
-
-def db_size(path):
-    if not os.path.isfile(path):
-        return 0
-    return os.path.getsize(path)
-
-def file_count(directory):
-    if not os.path.isdir(directory):
-        return 0
-    return sum(1 for _ in os.walk(directory))
-
-folder = sys.argv[1]
-result = {
-    "folder": folder,
-    "exists": os.path.isdir(folder),
-    "files": 0,
-    "databases": {},
-}
-
-if result["exists"]:
-    result["files"] = file_count(folder)
-    for entry in os.listdir(folder):
-        full = os.path.join(folder, entry)
-        if entry.endswith(".db") or entry.endswith(".sqlite"):
-            size = db_size(full)
-            con = sqlite3.connect(full)
-            tables = q(con, "SELECT name FROM sqlite_master WHERE type='table'")
-            result["databases"][entry] = {"size": size, "tables": len(tables)}
-            con.close()
-
-print(json.dumps(result))
-'@
-
-    $result = Py -Args @('-c', $pythonCode, $folder)
-    exit $LASTEXITCODE
-}
-
-# --- Snapshot data ---
-if ($Task -eq 'snapshot') {
-    if ($args.Count -lt 1) {
-        Write-Error "Usage: tasks.ps1 snapshot <folder> [live]"
-        exit 1
-    }
-    $destFolder = $args[0]
-    $isLive     = $args.Count -gt 1 -and $args[1] -eq 'live'
-
-    if (-not (Test-Path $destFolder)) {
-        New-Item -ItemType Directory -Force -Path $destFolder | Out-Null
-    }
-
-    Write-Host "Snapshotting to $destFolder (live=$isLive)..."
-    # Use robocopy for reliable file copying; skip errors on missing source dirs
-    robocopy $RepoRoot\open-webui\data $destFolder\data /MIR /R:1 /W:1 /NDL /NFL /NJH /NJS 2>$null
-    robocopy $RepoRoot\search-gateway\data $destFolder\search-data /MIR /R:1 /W:1 /NDL /NFL /NJH /NJS 2>$null
-
-    # Record metadata
-    $meta = @{
-        timestamp = Get-Date -Format 'o'
-        live      = $isLive
-        repo_root = $RepoRoot
-    }
-    $meta | ConvertTo-Json | Out-File (Join-Path $destFolder 'snapshot-meta.json') -Encoding utf8
-
-    Write-Host "Snapshot complete."
-    exit 0
-}
-
-# --- Install data ---
-if ($Task -eq 'install-data') {
-    if ($args.Count -lt 1) {
-        Write-Error "Usage: tasks.ps1 install-data <folder>"
-        exit 1
-    }
-    $sourceFolder = $args[0]
-    $dataDest     = Join-Path $RepoRoot 'open-webui' 'data'
-
-    if (-not (Test-Path $sourceFolder)) {
-        Write-Error "Source folder not found: $sourceFolder"
-        exit 1
-    }
-
-    # Back up existing data if it exists
-    if (Test-Path $dataDest) {
-        $dateStr = Get-Date -Format 'yyyyMMdd-HHmmss'
-        $backupName = "$dataDest-before-$dateStr"
-        Rename-Item $dataDest $backupName
-        Write-Host "Backed up existing data to $backupName"
-    }
-
-    Copy-Item -Path "$sourceFolder\*" -Destination $dataDest -Recurse -Force
-    Write-Host "Data installed from $sourceFolder"
-    exit 0
-}
-
-# --- Relocate uploads ---
-if ($Task -eq 'relocate') {
-    $uploadsDir = Join-Path $RepoRoot 'data' 'uploads'
-    if (-not (Test-Path $uploadsDir)) {
-        New-Item -ItemType Directory -Force -Path $uploadsDir | Out-Null
-    }
-
-    # Update the symlink or config pointing Open WebUI uploads to this location
-    $webuiData = Join-Path $RepoRoot 'open-webui' 'data'
-    $targetLink = Join-Path $webuiData 'uploads'
-
-    if (Test-Path $targetLink) {
-        Remove-Item $targetLink -Force
-    }
-    New-Item -ItemType SymbolicLink -Path $targetLink -Target $uploadsDir | Out-Null
-
-    Write-Host "Uploads relocated to $uploadsDir"
-    exit 0
-}
-
-# --- Retire data ---
-if ($Task -eq 'retire-data') {
-    $dataDest = Join-Path $RepoRoot 'open-webui' 'data'
-    if (-not (Test-Path $dataDest)) {
-        Write-Host "No data to retire."
+switch ($Task) {
+    'version' {
+        if (Test-Path $py) { Native { & $py -c "import importlib.metadata as m; print(m.version('open-webui'))" } | Select-Object -Last 1 }
         exit 0
     }
+    'loader' {
+        exit (Py '-I' (Join-Path $RepoDir 'open-webui\install_loader.py'))
+    }
+    'sync' {
+        $env:LOCALLLM_EMBEDDING = 'bge-m3'
+        exit (Py (Join-Path $RepoDir 'open-webui\sync.py') $url $db $key (Join-Path $LocalLLM 'model.json'))
+    }
+    'topology' {
+        $mode = $Rest[0]
+        $names = @($cfg.services | ForEach-Object name)
+        $v = $cfg.versions
+        $settings = @{ llama_url = $cfg.llama_url; llama_key = (Read-Secret 'llama-api-key'); whisper_model = $v.whisper_model
+            reranking_model = $v.reranking_model
+            whisper_url = $(if ($names -contains 'whisper') { 'http://127.0.0.1:8882' } else { '' })
+            docling_url = $(if ($names -contains 'docling') { 'http://127.0.0.1:5001' } else { '' })
+            small_model = $(if ($names -contains 'small-model') { @{ url = 'http://127.0.0.1:8083'; alias = $v.small_model.alias } } else { $null })
+            comfyui = $(if ($names -contains 'comfyui') { @{ url = 'http://127.0.0.1:8188'; checkpoint = $v.comfyui_checkpoint.file; embeddings = @($v.comfyui_embeddings | ForEach-Object { [IO.Path]::GetFileNameWithoutExtension($_.file) }) } } else { $null }) }
+        $f = Join-Path $SecretsDir 'topology.json'
+        Set-Content -Path $f -Value ($settings | ConvertTo-Json -Depth 5) -Encoding ASCII
+        try { $code = Py (Join-Path $RepoDir 'open-webui\topology.py') $mode $url $db $key $f } finally { Remove-Item -Force $f }
+        exit $code
+    }
+    'chat-types' {
+        $args2 = @((Join-Path $RepoDir 'open-webui\chat_types.py'), $url, $db, $key, (Join-Path $LocalLLM 'model.json'), (Join-Path $LocalLLM 'chat-types')) + $Rest
+        exit (Py @args2)
+    }
+    'chat-types-status' {
+        # Read-only: the presets, Knowledge bases and accounts (services\chat_types_web.py db_status, the same code
+        # the page uses in single mode).
+        $code = 'import json, sys; sys.path.insert(0, sys.argv[1]); import chat_types_web as w; print(json.dumps(w.db_status(sys.argv[2])))'
+        Native { & $py -I -c $code (Join-Path $RepoDir 'services') $db }
+        exit $LASTEXITCODE
+    }
+    'settings-status' {
+        # Read-only: embedding model, hybrid search, the chat type presets' tools (open-webui\settings_status.py).
+        Native { & $py -I (Join-Path $RepoDir 'open-webui\settings_status.py') $db }
+        exit $LASTEXITCODE
+    }
 
-    $dateStr = Get-Date -Format 'yyyyMMdd-HHmmss'
-    $retiredName = "$dataDest-moved-$dateStr"
-    Rename-Item $dataDest $retiredName
-    Write-Host "Data retired to $retiredName"
-    exit 0
+    'check' {
+        # Read-only: integrity and what's in it, to compare with the other PC's numbers.
+        $dir = $Rest[0]
+        $code = @'
+import hashlib, json, os, sqlite3, sys
+d = sys.argv[1]
+out = {}
+def q(con, sql):
+    try: return con.execute(sql).fetchone()[0]
+    except sqlite3.Error: return None
+for name, rel in (("webui", "open-webui/webui.db"), ("chroma", "open-webui/vector_db/chroma.sqlite3"), ("gateway", "search-gateway/search-gateway.db")):
+    p = os.path.join(d, *rel.split("/"))
+    if not os.path.exists(p): out[name] = None; continue
+    con = sqlite3.connect(f"file:{p}?mode=ro", uri=True)
+    out[name] = {"integrity": q(con, "pragma integrity_check")}
+    if name == "webui":
+        for t in ("chat", "user", "file", "knowledge", "model"): out[name][t] = q(con, f"select count(*) from {t}")
+        out[name]["newest_chat"] = q(con, "select max(updated_at) from chat")
+    con.close()
+up = os.path.join(d, "open-webui", "uploads")
+names = sorted(os.path.relpath(os.path.join(r, f), up).replace(os.sep, "/") for r, _, fs in os.walk(up) for f in fs) if os.path.isdir(up) else []
+out["uploads"] = len(names)
+out["upload_names"] = hashlib.sha256("\n".join(names).encode("utf-8")).hexdigest()[:16]
+print(json.dumps(out, sort_keys=True))
+'@
+        $tmp = Join-Path $StateDir 'check.py'
+        Set-Content -Path $tmp -Value $code -Encoding ASCII
+        try { Native { & $py -I $tmp $dir } } finally { Remove-Item -Force $tmp }
+        exit 0
+    }
+    'snapshot' {
+        # Open WebUI and the gateway must be stopped (./localllm.sh switch stops them first): plain copies are then
+        # consistent; the databases still go through SQLite's backup, so a -wal file never splits them.
+        # "live" (the main PC's backup.sh): while they run; the databases are still consistent (SQLite's backup),
+        # the vector index folders may be caught mid-write, as on the main PC.
+        $dir = $Rest[0]
+        if ($Rest -notcontains 'live') {
+            foreach ($n in 'localllm-open-webui', 'localllm-search-gateway') {
+                $s = Get-Service $n -ErrorAction SilentlyContinue
+                if ($s -and $s.Status -ne 'Stopped') { Fail "$n is running: stop it first (./localllm.sh stop helper)." }
+            }
+        }
+        Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue
+        foreach ($m in $Moving) {
+            $dst = Join-Path $dir $m.name
+            New-Item -ItemType Directory -Force -Path $dst | Out-Null
+            if (Test-Path $m.src) { Native { robocopy.exe $m.src $dst /E /NFL /NDL /NJH /NJS /NP /XF *-wal *-shm *.db *.sqlite3 /XD cache } | Out-Null }
+            $code = 'import sqlite3, sys, pathlib' + "`n" + 'for src in pathlib.Path(sys.argv[1]).rglob("*"):' + "`n" +
+                    '    if src.suffix in (".db", ".sqlite3") and src.is_file():' + "`n" +
+                    '        dst = pathlib.Path(sys.argv[2]) / src.relative_to(sys.argv[1]); dst.parent.mkdir(parents=True, exist_ok=True)' + "`n" +
+                    '        a = sqlite3.connect(str(src)); b = sqlite3.connect(str(dst)); a.backup(b); b.execute("pragma journal_mode=delete"); b.close(); a.close()'
+            $tmp = Join-Path $StateDir 'snap.py'
+            Set-Content -Path $tmp -Value $code -Encoding ASCII
+            try { if (Test-Path $m.src) { Native { & $py -I $tmp $m.src $dst } | Out-Null } } finally { Remove-Item -Force $tmp }
+        }
+        Info "Snapshot in $dir"
+        exit 0
+    }
+    'install-data' {
+        # <folder> holds open-webui\ and search-gateway\ (from the main PC); each replaces this PC's, whose old copy
+        # is kept next to it as <name>-before-<date>. Open WebUI and the gateway must be stopped.
+        $dir = $Rest[0]
+        foreach ($n in 'localllm-open-webui', 'localllm-search-gateway') {
+            $s = Get-Service $n -ErrorAction SilentlyContinue
+            if ($s -and $s.Status -ne 'Stopped') { Fail "$n is running: stop it first." }
+        }
+        $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+        foreach ($m in $Moving) {
+            $new = Join-Path $dir $m.name
+            if (-not (Test-Path $new)) { Fail "No $new in the copy." }
+            if ((Test-Path $m.src) -and (Get-ChildItem $m.src -Force | Select-Object -First 1)) {
+                Rename-Item -Path $m.src -NewName "$(Split-Path -Leaf $m.src)-before-$stamp"
+                Info "Kept the previous $($m.name) data as $(Split-Path -Leaf $m.src)-before-$stamp"
+            } elseif (Test-Path $m.src) { Remove-Item -Force -Recurse $m.src }
+            Move-Item -Path $new -Destination $m.src
+        }
+        Remove-Item -Force -Recurse $dir  # empty now: both folders moved out of it
+        Set-AdminOnly $paths.Data
+        # Open WebUI's uploads are listed with their full path on the other PC: point them here.
+        $code = Py (Join-Path $RepoDir 'open-webui\relocate_uploads.py') $db (Join-Path $paths.WebUIData 'uploads')
+        if ($code -ne 0) { Fail "The uploads' paths couldn't be set (see above)." }
+        Info "Open WebUI's and the search gateway's data are in place."
+        exit 0
+    }
+    'relocate' {
+        # Open WebUI's uploads listed with this PC's folder (install-data does it; on its own for a fix by hand).
+        exit (Py (Join-Path $RepoDir 'open-webui\relocate_uploads.py') $db (Join-Path $paths.WebUIData 'uploads'))
+    }
+    'retire-data' {
+        $stamp = Get-Date -Format 'yyyyMMdd'
+        foreach ($m in $Moving) {
+            if (Test-Path $m.src) {
+                $to = "$(Split-Path -Leaf $m.src)-moved-$stamp"
+                if (Test-Path (Join-Path (Split-Path $m.src) $to)) { $to = "$to-$(Get-Date -Format HHmmss)" }
+                Rename-Item -Path $m.src -NewName $to
+                Info "This PC's $($m.name) data is now $to (moved to the main PC)."
+            }
+        }
+        exit 0
+    }
 }
-
-# --- Unknown task ---
-Write-Error "Unknown task: $Task"
-exit 1
+Fail "Unknown task: $Task"
