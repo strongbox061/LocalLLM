@@ -75,19 +75,7 @@ function Show-Status {
 
 switch ($Command) {
     'start' { foreach ($s in $chosen) { Start-One $s } }
-    'stop' {
-        $order = @(
-            @{ Name='open-webui';       Title='Open WebUI';       Port=3000; Path='.\open-webui'; Script='start.bat' },
-            @{ Name='ollama';            Title='Ollama';           Port=11434; Path='.'; Exe='ollama.exe' },
-            @{ Name='kokoro-fastapi';    Title='Kokoro TTS';       Port=8080; Path='.\kokoro-fastapi'; Script='start.bat' }
-        )
-        if ($Service -eq 'all') {
-            foreach ($s in $order) { Stop-One $s }
-        } else {
-            $svc = $order | Where-Object { $_.Name -eq $Service }
-            if ($svc) { Stop-One $svc }
-        }
-    }
+    'stop' { $r = @($chosen); [array]::Reverse($r); foreach ($s in $r) { Stop-One $s } }
     'restart' {
         if ($Service -eq 'all') {
             foreach ($s in @(

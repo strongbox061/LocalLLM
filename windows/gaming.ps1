@@ -6,7 +6,6 @@
 #        active before setup.
 #   off: the GPU again for all of them, the Balanced plan.
 # Open WebUI and the search gateway keep running throughout (a short restart for Open WebUI).
-
 # Plain ASCII on purpose: Windows PowerShell 5.1 reads a script without a byte order mark as the local code page.
 param(
     [Parameter(Mandatory = $true, Position = 0)][ValidateSet('on', 'off', 'status')][string]$Mode,
@@ -24,6 +23,7 @@ function Run-Services($cmd, $name) { & $services $cmd $name | Out-Host }
 function Power($guid) { Native { powercfg.exe /setactive $guid } | Out-Null }
 
 switch ($Mode) {
+    'status' { if (Test-Gaming) { 'Gaming mode: on' } else { 'Gaming mode: off' } }
     'on' {
         Write-Host "=== Gaming mode ON ===" -ForegroundColor Green
         Write-Host "Stopping GPU services..."

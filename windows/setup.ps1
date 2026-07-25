@@ -242,7 +242,22 @@ if ((Want 'kokoro') -and $wanted['kokoro']) {
 
 # --- Docling (reads PDFs and scans for Open WebUI's documents) ---
 if ((Want 'docling') -and $wanted['docling']) {
-    Write-Host "Docling setup skipped on helper PC"
+    Step "Docling $($v.docling_serve)"
+    $py = New-Venv 'docling'
+    $have = Native { & $py -c "import importlib.metadata as m; print(m.version('docling-serve'))" } | Select-Object -Last 1
+    if ($have -ne $v.docling_serve) {
+        Info "Installing docling-serve (several minutes)..."
+        Uv pip install --quiet --python $py "docling-serve==$($v.docling_serve)"
+    }
+    Install-Torch $py
+    $models = Join-Path $paths.Cache 'docling-models.done'
+    if (-not (Test-Path $models)) {
+        Info "Downloading Docling's models (layout, tables, OCR)..."
+        $out = Native { & (Join-Path $paths.Venv 'docling\Scripts\docling-tools.exe') models download }
+        if ($LASTEXITCODE -ne 0) { $out | Select-Object -Last 10 | ForEach-Object { Write-Host "    $_" }; Fail "Docling's models didn't download." }
+        Set-Content $models (Get-Date -Format s)
+    }
+    Info "Docling ready."
 }
 
 # --- small model (llama.cpp for Windows, CUDA 12.4 build) ---
