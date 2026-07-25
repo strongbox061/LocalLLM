@@ -44,19 +44,31 @@ function sessionNameOf(event: any): string | undefined {
 type CustomBrowserMatcher = { paths: Set<string>; names: Set<string>; prefixes: string[] };
 
 function loadCustomBrowserMatcher(): CustomBrowserMatcher | undefined {
-  const configPath = path.join(os.homedir(), ".pi", "browser-matcher.json");
-  try {
-    const raw = fs.readFileSync(configPath, "utf-8");
-    const cfg = JSON.parse(raw) as { paths?: string[]; names?: string[]; prefixes?: string[] };
-    if (!cfg?.paths && !cfg?.names && !cfg?.prefixes) return undefined;
-    return {
-      paths: new Set(cfg.paths ?? []),
-      names: new Set(cfg.names ?? []),
-      prefixes: cfg.prefixes ?? [],
-    };
-  } catch {
-    return undefined;
+  let configured = process.env.AGENT_BROWSER_EXECUTABLE_PATH?.trim() ?? "";
+  if (!configured) {
+    try {
+      const cfgPath = process.env.AGENT_BROWSER_CONFIG || path.join(os.homedir(), ".agent-browser", "config.json");
+      const raw = JSON.parse(fs.readFileSync(cfgPath, "utf8"));
+      if (typeof raw?.executablePath === "string") configured = raw.executablePath.trim();
+    } catch {
+      // No config file or unreadable; only built-in agent-browser paths apply.
+    }
   }
+  if (!configured) return undefined;
+  const paths = new Set<string>([configured]);
+  const names = new Set<string>([path.basename(configured)]);
+  const prefixes: string[] = [];
+  try {
+    const real = fs.realpathSync(configured);
+    paths.add(real);
+    names.add(path.basename(real));
+    // A Nix wrapper (e.g. /nix/store/<drv>/bin/foo) may exec a binary deeper in the same derivation.
+    const nixMatch = real.match(/^(\/nix\/store\/[ ^/]+\/)/);
+    if (nixMatch) prefixes.push(nixMatch[1]);
+  } catch {
+    // Target may not exist on disk; exact path and basename still apply.
+  }
+  return { paths, names, prefixes };
 }
 
 function isBrowserExe(exe: string, custom?: CustomBrowserMatcher): boolean {
