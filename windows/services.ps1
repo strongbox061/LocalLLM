@@ -77,21 +77,8 @@ switch ($Command) {
     'start' { foreach ($s in $chosen) { Start-One $s } }
     'stop' { $r = @($chosen); [array]::Reverse($r); foreach ($s in $r) { Stop-One $s } }
     'restart' {
-        if ($Service -eq 'all') {
-            foreach ($s in @(
-                @{ Name='open-webui';       Title='Open WebUI';       Port=3000; Path='.\open-webui'; Script='start.bat' },
-                @{ Name='ollama';            Title='Ollama';           Port=11434; Path='.'; Exe='ollama.exe' },
-                @{ Name='kokoro-fastapi';    Title='Kokoro TTS';       Port=8080; Path='.\kokoro-fastapi'; Script='start.bat' }
-            )) { Stop-One $s }
-            foreach ($s in @(
-                @{ Name='kokoro-fastapi';    Title='Kokoro TTS';       Port=8080; Path='.\kokoro-fastapi'; Script='start.bat' },
-                @{ Name='ollama';            Title='Ollama';           Port=11434; Path='.'; Exe='ollama.exe' },
-                @{ Name='open-webui';       Title='Open WebUI';       Port=3000; Path='.\open-webui'; Script='start.bat' }
-            )) { Start-One $s }
-        } else {
-            $svc = $services | Where-Object { $_.Name -eq $Service }
-            if ($svc) { Stop-One $svc; Start-One $svc }
-        }
+        $r = @($chosen); [array]::Reverse($r); foreach ($s in $r) { Stop-One $s }
+        foreach ($s in $chosen) { Start-One $s }
     }
     'status' { Show-Status }
 }
