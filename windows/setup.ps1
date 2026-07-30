@@ -262,28 +262,151 @@ if ((Want 'docling') -and $wanted['docling']) {
 
 # --- small model (llama.cpp for Windows, CUDA 12.4 build) ---
 if ((Want 'small') -and $wanted['small-model']) {
-    Step "Small model (llama.cpp)"
-    $cpp = Join-Path $paths.Bin 'llama-server.exe'
-    if (Test-Path $cpp) {
-        $have = (Native { & $cpp --version }) -join ' '
-        if ($have) { Info "Small model: llama.cpp ready."; continue }
+    Step "Small model ($($v.small_model.file), llama.cpp $($v.llama_cpp))"
+    $dir = Join-Path $paths.Apps 'llama.cpp'
+    $server = Join-Path $dir 'llama-server.exe'
+    $have = if (Test-Path $server) { (Native { & $server --version }) -join ' ' } else { '' }
+    if ($have -notmatch [regex]::Escape($v.llama_cpp.TrimStart('b'))) {
+        foreach ($z in @("llama-$($v.llama_cpp)-bin-win-cuda-12.4-x64.zip", "cudart-llama-bin-win-cuda-12.4-x64.zip")) {
+            $zip = Join-Path $paths.Cache $z
+            if (-not (Test-Path $zip)) { Info "Downloading $z..."; Download-File "https://github.com/ggml-org/llama.cpp/releases/download/$($v.llama_cpp)/$z" $zip }
+            Expand-Archive -Path $zip -DestinationPath $dir -Force
+        }
+        $have = (Native { & $server --version }) -join ' '
     }
-    $zip = Join-Path $paths.Cache "llama-cuda124.zip"
-    Download-File 'https://github.com/ggerganov/llama.cpp/releases/latest/download/llama-bin-win-cuda-x64.zip' $zip
-    Expand-Archive -Path $zip -DestinationPath $paths.Cache\llama-tmp -Force
-    Copy-Item (Join-Path $paths.Cache\llama-tmp 'llama-server.exe') $cpp -Force
-    Remove-Item -Recurse -Force (Join-Path $paths.Cache 'llama-tmp')
-    Info "Small model: llama.cpp ready."
+    if ($have -notmatch [regex]::Escape($v.llama_cpp.TrimStart('b'))) { Fail "llama-server.exe doesn't answer with version $($v.llama_cpp): $have" }
+    Get-Model $v.small_model.url (Join-Path $paths.Models $v.small_model.file)
+    Info "llama.cpp $($v.llama_cpp) and $($v.small_model.file) ready."
 }
 
 # --- ComfyUI (images, Stable Diffusion 1.5) ---
 if ((Want 'comfyui') -and $wanted['comfyui']) {
-    Write-Host "ComfyUI setup skipped on helper PC"
+    Step "ComfyUI $($v.comfyui)"
+    $root = Get-SourceZip 'comfyanonymous/ComfyUI' $v.comfyui 'comfyui'
+    $py = New-Venv 'comfyui'
+    Install-Torch $py
+    $mark = Join-Path $root '.localllm-requirements'
+    $req = Join-Path $root 'requirements.txt'
+    $hash = (Get-FileHash $req -Algorithm SHA256).Hash
+    if (-not (Test-Path $mark) -or (Get-Content $mark -Raw).Trim() -ne $hash) {
+        Info "Installing ComfyUI's packages..."
+        Uv pip install --quiet --python $py -r $req
+        Install-Torch $py
+        Set-Content $mark $hash -Encoding ASCII
+    }
+    Get-Model $v.comfyui_checkpoint.url (Join-Path $root "models\checkpoints\$($v.comfyui_checkpoint.file)") ([string]$v.comfyui_checkpoint.sha256)
+    # Negative embeddings made for the checkpoint (named in the negative prompt by open-webui\topology.py). They are
+    # .pt files: ComfyUI reads them as plain tensors (torch.load with weights_only), never as code.
+    foreach ($e in @($v.comfyui_embeddings)) {
+        if ($e) { Get-Model $e.url (Join-Path $root "models\embeddings\$($e.file)") ([string]$e.sha256) }
+    }
+    Info "ComfyUI ready."
 }
 
 # --- services (WinSW) ---
 if (Want 'services') {
-    Write-Host "Services setup skipped on helper PC"
+    Step "Windows services"
+    $winsw = Join-Path $paths.Bin "WinSW-$($v.winsw).exe"
+    if (-not (Test-Path $winsw)) { Fail "WinSW is missing: run setup with the tools step." }
+    $runner = Join-Path $RepoDir 'windows\run-service.ps1'
+    $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    foreach ($s in $cfg.services) {
+        $exe = Join-Path $paths.Services "$($s.id).exe"
+        $xml = Join-Path $paths.Services "$($s.id).xml"
+        $text = @"
+<service>
+  <id>$($s.id)</id>
+  <name>LocalLLM $($s.title)</name>
+  <description>LocalLLM: $($s.title), port $($s.port). Started and stopped by windows\services.ps1.</description>
+  <executable>$ps</executable>
+  <arguments>-NoProfile -ExecutionPolicy Bypass -File "$runner" $($s.name)</arguments>
+  <startmode>Manual</startmode>
+  <onfailure action="restart" delay="20 sec"/>
+  <resetfailure>1 hour</resetfailure>
+  <stoptimeout>30 sec</stoptimeout>
+  <logpath>$($paths.Logs)</logpath>
+  <log mode="roll-by-size"><sizeThreshold>10240</sizeThreshold><keepFiles>3</keepFiles></log>
+</service>
+"@
+        if (-not (Test-Path $exe) -or (Get-FileHash $exe).Hash -ne (Get-FileHash $winsw).Hash) { Copy-Item -Force $winsw $exe }
+        $old = if (Test-Path $xml) { Get-Content $xml -Raw } else { '' }
+        if ($old.Trim() -ne $text.Trim()) { Set-Content -Path $xml -Value $text -Encoding ASCII }
+        $svc = Get-Service -Name $s.id -ErrorAction SilentlyContinue
+        if (-not $svc) {
+            $out = Native { & $exe install }
+            if (-not (Get-Service -Name $s.id -ErrorAction SilentlyContinue)) { $out | ForEach-Object { Write-Host "    $_" }; Fail "Service $($s.id) didn't register." }
+            Info "Registered $($s.id)."
+        } elseif ($old.Trim() -ne $text.Trim()) {
+            Native { & $exe refresh } | Out-Null
+            Info "Updated $($s.id)."
+        } else {
+            Info "$($s.id) is registered."
+        }
+    }
+    # Services this config no longer lists (a feature turned off in helper.env): removed.
+    Get-Service -Name 'localllm-*' -ErrorAction SilentlyContinue | Where-Object { $cfg.services.id -notcontains $_.Name } | ForEach-Object {
+        $exe = Join-Path $paths.Services "$($_.Name).exe"
+        if ($_.Status -ne 'Stopped') { Stop-Service -Name $_.Name -Force }
+        if (Test-Path $exe) { Native { & $exe uninstall } | Out-Null } else { Native { sc.exe delete $_.Name } | Out-Null }
+        Info "Removed $($_.Name) (not in the config any more)."
+    }
 }
 
-Write-Host "Helper PC setup complete."
+# --- network: only Tailscale reaches Open WebUI and the search gateway ---
+if (Want 'network') {
+    Step "Tailscale serve"
+    $ts = Join-Path $env:ProgramFiles 'Tailscale\tailscale.exe'
+    $status = (Native { & $ts serve status --json }) -join "`n"
+    $conf = try { $status | ConvertFrom-Json } catch { $null }
+    if ($cfg.exposed -contains 'open-webui') {
+        # https://<this PC's Tailscale name>: a real certificate, so browsers allow the microphone (voice).
+        $has = $conf -and $conf.TCP -and $conf.TCP.'443'
+        if (-not $has) {
+            $out = Native { & $ts serve --bg --https=443 http://127.0.0.1:3000 }
+            if ($LASTEXITCODE -ne 0) {
+                $out | ForEach-Object { Write-Host "    $_" }
+                Fail "tailscale serve for Open WebUI failed: turn on HTTPS Certificates in the Tailscale admin console (DNS page), open any Serve approval URL printed above, then run install-helper again."
+            }
+        }
+        Info "Open WebUI: https://$($cfg.helper_host)"
+    }
+    if ($cfg.exposed -contains 'search-gateway') {
+        $has = $conf -and $conf.TCP -and $conf.TCP.'8090'
+        if (-not $has) {
+            $out = Native { & $ts serve --bg --tcp 8090 tcp://127.0.0.1:8090 }
+            if ($LASTEXITCODE -ne 0) { $out | ForEach-Object { Write-Host "    $_" }; Fail "tailscale serve for the search gateway failed." }
+        }
+        Info "Search gateway: http://$($cfg.helper_host):8090 (tailnet only)"
+    }
+}
+
+# --- desktop shortcuts (for everyone on this PC; they ask for administrator rights) ---
+if (Want 'shortcuts') {
+    Step "Desktop shortcuts"
+    $desktop = [Environment]::GetFolderPath('CommonDesktopDirectory')
+    $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $shell = New-Object -ComObject WScript.Shell
+    $items = @(
+        @('Start AI services', 'services.ps1', 'start'),
+        @('Stop AI services', 'services.ps1', 'stop'),
+        @('AI services status', 'services.ps1', 'status'),
+        @('Gaming mode on', 'gaming.ps1', 'on'),
+        @('Gaming mode off', 'gaming.ps1', 'off'))
+    foreach ($it in $items) {
+        $lnk = Join-Path $desktop "$($it[0]).lnk"
+        $sc = $shell.CreateShortcut($lnk)
+        $sc.TargetPath = $ps
+        $sc.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $RepoDir "windows\$($it[1])")`" $($it[2]) -Pause"
+        $sc.WorkingDirectory = $RepoDir
+        $sc.Save()
+        # "Run as administrator" (byte 0x15, bit 0x20 of the .lnk file): starting services needs it.
+        $bytes = [IO.File]::ReadAllBytes($lnk)
+        $bytes[0x15] = $bytes[0x15] -bor 0x20
+        [IO.File]::WriteAllBytes($lnk, $bytes)
+    }
+    Info "On the desktop: Start AI services, Stop AI services, AI services status, Gaming mode on/off."
+}
+
+if (Test-PendingRestart) { Write-Host "RESTART NEEDED: an install left changes waiting for a restart."; exit 3 }
+Step "Setup done."
+exit 0
