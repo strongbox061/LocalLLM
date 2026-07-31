@@ -25,61 +25,22 @@ function Power($guid) { Native { powercfg.exe /setactive $guid } | Out-Null }
 switch ($Mode) {
     'status' { if (Test-Gaming) { 'Gaming mode: on' } else { 'Gaming mode: off' } }
     'on' {
-        Write-Host "=== Gaming mode ON ===" -ForegroundColor Green
-        Write-Host "Stopping GPU services..."
-
-        foreach ($svc in $gpuServices) {
-            Write-Host "  Stopping $($svc.Name)..."
-            Run-Services stop $svc.Name
-        }
-
-        # Save active plan and switch to High Performance
-        Write-Host "Switching power plan to High Performance..."
-        $hpGuid = (powercfg.exe /list | Select-String 'High performance').Line.Split(':')[0].Trim()
-        if ($hpGuid) { Power $hpGuid }
-
-        # Restart CPU services that need a nudge
-        foreach ($svc in $cpuServices) {
-            if (-not $svc.Stop) {
-                Write-Host "  Restarting $($svc.Name) on CPU..."
-                Run-Services stop $svc.Name
-                Start-Sleep -Seconds 2
-                Run-Services start $svc.Name
-            }
-        }
-
-        if ($Pause) {
-            Write-Host "`nGPU freed. Press Enter to return to normal mode..." -ForegroundColor Yellow
-            Read-Host
+        if (Test-Gaming) { Info "Gaming mode is already on." } else {
+            New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
+            Set-Content -Path $GamingFlag -Value (Get-Date -Format s) -Encoding ASCII
+            foreach ($n in $off) { Run-Services 'stop' $n }
+            # Restarted: run-service.ps1 reads the flag and starts them on the CPU.
+            foreach ($n in $gpuUsers) { if ((Get-Service "localllm-$n" -ErrorAction SilentlyContinue).Status -eq 'Running') { Run-Services 'restart' $n } }
+            Info "Gaming mode on. GPU freed for gaming."
         }
     }
-
     'off' {
-        Write-Host "=== Gaming mode OFF ===" -ForegroundColor Green
-        Write-Host "Restoring GPU services..."
-
-        # Restart Open WebUI (short restart)
-        Run-Services stop open-webui
-        Start-Sleep -Seconds 1
-        Run-Services start open-webui
-
-        foreach ($svc in $gpuServices) {
-            Write-Host "  Starting $($svc.Name)..."
-            Run-Services start $svc.Name
+        if (-not (Test-Gaming)) { Info "Gaming mode is already off." } else {
+            Remove-Item -Force $GamingFlag
+            foreach ($n in $gpuUsers) { if ((Get-Service "localllm-$n" -ErrorAction SilentlyContinue).Status -eq 'Running') { Run-Services 'restart' $n } }
+            foreach ($n in $off) { Run-Services 'start' $n }
+            Info "Gaming mode off: everything on the GPU again."
         }
-
-        # Restore original power plan
-        Write-Host "Restoring power plan..."
-        Power $activePlan
-
-        Write-Host "All services restored." -ForegroundColor Green
-    }
-
-    default {
-        Write-Host "Usage: gaming.ps1 on|off [-Pause]" -ForegroundColor Red
-        Write-Host "  on   - free GPU for gaming" -ForegroundColor Yellow
-        Write-Host "  off  - restore GPU to LLM services" -ForegroundColor Yellow
-        Write-Host "  -Pause - wait for Enter before restoring" -ForegroundColor Yellow
-        exit 1
     }
 }
+if ($Pause) { Write-Host ""; Read-Host "Press Enter to close" | Out-Null }
