@@ -5,6 +5,9 @@
     "torch: one build for every Python environment (shared through uv's cache); cu126 is the newest CUDA build that",
     "still has kernels for GTX 10 (Pascal) cards. torchvision and torchaudio must be the releases made with that torch",
     "(a newer torchvision fails on import: 'operator torchvision::nms does not exist').",
+    "GPU budget (6 GB, measured 2026-11-18): Whisper large-v3-turbo (its own service, 1.1 GB), Open WebUI with bge-m3",
+    "(2.25 GB), Kokoro (1.4 GB) and Docling share it;",
+    "no reranker (bge-reranker-v2-m3 would take another 2.2 GB in FP32); the small model runs on the CPU; ComfyUI",
     ""
   ],
 
@@ -39,5 +42,6 @@
 
   "llama_cpp": "b12503",
   "whisper_model": "large-v3-turbo",
-  "embedding_model": "BAAI/bge-m3"
+  "embedding_model": "BAAI/bge-m3",
+  "reranking_model": ""
 }
