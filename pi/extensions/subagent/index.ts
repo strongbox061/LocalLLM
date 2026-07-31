@@ -171,6 +171,16 @@ function formatUsageStats(
 	return parts.join(" ");
 }
 
+interface UsageStats {
+	input: number;
+	output: number;
+	cacheRead: number;
+	cacheWrite: number;
+	cost: number;
+	contextTokens: number;
+	turns: number;
+}
+
 type ChildStatus = "pending" | "running" | "completed" | "failed" | "aborted";
 
 interface SingleResult {
