@@ -39,9 +39,7 @@ copy_file() {    # copy_file <name in pi/ and in ~/.pi/agent>
     fi
     if [[ -f "$target_file" ]]; then
         backup="$target_file.bak.$(date +%Y%m%d-%H%M%S)"
-        if ! cp -a "$target_file" "$backup"; then
-            die "Failed to back up $target_file to $backup (disk full or permissions?)"
-        fi
+        cp -a "$target_file" "$backup"
         echo "Backed up existing file to: $backup"
     fi
     cp -a "$source_file" "$target_file"
