@@ -46,7 +46,7 @@ function Start-One($s) {
     $t0 = Get-Date
     while (((Get-Date) - $t0).TotalSeconds -lt $limit) {
         if ((State $s) -eq 'running') { Info "$($s.title): running (port $($s.port))."; return }
-        if ((Get-Service -Name $s.id).Status -eq 'Stopped') { break }
+        if ((Get-Service -Name $s.id -ErrorAction SilentlyContinue).Status -eq 'Stopped') { break }
         Start-Sleep -Seconds 2
     }
     Warn "$($s.title) did not become ready within $limit s. Its log: $((Get-Paths $cfg).Logs)\$($s.id).out.log / .err.log"
