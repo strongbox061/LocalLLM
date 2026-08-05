@@ -174,7 +174,7 @@ console.log("agent-browser-fix.ts: search engines in the browser");
   await p.say('Search Google directly for "qwen3.5 release" using the browser and list the top 3 results.');
   r = await p.call("agent_browser", { args: ["open", "https://www.google.com"] });
   check("a named engine's home page is refused, with web_search and the quoted words (run 8's F2)",
-    r.blocked && /web_search with the same words, {"query":"qwen3\.5 release"}/.test(r.reason), r.reason);
+    r.blocked && /web_search with the same words, \{"query":"qwen3\.5 release"\}/.test(r.reason), r.reason);
   r = await p.call("agent_browser", { args: ["open", "https://www.google.com/search?q=qwen3.5+release"] });
   check("... and its results page too: named engines aren't opened (run 10's F2: always a CAPTCHA)",
     r.blocked && /Not opened: Google doesn't allow automated browsers/.test(r.reason) && /"query":"qwen3\.5 release"/.test(r.reason), r.reason);
