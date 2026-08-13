@@ -29,3 +29,14 @@ fi
 
 install_user_unit localllm-helper-keepalive.service \
     "$(sed "s|@HELPER_HOST@|$HELPER_HOST|g" "$REPO_DIR/services/localllm-helper-keepalive.service")"
+install_user_unit localllm-helper-keepalive.timer \
+    "$(cat "$REPO_DIR/services/localllm-helper-keepalive.timer")"
+
+if [[ "$ACTION" == enable ]]; then
+    systemctl --user enable --now localllm-helper-keepalive.timer
+    echo "Helper keepalive timer enabled for $HELPER_HOST."
+elif systemctl --user is-enabled --quiet localllm-helper-keepalive.timer 2>/dev/null; then
+    echo "Helper keepalive timer is already enabled for $HELPER_HOST."
+else
+    echo "Installed (not enabled). Enable with: install/helper-keepalive.sh --enable"
+fi
