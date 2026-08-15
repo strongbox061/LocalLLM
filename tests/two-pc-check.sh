@@ -44,7 +44,6 @@ check "refused: llama-server on the helper" has "$(ep LOCALLLM_MODE=split HELPER
 check "refused: split without HELPER_HOST" has "$(ep LOCALLLM_MODE=split MAIN_HOST=m)" "needs HELPER_HOST"
 check "refused: a mode that doesn't exist" has "$(ep LOCALLLM_MODE=splitt)" "single or split"
 check "refused: invalid LOCALLLM_APPS (owui)" has "$(ep LOCALLLM_APPS=owui)" "pi or pi,owui"
-
 pi_single="$(ep LOCALLLM_MODE=single LOCALLLM_APPS=pi)"
 check "pi-only (single): llama, searxng, search-gateway, plannotator stay on main; OWUI + voice off" python3 -c '
 import json, sys; d = json.loads(sys.argv[1]); s = d["services"]
@@ -59,7 +58,19 @@ assert d["apps"] == "pi"
 assert s["search-gateway"]["where"] == "helper" and s["llama"]["where"] == "main"
 assert all(s[n]["where"] is None for n in ("open-webui", "kokoro", "voice-router", "whisper", "docling", "small-model", "comfyui"))' "$pi_split"
 
+echo "lib/common.sh"
+H="$TMP/home"
+mkdir -p "$H/.config/localllm"
+printf 'LOCALLLM_MODE=split\nHELPER_HOST=helper.example\nHELPER_USER=someone\nMAIN_HOST=main.example\n' > "$H/.config/localllm/local.env"
+urls() { HOME="$H" bash -c 'source "$1/lib/common.sh"; echo "$LOCALLLM_MODE $LLAMA_URL $SEARCH_GATEWAY_URL $WEBUI_URL"' _ "$REPO" 2>&1; }
+check "split: the scripts get the helper's addresses" \
+    test "$(urls)" = "split http://127.0.0.1:8081 http://helper.example:8090 https://helper.example"
+check "endpoints.json is written for Pi" test -f "$H/.config/localllm/endpoints.json"
+
 check "pi-only model profile: folds all slots into 1 with 2x context" bash -c '
 HOME="$1" LOCALLLM_APPS=pi bash -c "source \"$2/lib/model.sh\"; load_model_profile >/dev/null; echo \"\$SLOTS \$CTX_PER_SLOT\""' _ "$TMP" "$REPO"
 pi_slot_ctx="$(HOME="$TMP" LOCALLLM_APPS=pi bash -c 'source "$1/lib/model.sh"; load_model_profile >/dev/null; echo "$SLOTS $CTX_PER_SLOT"' _ "$REPO")"
 check "... 1 slot of 131072 tokens for the default profile" test "$pi_slot_ctx" = "1 131072"
+
+printf 'LOCALLLM_MODE=single\n' > "$H/.config/localllm/local.env"
+check "a changed local.env regenerates the addresses" test "$(urls)" = "single http://127.0.0.1:8081 http://127.0.0.1:8090 http://127.0.0.1:3000"
