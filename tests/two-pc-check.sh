@@ -50,7 +50,6 @@ import json, sys; d = json.loads(sys.argv[1]); s = d["services"]
 assert d["apps"] == "pi"
 assert [n for n, v in s.items() if v["where"] == "main"] == ["llama", "searxng", "plannotator", "search-gateway"]
 assert all(s[n]["where"] is None for n in ("open-webui", "kokoro", "voice-router", "whisper", "docling", "small-model", "comfyui"))' "$pi_single"
-
 pi_split="$(ep LOCALLLM_MODE=split LOCALLLM_APPS=pi HELPER_HOST=helper.example MAIN_HOST=main.example)"
 check "pi-only (split): search-gateway stays on helper; all OWUI services off on both PCs" python3 -c '
 import json, sys; d = json.loads(sys.argv[1]); s = d["services"]
