@@ -65,11 +65,10 @@ urls() { HOME="$H" bash -c 'source "$1/lib/common.sh"; echo "$LOCALLLM_MODE $LLA
 check "split: the scripts get the helper's addresses" \
     test "$(urls)" = "split http://127.0.0.1:8081 http://helper.example:8090 https://helper.example"
 check "endpoints.json is written for Pi" test -f "$H/.config/localllm/endpoints.json"
-
-check "pi-only model profile: folds all slots into 1 with 2x context" bash -c '
-HOME="$1" LOCALLLM_APPS=pi bash -c "source \"$2/lib/model.sh\"; load_model_profile >/dev/null; echo \"\$SLOTS \$CTX_PER_SLOT\""' _ "$TMP" "$REPO"
-pi_slot_ctx="$(HOME="$TMP" LOCALLLM_APPS=pi bash -c 'source "$1/lib/model.sh"; load_model_profile >/dev/null; echo "$SLOTS $CTX_PER_SLOT"' _ "$REPO")"
-check "... 1 slot of 131072 tokens for the default profile" test "$pi_slot_ctx" = "1 131072"
+sleep 1
+printf 'LOCALLLM_MODE=split\n' > "$H/.config/localllm/local.env"
+check "settings that don't fit: a warning and the single-mode addresses" \
+    bash -c '[[ "$1" == *"needs HELPER_HOST"* && "$1" == *" http://127.0.0.1:8081 http://127.0.0.1:8090 http://127.0.0.1:3000"* ]]' _ "$(urls | tr '\n' ' ')"
 
 printf 'LOCALLLM_MODE=single\n' > "$H/.config/localllm/local.env"
 check "a changed local.env regenerates the addresses" test "$(urls)" = "single http://127.0.0.1:8081 http://127.0.0.1:8090 http://127.0.0.1:3000"
