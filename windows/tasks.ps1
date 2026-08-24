@@ -50,9 +50,7 @@ switch ($Task) {
         if (Test-Path $py) { Native { & $py -c "import importlib.metadata as m; print(m.version('open-webui'))" } | Select-Object -Last 1 }
         exit 0
     }
-    'loader' {
-        exit (Py '-I' (Join-Path $RepoDir 'open-webui\install_loader.py'))
-    }
+    'loader' { exit (Py '-I' (Join-Path $RepoDir 'open-webui\install_loader.py')) }
     'sync' {
         $env:LOCALLLM_EMBEDDING = 'bge-m3'
         exit (Py (Join-Path $RepoDir 'open-webui\sync.py') $url $db $key (Join-Path $LocalLLM 'model.json'))
@@ -89,6 +87,10 @@ switch ($Task) {
         exit $LASTEXITCODE
     }
 
+    'relocate' {
+        # Open WebUI's uploads listed with this PC's folder (install-data does it; on its own for a fix by hand).
+        exit (Py (Join-Path $RepoDir 'open-webui\relocate_uploads.py') $db (Join-Path $paths.WebUIData 'uploads'))
+    }
     'check' {
         # Read-only: integrity and what's in it, to compare with the other PC's numbers.
         $dir = $Rest[0]
@@ -172,10 +174,6 @@ print(json.dumps(out, sort_keys=True))
         if ($code -ne 0) { Fail "The uploads' paths couldn't be set (see above)." }
         Info "Open WebUI's and the search gateway's data are in place."
         exit 0
-    }
-    'relocate' {
-        # Open WebUI's uploads listed with this PC's folder (install-data does it; on its own for a fix by hand).
-        exit (Py (Join-Path $RepoDir 'open-webui\relocate_uploads.py') $db (Join-Path $paths.WebUIData 'uploads'))
     }
     'retire-data' {
         $stamp = Get-Date -Format 'yyyyMMdd'
