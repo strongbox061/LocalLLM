@@ -21,9 +21,10 @@ Numbered, small, concrete steps, each naming the file and function:
 - `path/to/file.ts`: what changes
 
 ## New files (if any)
-
-- List each new file to create.
-- Briefly describe its purpose and how it fits into the existing structure.
+- `path/to/new.ts`: what it is for
 
 ## Risks
 What to watch out for.
+
+The worker carries the plan out as written, so name exact files and functions; never make up a path you haven't
+seen in the findings or the files.
