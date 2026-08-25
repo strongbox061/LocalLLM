@@ -29,13 +29,7 @@ Answer in this format, at most about 150 lines:
 Only the few definitions the next agent needs, copied from the files.
 
 ## How it fits together
-
-The code-finder is a subagent in the worker-reviewer chain. It runs before the main agent reads files, so it reduces context window usage by returning only what matters. It outputs a brief summary with file paths and line references that the parent session can use to read selectively.
+A few sentences.
 
 ## Start here
-
-1. Read the question or task carefully
-2. Use `find` or `ls` to scan the project structure
-3. Run `grep` for keywords, function names, or symbols from the question
-4. Read the top candidate files with `read` (limit to relevant sections)
-5. Return a short summary: which files matter, what's in them, and why they're relevant
+Which file to look at first, and why.
