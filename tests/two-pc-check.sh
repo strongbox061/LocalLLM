@@ -56,6 +56,10 @@ import json, sys; d = json.loads(sys.argv[1]); s = d["services"]
 assert d["apps"] == "pi"
 assert s["search-gateway"]["where"] == "helper" and s["llama"]["where"] == "main"
 assert all(s[n]["where"] is None for n in ("open-webui", "kokoro", "voice-router", "whisper", "docling", "small-model", "comfyui"))' "$pi_split"
+check "pi-only model profile: folds all slots into 1 with 2x context" bash -c '
+HOME="$1" LOCALLLM_APPS=pi bash -c "source \"$2/lib/model.sh\"; load_model_profile >/dev/null; echo \"\$SLOTS \$CTX_PER_SLOT\""' _ "$TMP" "$REPO"
+pi_slot_ctx="$(HOME="$TMP" LOCALLLM_APPS=pi bash -c 'source "$1/lib/model.sh"; load_model_profile >/dev/null; echo "$SLOTS $CTX_PER_SLOT"' _ "$REPO")"
+check "... 1 slot of 131072 tokens for the default profile" test "$pi_slot_ctx" = "1 131072"
 
 echo "lib/common.sh"
 H="$TMP/home"
