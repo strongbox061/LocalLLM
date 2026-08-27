@@ -37,20 +37,24 @@ if ($PublicKey -notmatch '^ssh-ed25519 [A-Za-z0-9+/=]+') {
 }
 
 # --- 1. Tailscale ---
-$tailscale = "$env:ProgramFiles\Tailscale\Tailscale.exe"
-
+Step "Tailscale"
+$tailscale = Join-Path $env:ProgramFiles 'Tailscale\tailscale.exe'
 if (-not (Test-Path $tailscale)) {
-    Fail("Tailscale is not installed. Install it from https://tailscale.com/download/windows first.")
+    Fail "Tailscale is not installed. Install it from https://tailscale.com/download/windows, sign in with the same account as on the main PC, then run this again."
 }
-
-$status = & $tailscale status 2>$null | ConvertFrom-Json
+$status = $null
+try { $status = (Quiet { & $tailscale status --json } | Out-String) | ConvertFrom-Json } catch { }
 if (-not $status -or $status.BackendState -ne 'Running') {
-    Fail("Tailscale is not running. Sign in with: & '$tailscale' login")
+    Fail "Tailscale is installed but not signed in. Click its icon in the taskbar, sign in (same account as on the main PC), then run this again."
 }
-
+$tailscaleName = ([string]$status.Self.DNSName).TrimEnd('.')
+Write-Host "Signed in as $tailscaleName"
 # Unattended: Tailscale keeps running when nobody is signed in to Windows (after a restart, with the screen locked).
-if ((Quiet { & $tailscale up --authkey=$env:TSAK })) -eq 0 {
-    # auth key was provided and worked; nothing more to do
+Quiet { & $tailscale set --unattended=true } | Out-Null
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "Run unattended: on"
+} else {
+    Warn "Could not turn on Run unattended from here: right-click the Tailscale icon, Settings, tick Run unattended."
 }
 
 # --- 2. OpenSSH server ---
