@@ -23,13 +23,7 @@ Answer in this format, at most about 80 lines:
 The answer to the question, with the exact values, names, versions, dates and commands from the pages.
 
 ## Sources
-
-List all sources used, in order of relevance:
-
-1. [Title](URL)
-2. [Title](URL)
-
-Only include pages you actually read or that were directly opened during research.
+- [page title](full URL copied from what you read): what it was used for
 
 ## Not found
 
