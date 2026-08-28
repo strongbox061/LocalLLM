@@ -192,11 +192,68 @@ interface SingleResult {
 }
 
 function formatToolCall(
-  toolName: string,
-  input: Record<string, unknown> | undefined,
+	toolName: string,
+	args: Record<string, unknown>,
+	themeFg: (color: any, text: string) => string,
 ): string {
-  const args = input ? JSON.stringify(input, null, 2) : "(no input)";
-  return `tool_call(name="${toolName}", input=${args})`;
+	const shortenPath = (p: string) => {
+		const home = os.homedir();
+		return p.startsWith(home) ? `~${p.slice(home.length)}` : p;
+	};
+
+	switch (toolName) {
+		case "bash": {
+			const command = (args.command as string) || "...";
+			const preview = command.length > 60 ? `${command.slice(0, 60)}...` : command;
+			return themeFg("muted", "$ ") + themeFg("toolOutput", preview);
+		}
+		case "read": {
+			const rawPath = (args.file_path || args.path || "...") as string;
+			const filePath = shortenPath(rawPath);
+			const lineRange = formatReadLineRange(args.offset, args.limit);
+			let text = themeFg("accent", filePath);
+			if (lineRange) {
+				text += themeFg("warning", lineRange);
+			}
+			return themeFg("muted", "read ") + text;
+		}
+		case "write": {
+			const rawPath = (args.file_path || args.path || "...") as string;
+			const filePath = shortenPath(rawPath);
+			const content = (args.content || "") as string;
+			const lines = content.split("\n").length;
+			let text = themeFg("muted", "write ") + themeFg("accent", filePath);
+			if (lines > 1) text += themeFg("dim", ` (${lines} lines)`);
+			return text;
+		}
+		case "edit": {
+			const rawPath = (args.file_path || args.path || "...") as string;
+			return themeFg("muted", "edit ") + themeFg("accent", shortenPath(rawPath));
+		}
+		case "ls": {
+			const rawPath = (args.path || ".") as string;
+			return themeFg("muted", "ls ") + themeFg("accent", shortenPath(rawPath));
+		}
+		case "find": {
+			const pattern = (args.pattern || "*") as string;
+			const rawPath = (args.path || ".") as string;
+			return themeFg("muted", "find ") + themeFg("accent", pattern) + themeFg("dim", ` in ${shortenPath(rawPath)}`);
+		}
+		case "grep": {
+			const pattern = (args.pattern || "") as string;
+			const rawPath = (args.path || ".") as string;
+			return (
+				themeFg("muted", "grep ") +
+				themeFg("accent", `/${pattern}/`) +
+				themeFg("dim", ` in ${shortenPath(rawPath)}`)
+			);
+		}
+		default: {
+			const argsStr = JSON.stringify(args);
+			const preview = argsStr.length > 50 ? `${argsStr.slice(0, 50)}...` : argsStr;
+			return themeFg("accent", toolName) + themeFg("dim", ` ${preview}`);
+		}
+	}
 }
 
 /** Read a file and cap it to PER_TASK_OUTPUT_CAP bytes. */
