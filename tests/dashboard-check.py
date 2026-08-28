@@ -76,14 +76,17 @@ threading.Thread(target=srv.LOOP.run_forever, daemon=True).start()
 today = datetime.date.today()
 month = tool_mod._month()
 
+
 def make_tool(**valves):
     tool = tool_mod.Tools()
     base = dict(
         service_order="tavily, serpapi/hasdata, brave", temporary_service_order="hasdata, tavily",
         temporary_order_until=(today + datetime.timedelta(days=30)).isoformat(),
         tavily_api_key="KEY-tavily-1", serpapi_api_key="KEY-serpapi-2", hasdata_api_key="KEY-hasdata-3",
+        geekflare_api_key="KEY-geekflare-4", brave_api_key="",
         you_mcp_url="", parallel_api_key="", exa_api_key="", brightdata_api_key="", browserbase_api_key="",
         linkup_api_key="", firecrawl_api_key="", contextdev_api_key="", you_api_key="",
+        geekflare_paid_monthly=10000, geekflare_paid_until=(today + datetime.timedelta(days=300)).isoformat(),
     )
     names = list(getattr(type(tool.valves), "model_fields", None) or
                  [k for k in vars(type(tool.valves)) if not k.startswith("_")])
@@ -92,12 +95,12 @@ def make_tool(**valves):
 
 
 # ---------------------------------------------------------------- /usage.json numbers
-
 usage = {
     "month": month,
     "tavily": 100,                                   # of 950: available
     "serpapi": 180.0, "serpapi_n": 180, "serpapi_u": 180.0,  # 250 free, 50 kept back: 20 searches left -> near reserve
     "hasdata": 760.0, "hasdata_n": 152, "hasdata_u": 760.0,  # 1000 free, 5 per search, 250 kept back: used up
+    "geekflare": 400.0, "geekflare_n": 200, "geekflare_u": 400.0,  # paid plan: 10,000
     "real": {"tavily": {"used": 100, "limit": 1000, "t": 1700000000.0, "own": 100}},
 }
 tool_mod._doc_update("usage", lambda _: usage)
@@ -130,8 +133,13 @@ check("tavily: available, confirmed by the service", t["status"] == "available" 
 check("tavily: calendar-month cycle", t["cycle_start"] == f"{month}-01", t)
 s = rows["serpapi"]
 check("serpapi: near the reserve (20 searches left)", s["status"] == "near reserve" and s["searches_left"] == 20, s)
+check("serpapi: counted by the tool, in the Google retry group",
+      s["source"] == "tool" and "geekflare" in s["retry_group"] and "hasdata" in s["retry_group"], s)
 hd = rows["hasdata"]
 check("hasdata: used up (the reserve is reached)", hd["status"] == "used up" and hd["left"] == 0, hd)
+g = rows["geekflare"]
+check("geekflare: paid plan allowance and extra line", g["allowance"] == 10000 and any("Paid plan" in e for e in g["extras"]), g)
+check("geekflare: not in the order (no rank)", g["rank"] is None, g)
 check("brave: no key", rows["brave"]["status"] == "no key", rows["brave"])
 check("cache: entries and fresh ones", report["cache"]["entries"] == 2 and report["cache"]["fresh"] == 1, report["cache"])
 check("history: 30 days", len(report["history"]["days"]) == 30 and report["history"]["days"][-1]["day"] == today.isoformat())
@@ -139,7 +147,6 @@ check("tool version read", report["tool_version"] == tool_mod.__doc__.split("ver
 check("no API key in /usage.json", "KEY-" not in json.dumps(report))
 
 # ---------------------------------------------------------------- the search log
-
 cache_key = "find me"  # words sorted: "find me"
 set_cache({f"{cache_key}|": {"t": 9e9, "provider": "tavily", "results": [{"url": "https://x.example"}]}})
 turn = tool._turn({"message_id": "m1"})
@@ -187,3 +194,35 @@ check(f"log: entries older than {tool_mod.SEARCH_LOG_DAYS} days are dropped", al
       and len(log_entries()) == 4, [e.get("service") for e in log_entries()])
 check("history counts every search of today", srv.usage_report(tool)["history"]["days"][-1]["total"] == 4)
 check("the state database is only yours (0600)", oct(os.stat(tmp / "state.db").st_mode & 0o777) == "0o600")
+
+# ---------------------------------------------------------------- the page and /usage.json over HTTP
+srv._tool = lambda: tool
+server = ThreadingHTTPServer(("127.0.0.1", 0), srv.Handler)
+threading.Thread(target=server.serve_forever, daemon=True).start()
+base = f"http://127.0.0.1:{server.server_address[1]}"
+try:
+    with urllib.request.urlopen(f"{base}/dashboard", timeout=10) as r:
+        page = r.read().decode()
+        check("GET /dashboard: an HTML page", r.status == 200 and r.headers["Content-Type"].startswith("text/html")
+              and "<title>Search usage</title>" in page)
+    with urllib.request.urlopen(f"{base}/dashboard/search_gateway_dashboard.css", timeout=10) as r:
+        css = r.read().decode()
+        check("GET /dashboard/search_gateway_dashboard.css: stylesheet",
+              r.status == 200 and r.headers["Content-Type"].startswith("text/css") and ".donut" in css)
+    with urllib.request.urlopen(f"{base}/dashboard/search_gateway_dashboard.js", timeout=10) as r:
+        js = r.read().decode()
+        check("GET /dashboard/search_gateway_dashboard.js: script",
+              r.status == 200 and r.headers["Content-Type"].startswith("application/javascript"))
+    check("page: no external scripts, styles or fonts",
+          "src=\"http" not in page and "href=\"http" not in page and "@import" not in page and "@import" not in css)
+    check("page: refreshes every 30 s and reads /usage.json", "setInterval(load, 30000)" in js and 'fetch("/usage.json"' in js)
+    with urllib.request.urlopen(f"{base}/usage.json", timeout=10) as r:
+        data = json.loads(r.read())
+        check("GET /usage.json: the report", r.status == 200 and data["services"][0]["id"] == "hasdata")
+finally:
+    server.shutdown()
+
+check("server listens on 127.0.0.1 by default", srv.BIND == "127.0.0.1")
+
+print(f"dashboard-check.py: {passed} passed, {failed} failed")
+sys.exit(1 if failed else 0)
