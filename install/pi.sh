@@ -27,6 +27,7 @@ fi
 
 if [[ "${1:-}" == "--update" ]] || ! command -v pi >/dev/null; then
     rm -f "$HOME/.local/bin/pi"
+    # A fresh install takes the version of the last backup (versions.env); --update takes the newest.
     version=""
     [[ "${1:-}" == "--update" ]] || version="${PI_VERSION:-}"
     npm install -g --ignore-scripts "@earendil-works/pi-coding-agent${version:+@$version}"
@@ -45,6 +46,7 @@ fi
 if uv tool list 2>/dev/null | grep -q '^ddgs '; then
     uv tool uninstall ddgs
 fi
+# Its command link can stay behind, pointing nowhere.
 if [[ -L "$HOME/.local/bin/ddgs" && ! -e "$HOME/.local/bin/ddgs" ]]; then
     rm -f "$HOME/.local/bin/ddgs"
     echo "Removed the leftover ddgs link."
@@ -52,5 +54,3 @@ fi
 
 # The llama.cpp provider in Pi's models.json (the model profile's size; split mode's API key).
 "$REPO_DIR/install/pi-models.sh"
-
-
