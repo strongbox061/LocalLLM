@@ -31,7 +31,10 @@ switch ($Mode) {
             foreach ($n in $off) { Run-Services 'stop' $n }
             # Restarted: run-service.ps1 reads the flag and starts them on the CPU.
             foreach ($n in $gpuUsers) { if ((Get-Service "localllm-$n" -ErrorAction SilentlyContinue).Status -eq 'Running') { Run-Services 'restart' $n } }
-            Info "Gaming mode on. GPU freed for gaming."
+            $before = Join-Path $StateDir 'power-plan-before.txt'
+            if (Test-Path $before) { Power ((Get-Content $before -Raw).Trim()); Info "Power plan: the one from before setup." }
+            $used = (Native { nvidia-smi.exe --query-gpu=memory.used,memory.total --format=csv,noheader }) -join ' '
+            Info "Gaming mode on. GPU memory in use now: $used"
         }
     }
     'off' {
@@ -39,6 +42,7 @@ switch ($Mode) {
             Remove-Item -Force $GamingFlag
             foreach ($n in $gpuUsers) { if ((Get-Service "localllm-$n" -ErrorAction SilentlyContinue).Status -eq 'Running') { Run-Services 'restart' $n } }
             foreach ($n in $off) { Run-Services 'start' $n }
+            Power '381b4222-f694-41f0-9685-ff5bb260df2e'
             Info "Gaming mode off: everything on the GPU again."
         }
     }
