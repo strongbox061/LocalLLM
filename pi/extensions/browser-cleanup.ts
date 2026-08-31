@@ -35,10 +35,8 @@ function log(message: string) {
 }
 
 function sessionNameOf(event: any): string | undefined {
-  if (!event) return undefined;
-  const sid = event.sessionId ?? event.session ?? event.name;
-  if (typeof sid === "string" && MANAGED_SESSION_RE.test(sid)) return sid;
-  return undefined;
+  const name = event?.details?.sessionName ?? event?.details?.data?.sessionName;
+  return typeof name === "string" && MANAGED_SESSION_RE.test(name) ? name : undefined;
 }
 
 type CustomBrowserMatcher = { paths: Set<string>; names: Set<string>; prefixes: string[] };
@@ -63,7 +61,7 @@ function loadCustomBrowserMatcher(): CustomBrowserMatcher | undefined {
     paths.add(real);
     names.add(path.basename(real));
     // A Nix wrapper (e.g. /nix/store/<drv>/bin/foo) may exec a binary deeper in the same derivation.
-    const nixMatch = real.match(/^(\/nix\/store\/[ ^/]+\/)/);
+    const nixMatch = real.match(/^(\/nix\/store\/[^/]+\/)/);
     if (nixMatch) prefixes.push(nixMatch[1]);
   } catch {
     // Target may not exist on disk; exact path and basename still apply.
