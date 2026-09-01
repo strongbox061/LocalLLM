@@ -76,3 +76,14 @@ check "settings that don't fit: a warning and the single-mode addresses" \
 
 printf 'LOCALLLM_MODE=single\n' > "$H/.config/localllm/local.env"
 check "a changed local.env regenerates the addresses" test "$(urls)" = "single http://127.0.0.1:8081 http://127.0.0.1:8090 http://127.0.0.1:3000"
+
+echo "localllm.sh"
+printf 'LOCALLLM_MODE=single\n' > "$H/.config/localllm/local.env"
+L() { HOME="$H" "$REPO/localllm.sh" "$@" 2>&1; }
+check "single mode: 'start helper' is refused" has "$(L start helper)" "single mode"
+check "an unknown service is refused" has "$(L stop nonsense)" "No service 'nonsense'"
+check "an unknown command prints the usage" has "$(L frobnicate)" "localllm.sh start|stop"
+check "single mode: restore-helper-data is refused (the data is here)" has "$(L restore-helper-data)" "switch split moves it there"
+check "settings that don't fit: localllm.sh refuses" \
+    bash -c 'printf "LOCALLLM_MODE=split\n" > "$1"; out="$(HOME="$2" "$3/localllm.sh" status 2>&1)"; [[ $? -ne 0 && "$out" == *"needs HELPER_HOST"* ]]'
+    _ "$H/.config/localllm/local.env" "$H" "$REPO"
