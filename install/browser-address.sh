@@ -20,3 +20,8 @@ fi
 ORIGINS=("http://127.0.0.1:3000" "http://localhost:3000")
 url="${WEBUI_URL%/}"
 [[ " ${ORIGINS[*]} " == *" $url "* ]] || ORIGINS+=("$url")
+
+policy="$(python3 -c 'import json,sys; print(json.dumps({"AutoplayAllowlist": sys.argv[1:]}))' "${ORIGINS[@]}")"
+if install_system_file "${BROWSER_POLICY_DIR%/}/managed/localllm-autoplay.json" "$policy"; then
+    echo "Browser allows autoplay on: ${ORIGINS[*]} (restart your browser to apply)."
+fi
