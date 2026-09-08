@@ -8,9 +8,10 @@
     "GPU budget (6 GB, measured 2026-11-18): Whisper large-v3-turbo (its own service, 1.1 GB), Open WebUI with bge-m3",
     "(2.25 GB), Kokoro (1.4 GB) and Docling share it;",
     "no reranker (bge-reranker-v2-m3 would take another 2.2 GB in FP32); the small model runs on the CPU; ComfyUI",
-    ""
+    "uses its low-VRAM mode. reranking_model empty = no reranker (hybrid search stays on).",
+    "comfyui_checkpoint: DreamShaper 8 (an SD 1.5 fine-tune by Lykon, much better than SD 1.5 base at illustration",
+    "and characters; same size and speed), the author's own upload; setup checks the file against sha256."
   ],
-
   "python": "3.11",
   "uv": "0.13.7",
   "winsw": "v2.12.0",
@@ -18,7 +19,6 @@
   "torchvision": "0.23.0",
   "torchaudio": "2.8.0",
   "torch_index": "https://download.pytorch.org/whl/cu126",
-
   "kokoro_fastapi": "v0.9.1",
   "docling_serve": "1.38.2",
   "comfyui": "v0.45.0",
@@ -39,7 +39,6 @@
       "sha256": "a77451e7ea075c7f72d488d2b740b3d3970c671c0ac39dd3155f3c3b129df959"
     }
   ],
-
   "llama_cpp": "b12503",
   "whisper_model": "large-v3-turbo",
   "embedding_model": "BAAI/bge-m3",
