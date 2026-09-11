@@ -92,6 +92,7 @@ switch ($Task) {
         exit (Py (Join-Path $RepoDir 'open-webui\relocate_uploads.py') $db (Join-Path $paths.WebUIData 'uploads'))
     }
     'check' {
+        if (-not $Rest[0]) { Fail "Usage: tasks.ps1 check <folder>" }
         # Read-only: integrity and what's in it, to compare with the other PC's numbers.
         $dir = $Rest[0]
         $code = @'
