@@ -31,23 +31,32 @@ Pi manages the browser session. Never send `session`, `sessionName`,
 
 ## Workflow
 
-1. **Read a page:** `open` the URL, then `get text body`. For large pages, use
-   `offset` and `limit` parameters to paginate through content.
-2. **Interact with a page:** `snapshot -i` to get element refs, then use those
-   `@eN` refs for fill/press/click operations. Don't guess selectors — always
-   snapshot first.
-3. **Search on sites:** Use the site: filter in search queries (e.g.,
-   `site:github.com`). For GitHub issues/PRs, append `?q=<keywords>` to the URL.
-4. **Extract data:** When snippets answer, use them directly. Only snapshot or
-   eval when you need interactive elements or specific DOM data.
+Reading (summarize, extract, answer questions about a page):
+1. `["open", "<url>"]`
+2. `["get", "text", "body"]`
+
+No snapshot. It adds tokens and doesn't shorten the text.
+
+Interacting (click, fill, navigate, find a link):
+1. `["open", "<url>"]`
+2. `["snapshot", "-i"]`
+3. Act using `@eN` refs from that snapshot.
+4. After navigation, scrolling, or page changes, snapshot again
+   before reusing refs.
+
+Snapshot only when the task needs refs, or when the user asks for one.
+
+Searching on sites like Google Scholar (`scholar.google.com`):
+- Open the site's homepage first (e.g. `["open", "https://scholar.google.com/"]`) instead of navigating directly to a pre-built search query URL (like `/scholar?q=...`).
+- Run `["snapshot", "-i"]`, `["fill", "@eN", "<query>"]` in the search input, and submit with `["press", "Enter"]` (or click the search button), then read results with `["get", "text", "body"]`.
 
 
 ## CAPTCHAs
 
-If a CAPTCHA appears:
-- Report it to the user — do not attempt to solve it yourself.
-- Try refreshing the page once; sometimes CAPTCHAs are transient.
-- If it persists, note it in your response and suggest the user try manually.
+When a page has a CAPTCHA, `open`, `click`, and `press` wait for it to be resolved before returning:
+- If the result says the CAPTCHA is resolved, do **not** click the CAPTCHA checkbox or re-open the page. Leftover `reCAPTCHA` iframes, `checked=true` checkboxes, or disabled challenge buttons in snapshots mean it is already solved. Read the page with `["get", "text", "body"]` or continue your task.
+- If you previously saw a CAPTCHA and on the next page read/snapshot it is gone, the page redirected to the real destination — read the current page with `["get", "text", "body"]` instead of re-opening the old URL.
+- If a result reports an unsolved Cloudflare Turnstile / managed challenge, do **not** retry, click the widget, or switch to plain HTTP `read` — stop and inform the user so they can complete verification manually in a visible browser (or pick another source).
 
 
 ## Errors
