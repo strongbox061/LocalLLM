@@ -5,6 +5,7 @@
 set -euo pipefail
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
+[[ -n "${REPO_DIR:-}" ]] || die "REPO_DIR not set; run from repo root."
 
 PI_SOURCE_DIR="$REPO_DIR/pi"
 
