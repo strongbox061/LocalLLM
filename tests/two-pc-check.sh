@@ -70,12 +70,12 @@ check "split: the scripts get the helper's addresses" \
     test "$(urls)" = "split http://127.0.0.1:8081 http://helper.example:8090 https://helper.example"
 check "endpoints.json is written for Pi" test -f "$H/.config/localllm/endpoints.json"
 sleep 1
+printf 'LOCALLLM_MODE=single\n' > "$H/.config/localllm/local.env"
+check "a changed local.env regenerates the addresses" test "$(urls)" = "single http://127.0.0.1:8081 http://127.0.0.1:8090 http://127.0.0.1:3000"
+sleep 1
 printf 'LOCALLLM_MODE=split\n' > "$H/.config/localllm/local.env"
 check "settings that don't fit: a warning and the single-mode addresses" \
     bash -c '[[ "$1" == *"needs HELPER_HOST"* && "$1" == *" http://127.0.0.1:8081 http://127.0.0.1:8090 http://127.0.0.1:3000"* ]]' _ "$(urls | tr '\n' ' ')"
-
-printf 'LOCALLLM_MODE=single\n' > "$H/.config/localllm/local.env"
-check "a changed local.env regenerates the addresses" test "$(urls)" = "single http://127.0.0.1:8081 http://127.0.0.1:8090 http://127.0.0.1:3000"
 
 echo "localllm.sh"
 printf 'LOCALLLM_MODE=single\n' > "$H/.config/localllm/local.env"
