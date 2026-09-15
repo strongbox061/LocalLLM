@@ -59,35 +59,34 @@ function kindOf(start: string): [string, string] {
   return k ? [k[1], k[2]] : ["a binary file", "file FILE, or xxd FILE | head -20"];
 }
 
+// U+FFFD, what invalid UTF-8 bytes turn into.
 const REPLACEMENT = String.fromCharCode(0xfffd);
 const CONTROL_RE = new RegExp(`[\\x00-\\x08\\x0e-\\x1f${REPLACEMENT}]`, "g");
-
 function isBinaryLine(line: string): boolean {
-  const clean = line.replace(CONTROL_RE, "");
-  if (clean.length === 0) return false;
-  let controlChars = 0;
-  for (const ch of line) {
-    const code = ch.charCodeAt(0);
-    if ((code >= 0x00 && code <= 0x08) || (code >= 0x0e && code <= 0x1f)) {
-      controlChars++;
-    }
-  }
-  return controlChars / clean.length > 0.3;
+  if (line.includes("\x00")) return true;
+  const bad = line.match(CONTROL_RE)?.length ?? 0;
+  if (line.length < 8) return bad > 0;
+  return bad / line.length > 0.1;
 }
 
+// bash output with each run of binary lines replaced by one line; undefined when there is none.
 export function collapseBinary(text: string): string | undefined {
+  if (!text.includes("\x00") && !text.includes(REPLACEMENT)) return undefined;
   const lines = text.split("\n");
-  let firstBinary = -1;
-  for (let i = 0; i < lines.length; i++) {
-    if (isBinaryLine(lines[i])) {
-      firstBinary = i;
-      break;
-    }
+  const out: string[] = [];
+  let changed = false;
+  for (let i = 0; i < lines.length; ) {
+    if (!isBinaryLine(lines[i])) { out.push(lines[i++]); continue; }
+    const start = i;
+    while (i < lines.length && isBinaryLine(lines[i])) i++;
+    const run = lines.slice(start, i).join("\n");
+    const [kind, how] = kindOf(run);
+    const n = i - start;
+    out.push(`[binary data left out (${n.toLocaleString("en")} line${n === 1 ? "" : "s"}, ${run.length.toLocaleString("en")} characters): ` +
+      `it looks like ${kind}. Not text, so head or cat only show bytes. Look inside with: ${how.replace(/FILE/g, "<file>")}]`);
+    changed = true;
   }
-  if (firstBinary === -1) return undefined;
-  const before = lines.slice(0, firstBinary).join("\n");
-  const remaining = lines.length - firstBinary;
-  return `${before}\n\n[... ${remaining} binary lines omitted ...]`;
+  return changed ? out.join("\n") : undefined;
 }
 
 function expand(p: string, cwd: string): string {

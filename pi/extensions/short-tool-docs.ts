@@ -105,19 +105,13 @@ export default function (pi: any) {
   pi.on("before_provider_request", (event: any) => {
     let tools = event?.payload?.tools;
     if (!Array.isArray(tools)) return;
-
-    const kept: any[] = [];
+    let changed = false;
+    const kept = tools.filter((t: any) => !DROPPED_TOOLS.has((t?.function ?? t)?.name));
+    if (kept.length !== tools.length) { event.payload.tools = tools = kept; changed = true; }
     for (const tool of tools) {
-      const name = (tool?.function ?? tool)?.name;
-      if (!name || DROPPED_TOOLS.has(name)) continue;
-
-      try {
-        shorten(tool?.function ?? tool);
-      } catch {
-        // Silently skip shortening if the tool schema is malformed.
-      }
-      kept.push(tool);
+      // OpenAI shape { type: "function", function: {...} }, or a flat { name, description, ... }
+      if (shorten(tool?.function ?? tool)) changed = true;
     }
-    event.payload.tools = kept;
+    return changed ? event.payload : undefined;
   });
 }
