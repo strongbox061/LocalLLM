@@ -361,6 +361,13 @@ function buildResultSummary(results: SingleResult[]): Container {
   const completedResults = results.filter((r) => r.status === "completed");
   const failedResults = results.filter((r) => r.status !== "completed");
 
+  if (results.length > 1) {
+    const summaryParts: string[] = [];
+    if (completedResults.length) summaryParts.push(`${completedResults.length} done`);
+    if (failedResults.length) summaryParts.push(`${failedResults.length} failed`);
+    items.push(new Text(summaryParts.join(", ")));
+  }
+
   for (const result of results.slice(0, COLLAPSED_ITEM_COUNT)) {
     const icon = result.status === "completed" ? "✓" : "✗";
     const statusText = `${icon} ${result.agentName}: ${result.status}`;
