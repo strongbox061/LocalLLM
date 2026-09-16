@@ -87,3 +87,13 @@ check "single mode: restore-helper-data is refused (the data is here)" has "$(L 
 check "settings that don't fit: localllm.sh refuses" \
     bash -c 'printf "LOCALLLM_MODE=split\n" > "$1"; out="$(HOME="$2" "$3/localllm.sh" status 2>&1)"; [[ $? -ne 0 && "$out" == *"needs HELPER_HOST"* ]]'
     _ "$H/.config/localllm/local.env" "$H" "$REPO"
+
+# Split mode with a helper that can't be reached (no SSH config in this HOME): the main PC's part still answers.
+printf 'LOCALLLM_MODE=split\nHELPER_HOST=helper.invalid\nHELPER_USER=someone\nMAIN_HOST=main.example\n' > "$H/.config/localllm/local.env"
+out="$(L status)"
+check "split, helper unreachable: status lists the main PC's services" has "$out" "llama .*main PC"
+check "... and the helper's as unreachable" has "$out" "open-webui .*helper PC .*helper unreachable"
+out="$(L stop helper)"
+check "split, helper unreachable: 'stop helper' says so and fails" \
+    bash -c '[[ "$1" == *"can'"'"'t be reached"* && "$1" == *"Not done: helper PC"* ]]'
+    _ "$out"
