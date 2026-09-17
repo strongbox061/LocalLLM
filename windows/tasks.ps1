@@ -95,6 +95,7 @@ switch ($Task) {
         if (-not $Rest[0]) { Fail "Usage: tasks.ps1 check <folder>" }
         # Read-only: integrity and what's in it, to compare with the other PC's numbers.
         $dir = $Rest[0]
+        if (-not (Test-Path $dir)) { Fail "Folder not found: $dir" }
         $code = @'
 import hashlib, json, os, sqlite3, sys
 d = sys.argv[1]
