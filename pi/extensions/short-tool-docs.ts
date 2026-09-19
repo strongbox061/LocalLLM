@@ -81,7 +81,9 @@ const SHORT: Record<string, Short> = {
 };
 
 function shorten(def: any): boolean {
-  const short = def && SHORT[def.name];
+  const name = def?.name;
+  if (!name) return false;
+  const short = SHORT[name];
   if (!short) return false;
   def.description = short.description;
   const schema = def.parameters ?? def.input_schema ?? def.inputSchema;
