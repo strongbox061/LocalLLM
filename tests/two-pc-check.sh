@@ -85,9 +85,8 @@ check "an unknown service is refused" has "$(L stop nonsense)" "No service 'nons
 check "an unknown command prints the usage" has "$(L frobnicate)" "localllm.sh start|stop"
 check "single mode: restore-helper-data is refused (the data is here)" has "$(L restore-helper-data)" "switch split moves it there"
 check "settings that don't fit: localllm.sh refuses" \
-    bash -c 'printf "LOCALLLM_MODE=split\n" > "$1"; out="$(HOME="$2" "$3/localllm.sh" status 2>&1)"; [[ $? -ne 0 && "$out" == *"needs HELPER_HOST"* ]]'
+    bash -c 'printf "LOCALLLM_MODE=split\n" > "$1"; out="$(HOME="$2" "$3/localllm.sh" status 2>&1)"; [[ $? -ne 0 && "$out" == *"needs HELPER_HOST"* ]]' \
     _ "$H/.config/localllm/local.env" "$H" "$REPO"
-
 # Split mode with a helper that can't be reached (no SSH config in this HOME): the main PC's part still answers.
 printf 'LOCALLLM_MODE=split\nHELPER_HOST=helper.invalid\nHELPER_USER=someone\nMAIN_HOST=main.example\n' > "$H/.config/localllm/local.env"
 out="$(L status)"
@@ -95,5 +94,8 @@ check "split, helper unreachable: status lists the main PC's services" has "$out
 check "... and the helper's as unreachable" has "$out" "open-webui .*helper PC .*helper unreachable"
 out="$(L stop helper)"
 check "split, helper unreachable: 'stop helper' says so and fails" \
-    bash -c '[[ "$1" == *"can'"'"'t be reached"* && "$1" == *"Not done: helper PC"* ]]'
-    _ "$out"
+    bash -c '[[ "$1" == *"can'"'"'t be reached"* && "$1" == *"Not done: helper PC"* ]]' _ "$out"
+
+check "single mode keeps HELPER_HOST from local.env (setup-helper needs it before the switch)" \
+    bash -c 'printf "HELPER_HOST=kept.example\n" > "$1"; [[ "$(HOME="$2" bash -c "source \"\$0/lib/common.sh\"; echo \$HELPER_HOST" "$3")" == kept.example ]]'
+    _ "$H/.config/localllm/local.env" "$H" "$REPO"
