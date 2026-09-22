@@ -33,6 +33,7 @@
     "maxToolCalls": 10,
     "timeoutMs": 30000,
     "retryOnFailure": true,
-    "maxRetries": 2
+    "maxRetries": 3,
+    "backoffMs": 500
   }
 }
