@@ -30,3 +30,11 @@ Each `pi -p` run that uses `agent_browser` leaves its daemon and Chrome processe
 **Expected:** Pi's quit-time cleanup closes the browser the extension manages.
 
 **Actual:** the daemon and its Chrome processes are still running. `agent-browser session list` shows no active sessions, because the daemon uses the private socket directory (`/tmp/piab-<uid>`). `agent-browser --session <name> close` doesn't reach it either, unless `AGENT_BROWSER_SOCKET_DIR` is set to that directory.
+
+**What I don't know**
+
+I haven't established the cause, for example whether `session_shutdown` fires in print mode or whether it fires too late. Interactive sessions appeared to clean up normally, judging only by what they left behind; I didn't test that directly.
+
+**Related detail**
+
+When a daemon's socket file is missing, `agent-browser --session <name> close` starts a new daemon rather than failing. A cleanup path can therefore create the process it was meant to remove. That may belong in the agent-browser project instead.
