@@ -28,7 +28,7 @@ const OWNER_ENV = "PI_BROWSER_CLEANUP_OWNER";
 const DEBUG = false;
 const MANAGED_SESSION_RE = /^(?:pi-root-|piab-)[A-Za-z0-9_-]+$/;
 
-type BrowserProcess = { pid: number; sid: number; socketDir: string; env: Map<string, string> };
+type BrowserProcess = { pid: number; sid: number; env: Map<string, string> };
 
 function log(message: string) {
   if (DEBUG) console.error(`[browser-cleanup] ${message}`);
@@ -70,63 +70,51 @@ function loadCustomBrowserMatcher(): CustomBrowserMatcher | undefined {
 }
 
 function isBrowserExe(exe: string, custom?: CustomBrowserMatcher): boolean {
-  const base = path.basename(exe);
-  if (base === "agent-browser" || base === "pi-agent-browser-native") return true;
-  if (custom) {
-    if (custom.paths.has(exe)) return true;
-    if (custom.names.has(base)) return true;
-    for (const pfx of custom.prefixes) if (base.startsWith(pfx)) return true;
-  }
-  return false;
+  if (/\/agent-browser[^/]*$/.test(exe) || exe.includes("/.agent-browser/browsers/")) return true;
+  if (!custom) return false;
+  if (custom.paths.has(exe) || custom.names.has(path.basename(exe))) return true;
+  return custom.prefixes.some((p) => exe.startsWith(p));
 }
 
 function readBrowserProcess(pid: number, custom?: CustomBrowserMatcher): BrowserProcess | undefined {
   try {
-    const exePath = `/proc/${pid}/exe`;
-    const exe = fs.readlinkSync(exePath);
-    if (!isBrowserExe(exe, custom)) return undefined;
-
-    const status = fs.readFileSync(`/proc/${pid}/status`, "utf-8");
-    const sidMatch = status.match(/^sid\s+(\d+)$/m);
-    if (!sidMatch) return undefined;
-    const sid = parseInt(sidMatch[1], 10);
-
-    const envPath = `/proc/${pid}/environ`;
-    const envBuf = fs.readFileSync(envPath);
+    const exe = fs.readlinkSync(`/proc/${pid}/exe`);
+    if (!isBrowserExe(exe, custom)) return;
     const env = new Map<string, string>();
-    for (const chunk of envBuf.toString("utf-8").split("\0")) {
-      const eqIdx = chunk.indexOf("=");
-      if (eqIdx > 0) env.set(chunk.slice(0, eqIdx), chunk.slice(eqIdx + 1));
+    for (const entry of fs.readFileSync(`/proc/${pid}/environ`, "utf8").split("\0")) {
+      const eq = entry.indexOf("=");
+      if (eq > 0) env.set(entry.slice(0, eq), entry.slice(eq + 1));
     }
-
-    const socketDir = env.get("PIAB_SOCKET_DIR") ?? env.get("AGENT_BROWSER_SOCKET_DIR") ?? "";
-    return { pid, sid, socketDir, env };
+    // /proc/<pid>/stat: "pid (comm) state ppid pgrp session ...". comm may contain spaces.
+    const stat = fs.readFileSync(`/proc/${pid}/stat`, "utf8");
+    const sid = Number(stat.slice(stat.lastIndexOf(")") + 2).split(" ")[3]);
+    return { pid, sid, env };
   } catch {
-    return undefined;
+    return; // exited, or not ours to read
   }
 }
 
 function findOwned(owner: string, names: Set<string>): BrowserProcess[] {
   const custom = loadCustomBrowserMatcher();
-  const owned: BrowserProcess[] = [];
-  const pids = fs.readdirSync("/proc").filter((f) => /^\d+$/.test(f)).map(Number);
-
-  for (const pid of pids) {
-    const proc = readBrowserProcess(pid, custom);
-    if (!proc) continue;
-    const ownerVal = proc.env.get(OWNER_ENV);
-    if (ownerVal === owner) {
-      owned.push(proc);
-      names.add(`pid:${pid}`);
-    }
+  const all: BrowserProcess[] = [];
+  for (const entry of fs.readdirSync("/proc")) {
+    const pid = Number(entry);
+    if (!Number.isInteger(pid) || pid === process.pid) continue;
+    const found = readBrowserProcess(pid, custom);
+    if (found) all.push(found);
   }
-  return owned;
+  const isNamedDaemon = (p: BrowserProcess) =>
+    p.env.has("AGENT_BROWSER_DAEMON") && names.has(p.env.get("AGENT_BROWSER_SESSION") ?? "");
+  // A named daemon runs in its own process session, with its Chrome processes.
+  const namedSessions = new Set(all.filter(isNamedDaemon).map((p) => p.sid));
+  return all.filter((p) => p.env.get(OWNER_ENV) === owner || namedSessions.has(p.sid));
 }
 
 function isRunning(pid: number): boolean {
   try {
-    process.kill(pid, 0);
-    return true;
+    // A zombie keeps its /proc entry but has already exited.
+    const stat = fs.readFileSync(`/proc/${pid}/stat`, "utf8");
+    return stat.slice(stat.lastIndexOf(")") + 2, stat.lastIndexOf(")") + 3) !== "Z";
   } catch {
     return false;
   }
@@ -134,12 +122,12 @@ function isRunning(pid: number): boolean {
 
 async function waitGone(pids: number[], ms: number): Promise<number[]> {
   const deadline = Date.now() + ms;
-  while (Date.now() < deadline) {
-    const alive = pids.filter(isRunning);
-    if (alive.length === 0) return [];
-    await new Promise((r) => setTimeout(r, 100));
+  let alive = pids.filter(isRunning);
+  while (alive.length && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    alive = alive.filter(isRunning);
   }
-  return pids.filter(isRunning);
+  return alive;
 }
 
 function signal(pids: number[], name: NodeJS.Signals) {
@@ -149,12 +137,14 @@ function signal(pids: number[], name: NodeJS.Signals) {
 }
 
 function politeClose(daemon: BrowserProcess): Promise<void> {
+  const session = daemon.env.get("AGENT_BROWSER_SESSION");
+  if (!session) return Promise.resolve();
+  const socketDir = daemon.env.get("AGENT_BROWSER_SOCKET_DIR");
+  // Without its socket, `close` would start a new daemon instead of failing.
+  if (!socketDir || !fs.existsSync(path.join(socketDir, `${session}.sock`))) return Promise.resolve();
+  const env = { ...process.env, AGENT_BROWSER_SOCKET_DIR: socketDir };
   return new Promise((resolve) => {
-    const opts = daemon.socketDir ? ["--socket-dir", daemon.socketDir, "close"] : ["--session", "unknown", "close"];
-    execFile(BIN, opts, { timeout: 5000 }, (err) => {
-      log(`polite close attempt for pid ${daemon.pid}: ${err ? err.message : "ok"}`);
-      resolve();
-    });
+    execFile(BIN, ["--session", session, "close"], { timeout: 10000, env }, () => resolve());
   });
 }
 
