@@ -122,7 +122,6 @@ Memory Device
     )
 
 
-
 def test_http_server() -> None:
     mc = monitor.MainCollector()
 
