@@ -11,7 +11,9 @@ PLANNOTATOR="$(command -v plannotator || echo "$HOME/.local/bin/plannotator")"
 
 # Check if the Inbox is already running to avoid duplicate instances.
 if "$PLANNOTATOR" inbox status --json 2>/dev/null | grep -q '"running": true'; then
-    echo "Already running."
+    url="$("$PLANNOTATOR" inbox --background)"
+    echo "Already running at: $url"
+    exit 0
 fi
 
 url="$("$PLANNOTATOR" inbox --background)" || die "The Plannotator Inbox did not start. Try: plannotator inbox status"
