@@ -5,15 +5,12 @@
 set -euo pipefail
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
-[[ -n "${REPO_DIR:-}" ]] || die "REPO_DIR not set; run from repo root."
 
 PI_SOURCE_DIR="$REPO_DIR/pi"
 
 # The extensions' word rules (extensions/lang-words.ts, imported by the others) are generated from
 # lang/phrases.json: never install a stale copy.
 python3 "$REPO_DIR/lang/build.py" --check >/dev/null || die "lang/phrases.json changed: run python3 lang/build.py first."
-
-# --- Key declarations / sections / selectors (bodies omitted for v1) ---
 
 # --- extensions: single-file extensions (.ts/.js) and extension directories ---
 mkdir -p "$PI_AGENT_DIR/extensions"
