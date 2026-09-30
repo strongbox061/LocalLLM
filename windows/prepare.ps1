@@ -58,19 +58,16 @@ if ($LASTEXITCODE -eq 0) {
 }
 
 # --- 2. OpenSSH server ---
-$cap = Get-AppCapability -Online -Name "OpenSSH.Server~~~~0.0.1.0" -ErrorAction SilentlyContinue
+Step "OpenSSH server"
+$cap = Get-WindowsCapability -Online | Where-Object Name -like 'OpenSSH.Server*' | Select-Object -First 1
+if (-not $cap) { Fail "This Windows has no OpenSSH server to install (Settings, System, Optional features)." }
 if ($cap.State -ne 'Installed') {
-    Add-AppCapability -Online -Name "OpenSSH.Server~~~~0.0.1.0"
-    if ($LASTEXITCODE -ne 0) {
-        Fail("Failed to install OpenSSH server.")
-    }
+    Write-Host "Installing $($cap.Name) (needs the internet, can take a few minutes)..."
+    Add-WindowsCapability -Online -Name $cap.Name | Out-Null
 }
-
 Set-Service -Name sshd -StartupType Automatic
-Start-Service sshd
-if (-not (Get-Service sshd).Status -eq 'Running') {
-    Fail("Failed to start sshd service.")
-}
+if ((Get-Service sshd).Status -ne 'Running') { Start-Service sshd }
+Write-Host "sshd is installed, running, and starts at boot."
 
 # --- 3. Key login only, PowerShell as the shell ---
 # For an administrator, Windows' OpenSSH reads only this file (not the user's own .ssh\authorized_keys).
