@@ -3,5 +3,8 @@
 set -euo pipefail
 
 PLANNOTATOR="$HOME/.local/bin/plannotator"
-[[ -x "$PLANNOTATOR" ]] && "$PLANNOTATOR" inbox stop >/dev/null 2>&1 || true
+if [[ -x "$PLANNOTATOR" ]]; then
+  "$PLANNOTATOR" inbox stop >/dev/null 2>&1 || true
+  sleep 0.5
+fi
 echo "Plannotator Inbox stopped."
