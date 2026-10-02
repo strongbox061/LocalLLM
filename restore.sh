@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# restore.sh — restore LocalLLM settings and data from a backup directory
+# Copies the settings saved in backup/ back to where Pi, Plannotator, Open WebUI, SearXNG and the LocalLLM scripts
 # (~/.config/localllm, EXTRA_BACKUP_FILES) read them.
 #   ./restore.sh                 overwrite; anything that differs is first kept as <name>.bak.<timestamp>
 #   ./restore.sh --missing-only  only restore what does not exist yet (what install.sh uses)
@@ -143,6 +143,9 @@ if [[ -d "$BACKUP_DIR/extra" ]]; then
     done < <(find "$BACKUP_DIR/extra" -type f -print0)
 fi
 
+log "Plannotator"
+restore_file "$BACKUP_DIR/plannotator/config.json" "$PLANNOTATOR_CONFIG" 600
+
 log "Search gateway ($SEARCH_GATEWAY_DB)"
 GW_SRC="$BACKUP_DIR/search-gateway/search-gateway.db"
 if [[ -f "$GW_SRC" ]]; then
@@ -166,4 +169,81 @@ if [[ -f "$GW_SRC" ]]; then
         chmod 600 "$SEARCH_GATEWAY_DB"
         echo "  restored $SEARCH_GATEWAY_DB"
     fi
+fi
+
+log "Open WebUI ($WEBUI_DATA_DIR)"
+DB_SRC="$BACKUP_DIR/open-webui/webui.db"
+DB_DST="$WEBUI_DATA_DIR/webui.db"
+DB_RESTORED=false
+if [[ -f "$DB_SRC" ]]; then
+    if [[ ! -f "$DB_DST" ]]; then
+        mkdir -p "$WEBUI_DATA_DIR"
+        cp "$DB_SRC" "$DB_DST"
+        chmod 600 "$DB_DST"
+        echo "  restored $DB_DST"
+        DB_RESTORED=true
+    elif cmp -s "$DB_SRC" "$DB_DST" && [[ ! -s "$DB_DST-wal" ]]; then
+        echo "  same    $DB_DST"
+    elif $MISSING_ONLY; then
+        echo "  kept    $DB_DST (already exists)"
+    else
+        webui_running && die "Open WebUI is running. Run ./stop.sh, then restore again."
+        # Keep the old database together with its WAL files, so the copy stays complete.
+        for suffix in "" -wal -shm; do
+            [[ -f "$DB_DST$suffix" ]] && mv "$DB_DST$suffix" "$DB_DST.bak.$STAMP$suffix"
+        done
+        echo "  old one $DB_DST.bak.$STAMP"
+        cp "$DB_SRC" "$DB_DST"
+        chmod 600 "$DB_DST"
+        echo "  restored $DB_DST"
+        DB_RESTORED=true
+    fi
+fi
+# A backup from before the search gateway had its own database keeps its usage counts and search log next to Open
+# WebUI's (search_gateway_* or, before the rename, web_research_*): they go back there, and install/search-gateway.sh
+# moves them into the gateway's database.
+if [[ ! -f "$GW_SRC" ]]; then
+    for prefix in search_gateway web_research; do
+        for f in usage.json log.jsonl log.jsonl.1; do
+            restore_file "$BACKUP_DIR/open-webui/${prefix}_$f" "$WEBUI_DATA_DIR/${prefix}_$f"
+        done
+    done
+fi
+restore_dir "$BACKUP_DIR/open-webui/uploads"   "$WEBUI_DATA_DIR/uploads"
+restore_dir "$BACKUP_DIR/open-webui/vector_db" "$WEBUI_DATA_DIR/vector_db"
+WEBUI_ELSEWHERE=false
+if $DB_RESTORED; then
+    # Open WebUI lists each upload with its full path on the PC the backup came from (D:\... on the helper in split
+    # mode, another home folder): point them at this PC's uploads folder.
+    python3 "$REPO_DIR/open-webui/relocate_uploads.py" "$DB_DST" "$WEBUI_DATA_DIR/uploads" \
+        || warn "The uploads' paths couldn't be set (see above): attachments in old chats won't open until they are."
+    # A backup made in split mode: Open WebUI's settings that depend on the PC are the helper's. The first
+    # start/open-webui.sh here sets them for this PC (lib/common.sh, WEBUI_FROM_SPLIT_FILE).
+    if grep -qE '^LOCALLLM_MODE=["'"'"']?split' "$BACKUP_DIR/localllm/local.env" 2>/dev/null; then
+        mkdir -p "$(dirname -- "$WEBUI_FROM_SPLIT_FILE")"
+        : > "$WEBUI_FROM_SPLIT_FILE"
+        echo "  noted   its settings are the helper's: the next start/open-webui.sh sets them for this PC"
+    fi
+    [[ "$LOCALLLM_MODE" == single ]] || WEBUI_ELSEWHERE=true
+fi
+
+log "SearXNG ($SEARXNG_DIR)"
+restore_file "$BACKUP_DIR/searxng/docker-compose.yml" "$SEARXNG_DIR/docker-compose.yml"
+restore_file "$BACKUP_DIR/searxng/.env"               "$SEARXNG_DIR/.env"
+restore_file "$BACKUP_DIR/searxng/settings.yml"       "$SEARXNG_DIR/core-config/settings.yml" 644
+
+make_private  # Open WebUI's signing key and database, and backup/, only yours
+
+echo
+echo "Restore finished. Restart the tools that were running so they read the restored settings."
+if $FROM_SPLIT; then
+    echo "The backup was made in split mode: this PC starts in single mode, with Open WebUI's data from the backup."
+    echo "Its first start here (./start.sh) sets Open WebUI's settings for this PC (a few minutes, once)."
+    echo "Back to split mode: ./localllm.sh setup-helper, ./localllm.sh install-helper (if the helper was rebuilt too),"
+    echo "then ./localllm.sh switch split (README, \"Rebuilding both PCs\")."
+fi
+if $WEBUI_ELSEWHERE; then
+    echo "This PC is in split mode, so Open WebUI runs on the helper, not with the data just restored here. To put this"
+    echo "data on the helper (a reinstalled helper): ./localllm.sh restore-helper-data (README, \"Rebuilding only the"
+    echo "helper PC\")."
 fi
