@@ -3,10 +3,12 @@
   "engines": ["google", "bing", "duckduckgo", "mojeek", "brave", "yahoo", "qwant", "startpage", "ecosia"],
   "rules": {
     "please": {"for": ["pi"], "about": "Allowed before a phrase that must start the message."},
+    "latest": {"for": ["pi"], "anchor": "any", "about": "Asks for the latest or current version (thinking-switch; agent-browser-fix: Context7 isn't tried first)."},
     "error": {"for": ["pi"], "anchor": "any", "about": "About an error or a fix (thinking-switch; the end-of-answer fix check)."},
     "action_start": {"for": ["pi"], "anchor": "start", "about": "Starts with an action: search, find, open, read... (thinking-switch; the end-of-answer checks)."},
     "question_start": {"for": ["pi"], "anchor": "start", "about": "A question: ends with a question mark or starts with a question word (edit-guard)."},
     "local_current": {"for": ["pi"], "anchor": "any", "about": "\"current directory\" and the like: about this machine, not the web (thinking-switch)."},
+    "named_engine": {"for": ["pi"], "anchor": "any", "about": "\"search on <engine>\": the user named a search engine (agent-browser-fix)."},
     "named_source": {"for": ["pi"], "anchor": "any", "about": "The user named a source to read: read/open/find ... page/docs, according to (end-of-answer checks)."},
     "lookup": {"for": ["pi"], "anchor": "any", "about": "Look it up, not from memory (end-of-answer checks)."},
     "offer": {"for": ["pi"], "anchor": "any", "about": "An offer in the model's answer: would you like... (end-of-answer checks)."},
