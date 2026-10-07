@@ -7,6 +7,7 @@
 
 set -euo pipefail
 
+mkdir -p "$PI_AGENT_DIR"
 MODELS_JSON="$PI_AGENT_DIR/models.json"
 MODEL_ALIAS="local"
 MODEL_NAME="${MODEL_NAME:-Qwen3-30B-A3B-Instruct-2507}"
@@ -33,40 +34,21 @@ MODEL_ID="$MODEL_ALIAS" MODEL_NAME="$MODEL_NAME" CONTEXT="$CONTEXT" MAX_TOKENS="
 import json, os, sys
 
 path = sys.argv[1]
-if os.path.exists(path):
-    with open(path, "r") as f:
-        config = json.load(f)
-else:
-    config = {"providers": []}
-
-# Build the llamacpp provider entry
-provider = {
-    "name": "llamacpp",
-    "model_id": os.environ["MODEL_ID"],
-    "context_length": int(os.environ["CONTEXT"]),
-    "max_tokens": int(os.environ["MAX_TOKENS"])
-}
-
-if os.environ.get("API_KEY", ""):
-    provider["api_key"] = os.environ["API_KEY"]
-
-# Replace or add the llamacpp provider
-providers = config.get("providers", [])
-found = False
-for i, p in enumerate(providers):
-    if p.get("name") == "llamacpp":
-        providers[i] = provider
-        found = True
-        break
-if not found:
-    providers.append(provider)
-
-config["providers"] = providers
-
-# Write back
+try:
+    with open(path) as f:
+        data = json.load(f)
+except FileNotFoundError:
+    data = {"$schema": "https://pi.dev/schemas/models.schema.json"}
+provider = data.setdefault("providers", {}).setdefault("llamacpp", {})
+key = os.environ.get("API_KEY", "")
+if key:
+    provider["apiKey"] = key
+provider.update({"baseUrl": os.environ["LLAMA_URL"] + "/v1"})
+models = [{"id": os.environ["MODEL_ID"], "name": os.environ["MODEL_NAME"],
+           "contextWindow": int(os.environ["CONTEXT"]), "maxTokens": int(os.environ["MAX_TOKENS"])}]
+provider["models"] = models
 with open(path, "w") as f:
-    json.dump(config, f, indent=2)
+    json.dump(data, f, indent=2)
     f.write("\n")
-
-print(f"Updated {path}: llamacpp provider for {os.environ['MODEL_NAME']} (ctx={os.environ['CONTEXT']}, max_tokens={os.environ['MAX_TOKENS']})")
+print(f"Wrote {path} (model {os.environ['MODEL_ID']}: {os.environ['MODEL_NAME']})")
 EOF_PY
