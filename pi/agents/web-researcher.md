@@ -26,5 +26,4 @@ The answer to the question, with the exact values, names, versions, dates and co
 - [page title](full URL copied from what you read): what it was used for
 
 ## Not found
-
-If the question cannot be answered from available information, say so clearly. Explain what was searched for and why results were insufficient. Suggest a refined search approach if helpful.
+Anything asked that the pages didn't answer (leave out if nothing).
