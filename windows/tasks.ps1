@@ -86,7 +86,6 @@ switch ($Task) {
         Native { & $py -I (Join-Path $RepoDir 'open-webui\settings_status.py') $db }
         exit $LASTEXITCODE
     }
-
     'relocate' {
         # Open WebUI's uploads listed with this PC's folder (install-data does it; on its own for a fix by hand).
         exit (Py (Join-Path $RepoDir 'open-webui\relocate_uploads.py') $db (Join-Path $paths.WebUIData 'uploads'))
