@@ -137,11 +137,10 @@ if (-not $rule) {
 }
 
 # --- 5. What the main PC needs ---
-$windowsUser = $env:USERNAME
-$tailscaleName = & $tailscale status 2>$null | ConvertFrom-Json | Select-Object -ExpandProperty Self | Select-Object -ExpandProperty DNSName
-$sshHostKey = Get-Content "$env:ProgramFiles\OpenSSH\etc\ssh_host_ed25519_key.pub" -ErrorAction SilentlyContinue
-
-Step("Setup complete.")
-Write-Host "Windows user: $windowsUser"
-Write-Host "Tailscale name: $tailscaleName"
-Write-Host "SSH host key: $sshHostKey"
+Step "Done. For ./localllm.sh setup-helper on the main PC:"
+$fingerprint = & (Join-Path $env:SystemRoot 'System32\OpenSSH\ssh-keygen.exe') -lf (Join-Path $sshDir 'ssh_host_ed25519_key.pub')
+Write-Host "  Windows user name: $env:USERNAME"
+Write-Host "  Tailscale name:    $tailscaleName"
+Write-Host "  SSH fingerprint:   $fingerprint"
+Write-Host ""
+Write-Host "When ssh on the main PC asks whether to trust the helper, answer yes only if it shows this same fingerprint."
