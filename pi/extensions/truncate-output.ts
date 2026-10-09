@@ -90,10 +90,8 @@ export function collapseBinary(text: string): string | undefined {
 }
 
 function expand(p: string, cwd: string): string {
-  if (p.startsWith("~")) {
-    return path.join(os.homedir(), p.slice(1));
-  }
-  return path.isAbsolute(p) ? p : path.resolve(cwd, p);
+  const e = p === "~" || p.startsWith("~/") ? path.join(os.homedir(), p.slice(1)) : p;
+  return path.resolve(cwd || process.cwd(), e);
 }
 
 export function binaryReason(shown: string, file: string): string | undefined {
@@ -111,14 +109,12 @@ export function capFor(contextWindow: unknown): number {
 }
 
 function saveFull(text: string, tool: string): string | undefined {
-  const dir = path.join(os.tmpdir(), "pi-extensions");
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  const safeTool = tool.replace(/[^a-zA-Z0-9_-]/g, "_");
-  const filePath = path.join(dir, `full-${safeTool}-${Date.now()}.txt`);
   try {
-    fs.writeFileSync(filePath, text, "utf-8");
+    const dir = path.join(os.tmpdir(), "pi-cap-output");
+    fs.mkdirSync(dir, { recursive: true });
+    const safeTool = tool.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const filePath = path.join(dir, `${safeTool}-${Date.now()}.txt`);
+    fs.writeFileSync(filePath, text);
     return filePath;
   } catch {
     return undefined;
@@ -144,14 +140,14 @@ export function capText(
     return `${kept}\n\n${CODEMODE_HINT}${hint}`;
   }
 
-  // read: keep start at line boundary
-  const endMarker = "\n\n---\nUse offset=N to continue reading.";
-  let cutAt = cap - endMarker.length;
-  if (cutAt > 0 && cutAt < text.length) {
-    const lastNewline = text.lastIndexOf("\n", cutAt);
-    cutAt = lastNewline > 0 ? lastNewline : cutAt;
-  }
-  return `${text.slice(0, cutAt)}${endMarker}${hint}`;
+  // read: keep start at line boundary, drop Pi's partial-result marker if present
+  let head = text.slice(0, cap);
+  const nl = head.lastIndexOf("\n");
+  if (nl > cap / 2) head = head.slice(0, nl);
+  head = head.replace(/\n*\[[^\]]*Use offset=\d+ to continue[^\]]*\]\s*$/, "");
+  const lines = head.split("\n").length;
+  const next = (Number(input?.offset) > 0 ? Number(input.offset) : 1) + lines;
+  return `${head}\n\n[Cut to ${head.length} of ${text.length} characters to keep the context small.${hint} Read on with a smaller limit, or search the file with rg first. Use offset=${next} to continue.]`;
 }
 
 export default function (pi: any) {
