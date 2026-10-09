@@ -32,8 +32,6 @@ from urllib.request import Request, urlopen
 from langdetect import DetectorFactory, detect_langs
 from langdetect.lang_detect_exception import LangDetectException
 
-DetectorFactory.seed = 0
-
 # Voice per language. To change one, edit it here, then run stop/kokoro.sh and start/kokoro.sh.
 VOICES = {"es": "em_alex", "en": "bm_george", "fr": "ff_siwis"}
 DEFAULT_LANG = "en"
@@ -103,10 +101,6 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         return self.rfile.read(length) if length else b""
 
-    def log_message(self, fmt, *args):
-        if DEBUG:
-            log(fmt % args)
-
     def _handle(self, method: str):
         path = self.path.split("?", 1)[0].rstrip("/")
         try:
@@ -157,6 +151,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         self._handle("POST")
 
+    def log_message(self, fmt, *args):
+        if DEBUG:
+            log(fmt % args)
+
 
 def main():
     server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
@@ -168,4 +166,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
