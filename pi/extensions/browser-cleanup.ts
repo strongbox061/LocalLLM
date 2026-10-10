@@ -21,11 +21,19 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
+// 0 = close right after each answer.
+// N = close after N minutes without browser use (keeps the page open for
+//     follow-up questions like "now click the second link").
 const IDLE_MINUTES = 0;
+
+// Also close when Pi exits.
 const CLOSE_ON_EXIT = true;
+
 const BIN = process.env.AGENT_BROWSER_BIN ?? "agent-browser";
 const OWNER_ENV = "PI_BROWSER_CLEANUP_OWNER";
 const DEBUG = false;
+
+// Session names pi-agent-browser-native generates. Others belong to the user.
 const MANAGED_SESSION_RE = /^(?:pi-root-|piab-)[A-Za-z0-9_-]+$/;
 
 type BrowserProcess = { pid: number; sid: number; env: Map<string, string> };
@@ -132,7 +140,7 @@ async function waitGone(pids: number[], ms: number): Promise<number[]> {
 
 function signal(pids: number[], name: NodeJS.Signals) {
   for (const pid of pids) {
-    try { process.kill(pid, name); } catch { /* already gone */ }
+    try { process.kill(pid, name); } catch {}
   }
 }
 
