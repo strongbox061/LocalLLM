@@ -1,8 +1,1 @@
-# Default model configuration for LocalLLM
-# Specifies which GGML model to use by default
-
-model=qwen3-30b-a3b
-quantization=gguf_q4_k_m
-context_size=8192
-threads=8
-gpu_layers=40
+qwen3.6-35b-a3b
