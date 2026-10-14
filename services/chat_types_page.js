@@ -13,7 +13,6 @@ function el(tag, attrs = {}, ...children) {
   for (const c of children.flat()) if (c != null) e.append(c.nodeType ? c : document.createTextNode(String(c)));
   return e;
 }
-
 const lines = (text) => text.split("\n").map((s) => s.trim()).filter(Boolean);
 const when = (sec) => sec ? new Date(sec * 1000).toLocaleString() : "";
 
@@ -42,7 +41,7 @@ async function load(selectId) {
 function drawList() {
   const list = $("list");
   list.replaceChildren();
-  if (!state || !state.types.length) list.append(el("div", { class: "sub" }, "No chat types yet."));
+  if (!state.types.length) list.append(el("div", { class: "sub" }, "No chat types yet."));
   for (const t of state.types) {
     const pills = [];
     if (t.problems.length) pills.push(el("span", { class: "pill bad" }, "file has problems"));
