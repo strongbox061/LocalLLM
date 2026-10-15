@@ -7,7 +7,6 @@
 # updates for the other coding agents it finds.
 # The Inbox's note in Pi's instructions is part of pi/AGENTS.md (install/pi-config.sh copies it).
 # Safe to run again: nothing happens when everything is already in place.
-
 set -euo pipefail
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
@@ -36,8 +35,7 @@ fi
 # Off by default for Pi, because its definition adds about 3,200 tokens to every Pi request. Only this key is set; the
 # rest of config.json (the Inbox's own settings) is kept. Pi picks it up in sessions started after the Inbox has run
 # once (`plannotator inbox`), or after /reload.
-DATA_DIR="$(plannotator data-dir 2>/dev/null)" || die "plannotator data-dir failed — is the binary installed?"
-node - "${DATA_DIR}/config.json" <<'EOF'
+node - "$(plannotator data-dir)/config.json" <<'EOF'
 const fs = require("fs");
 const path = require("path");
 const file = process.argv[2];

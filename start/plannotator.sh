@@ -9,12 +9,9 @@ log "Plannotator Inbox"
 PLANNOTATOR="$(command -v plannotator || echo "$HOME/.local/bin/plannotator")"
 [[ -x "$PLANNOTATOR" ]] || die "plannotator is not installed. Run install/plannotator.sh first."
 
-# Check if the Inbox is already running to avoid duplicate instances.
 if "$PLANNOTATOR" inbox status --json 2>/dev/null | grep -q '"running": true'; then
-    url="$("$PLANNOTATOR" inbox --background)"
-    echo "Already running at: $url"
-    exit 0
+    echo "Already running."
 fi
-
+# Starts the Inbox when it is stopped (or just prints the address when it runs) and returns at once.
 url="$("$PLANNOTATOR" inbox --background)" || die "The Plannotator Inbox did not start. Try: plannotator inbox status"
-echo "Plannotator Inbox: $url"
+echo "Plannotator Inbox: $url (open it with: plannotator inbox --open)"
