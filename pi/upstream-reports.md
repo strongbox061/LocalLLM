@@ -38,3 +38,7 @@ I haven't established the cause, for example whether `session_shutdown` fires in
 **Related detail**
 
 When a daemon's socket file is missing, `agent-browser --session <name> close` starts a new daemon rather than failing. A cleanup path can therefore create the process it was meant to remove. That may belong in the agent-browser project instead.
+
+**Workaround**
+
+An extension that sets a unique environment variable at load, then on `agent_end` finds processes that inherited it and closes them through their own `AGENT_BROWSER_SOCKET_DIR`.
