@@ -157,39 +157,51 @@ function politeClose(daemon: BrowserProcess): Promise<void> {
 }
 
 export default function (pi: any) {
-  const owner = `${os.userInfo().username}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const owner = `${process.pid}-${Date.now()}`;
   process.env[OWNER_ENV] = owner;
-  log(`Owner set: ${owner}`);
 
-  const managedNames = new Set<string>();
-  pi.on?.("session:start", (event: any) => {
-    const sid = sessionNameOf(event);
-    if (sid) managedNames.add(sid);
-  });
+  const names = new Set<string>(); // managed sessions seen in results
+  let usedThisPrompt = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
 
-  if (!CLOSE_ON_EXIT) return;
+  const close = async (why: string) => {
+    const found = findOwned(owner, names);
+    if (!found.length) { names.clear(); return; }
+    const pids = found.map((p) => p.pid);
 
-  const cleanup = async () => {
-    log("Running browser cleanup...");
-    const owned = findOwned(owner, managedNames);
-    log(`Found ${owned.length} owned browser processes`);
-
-    for (const daemon of owned) {
+    for (const daemon of found.filter((p) => p.env.has("AGENT_BROWSER_DAEMON"))) {
       await politeClose(daemon);
     }
 
-    const allPids = [...new Set(owned.map((d) => d.pid))];
-    if (allPids.length > 0) {
-      signal(allPids, "SIGTERM");
-      const remaining = await waitGone(allPids, 5000);
-      if (remaining.length > 0) {
-        signal(remaining, "SIGKILL");
-        await waitGone(remaining, 3000);
-      }
+    let alive = await waitGone(pids, 3000);
+    names.clear();
+    if (alive.length > 0) {
+      signal(alive, "SIGTERM");
+      alive = await waitGone(alive, 2000);
     }
-    log("Cleanup done.");
+    if (alive.length > 0) {
+      signal(alive, "SIGKILL");
+      alive = await waitGone(alive, 2000);
+    }
+    log(`${why}: ${pids.length} processes, still running=${alive.length}`);
   };
 
-  pi.on?.("response:done", cleanup);
-  process.on("exit", cleanup);
+  pi.on("tool_result", (event: any) => {
+    if (event?.toolName !== "agent_browser") return;
+    usedThisPrompt = true;
+    const name = sessionNameOf(event);
+    if (name) names.add(name);
+    if (timer) { clearTimeout(timer); timer = undefined; } // browser is in use again
+  });
+
+  pi.on("agent_end", async () => {
+    if (!usedThisPrompt) return;
+    usedThisPrompt = false;
+    if (IDLE_MINUTES <= 0) await close("answer finished");
+    else timer = setTimeout(() => void close(`idle ${IDLE_MINUTES} min`), IDLE_MINUTES * 60_000);
+  });
+
+  if (CLOSE_ON_EXIT) {
+    pi.on("session_shutdown", async () => { await close("Pi exiting"); });
+  }
 }
