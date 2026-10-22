@@ -248,166 +248,497 @@ async def search(params: dict) -> dict:
     return _as_searxng(query, results, used, problems)
 
 
-class SearchHandler(BaseHTTPRequestHandler):
-    """HTTP request handler for the search gateway."""
+async def read(params: dict) -> dict:
+    """/read?url=...: a page's text through the engine's page reader (the local browser, then its fallback services).
+    Used by Open WebUI's Protected Lookup tool, which only asks for pages on a chat type's allowed sites."""
+    url = str(params.get("url", "")).strip()
+    if not re.match(r"^https?://", url):
+        return {"url": url, "error": "give a full http(s) URL"}
+    tool = _tool()
+    meta = {"message_id": f"read-{uuid.uuid4().hex}"}
+    try:
+        out = await tool.read_page(url, meta)
+    finally:
+        tool._state.pop(meta["message_id"], None)
+    if out.startswith("Page: "):
+        text = out.split("\n\n", 1)[1] if "\n\n" in out else ""
+        # The note on parts and sections is for the model's read_page; the lookup cuts pages itself.
+        return {"url": url, "text": re.sub(r"\n\n\[(?:Part \d+ of \d+|Sections after|Section #).*\]\s*$", "", text, flags=re.S)}
+    return {"url": url, "error": out}
 
-    def log_message(self, format, *args):
-        if DEBUG:
-            super().log_message(format, *args)
 
-    def _cors_headers(self):
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+async def tool_call(method: str, data: dict) -> dict:
+    """Open WebUI's "Search Gateway" tool: runs one of the engine's tool functions as Open WebUI would (the answer's
+    ids for its per-answer limits, the user's last message), and returns its text plus the events it sent (status
+    lines, citations) for the thin client to pass on."""
+    if method not in TOOL_METHODS:
+        raise ValueError(f"unknown tool function {method!r}; there are {', '.join(TOOL_METHODS)}")
+    args = data.get("args") if isinstance(data.get("args"), dict) else {}
+    meta = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
+    meta = {k: str(meta[k]) for k in ("message_id", "chat_id") if meta.get(k)}
+    events = []
 
-    def do_OPTIONS(self):
-        self.send_response(204)
-        self._cors_headers()
+    async def emitter(event):
+        if isinstance(event, dict) and len(events) < 200:
+            events.append(event)
+
+    tool = _tool()
+    kwargs = {"__metadata__": meta, "__event_emitter__": emitter}
+    if method == "web_search":
+        kwargs["__messages__"] = [{"role": "user", "content": str(data.get("user_text") or "")}]
+        result = await tool.web_search(str(args.get("query") or ""), **kwargs)
+    elif method == "plan_research":
+        result = await tool.plan_research(str(args.get("plan") or ""), **kwargs)
+    else:
+        try:
+            part = max(1, int(args.get("part") or 1))
+        except (TypeError, ValueError):
+            part = 1
+        result = await tool.read_page(str(args.get("url") or ""), part, **kwargs)
+    return {"result": result, "events": events}
+
+
+# ---------------------------------------------------------------- usage dashboard
+
+NAMES = {
+    "parallel": "Parallel", "brightdata": "Bright Data", "tavily": "Tavily", "exa": "Exa", "you": "You.com (keyless)",
+    "youapi": "You.com API", "browserbase": "Browserbase", "brave": "Brave",
+}
+UNITS = {
+    "parallel": "$", "exa": "$", "youapi": "$", "brightdata": "requests", "tavily": "credits", "brave": "requests",
+    "browserbase": "searches", "you": "searches",
+}
+HISTORY_DAYS = 30
+LATEST_SEARCHES = 25
+
+
+def _num(x):
+    return round(float(x), 4) if isinstance(x, (int, float)) else x
+
+
+def _next_cycle(start: str, day: int) -> str:
+    """The first day of the cycle after the one that began on start (YYYY-MM-DD): day in the next month
+    (its last day when the month is shorter)."""
+    d = datetime.date.fromisoformat(start)
+    y, m = (d.year, d.month + 1) if d.month < 12 else (d.year + 1, 1)
+    return datetime.date(y, m, min(max(day, 1), calendar.monthrange(y, m)[1])).isoformat()
+
+
+def _day_of(date: str) -> int:
+    try:
+        return datetime.date.fromisoformat(str(date).strip()).day
+    except ValueError:
+        return 1
+
+
+def _retry_group(tool, name: str) -> list:
+    for group in tool.valves.retry_groups.split(","):
+        members = [m for m in (re.sub(r"[^a-z]", "", x.lower()) for x in group.split("/")) if m]
+        members = [tool_module(tool).SERVICE_ALIASES.get(m, m) for m in members]
+        if name in members:
+            return members
+    return [name]
+
+
+def tool_module(tool):
+    """The tool's module-level names (SIMPLE, METERED, _until...) as attributes."""
+    return types.SimpleNamespace(**type(tool)._usage.__globals__)
+
+
+def _service(tool, mod, name: str, usage: dict) -> dict:
+    """One service's numbers, from the tool's own functions (the limits its searches use)."""
+    v = tool.valves
+    real = (usage.get("real") or {}).get(name)
+    month_start = f"{usage.get('month') or mod._month()}-01"
+    reserve = v.usage_reserve
+    row = {"id": name, "name": NAMES.get(name) or mod.SIMPLE.get(name, {}).get("name", name), "extras": []}
+    extras = row["extras"]
+    cost, reserve_units, left_cap = 1.0, 0.0, None
+    if name == "parallel":
+        p = tool._parallel_usage(usage)
+        cost = tool._parallel_search_cost()
+        key, allowance, used = bool(v.parallel_api_key), v.parallel_monthly_budget_usd, p["usd"]
+        if tool._extra_active():
+            allowance += v.parallel_extra_credit_usd
+            used += tool._extra_spent(usage)
+        if v.parallel_extra_credit_usd > 0:
+            extras.append(f"One-time credit: ${tool._extra_spent(usage):.3f} of ${v.parallel_extra_credit_usd:.2f} used"
+                          + (f", until {v.parallel_extra_credit_expires.strip()}" if tool._extra_active() else " (expired)"))
+        balance = tool._parallel_balance_left(usage)
+        if balance is not None:
+            extras.append(f"Credit left as Parallel reports it: ${balance:.2f}")
+            left_cap = balance - reserve * cost
+        extras.append(f"Monthly budget ${v.parallel_monthly_budget_usd:.2f}; {p.get('pages', 0)} pages read this cycle")
+        searches, start = p.get("searches", 0), p["cycle"]
+        resets = _next_cycle(start, _day_of(v.parallel_signup_date))
+    elif name == "exa":
+        cost = tool._exa_cost_estimate(usage)
+        key, allowance = bool(v.exa_api_key), v.exa_monthly_credit_usd
+        if tool._exa_extra_active():
+            allowance += v.exa_extra_credit_usd
+        used, reserve_units = allowance - tool._exa_left(usage), cost * reserve
+        if v.exa_extra_credit_usd > 0:
+            expires = v.exa_extra_credit_expires.strip()
+            when = " (expired)" if not tool._exa_extra_active() else f", until {expires}" if expires else ""
+            extras.append(f"One-time credit: ${tool._exa_extra_spent(usage):.3f} of ${v.exa_extra_credit_usd:.2f} used{when}")
+        searches, start = usage.get("exa", 0), month_start
+        resets = _next_cycle(start, 1)
+    elif name == "youapi":
+        cost = mod.YOUAPI_COST
+        key, allowance, used, reserve_units = bool(v.you_api_key), v.you_api_credit_usd, tool._youapi_spent(usage), cost * reserve
+        if real and "remaining" in real:
+            left_cap = real["remaining"] - max(used - real.get("own_usd", 0.0), 0.0) - reserve_units
+        expires = v.you_api_credit_expires.strip()
+        extras.append("One-time credit" + (f", until {expires}" if expires else ", no expiry"))
+        searches, start, resets = (usage.get("youapi") or {}).get("n", 0), "", ""
+    elif name == "you":
+        key, allowance, used = bool(v.you_mcp_url), v.you_daily_limit, tool._you_today(usage)
+        searches, start = used, mod._day()
+        resets = (datetime.date.fromisoformat(start) + datetime.timedelta(days=1)).isoformat()
+        extras.append("Counted per day (UTC); no account or key")
+    elif name in mod.SIMPLE:
+        cost = tool._simple_cost(name, usage)
+        key, allowance, used, reserve_units = bool(tool._key(name)), tool._simple_free(name, usage), usage.get(name, 0), cost * reserve
+        if real and real.get("remaining") is not None:
+            left_cap = real["remaining"] - max(used - real.get("own", 0), 0) - reserve_units
+        if name == "geekflare" and v.geekflare_paid_monthly > 0:
+            paid = mod._until(v.geekflare_paid_until)
+            extras.append(f"Paid plan: {v.geekflare_paid_monthly:g} credits a month until {v.geekflare_paid_until.strip()}"
+                          + (f" (then {v.geekflare_monthly_free:g})" if paid else " (ended)"))
+        if name == "firecrawl" and v.firecrawl_extra_credits > 0:
+            extras.append(f"One-time credits: {tool._fc_extra_spent(usage):g} of {v.firecrawl_extra_credits:g} used in all")
+        searches = usage.get(f"{name}_n", 0)
+        start = (usage.get("cycles") or {}).get(name) or month_start
+        resets = _next_cycle(start, int(getattr(v, f"{name}_reset_day", 1) or 1))
+        row["unit"] = mod.SIMPLE[name]["unit"]
+    else:  # brightdata, tavily, brave, browserbase: a request limit (the Valve already keeps the reserve)
+        key, allowance, used = bool(tool._key(name)), tool._limit(name), usage.get(name, 0)
+        searches = used
+        if name == "browserbase":
+            start = (usage.get("cycles") or {}).get(name) or month_start
+            resets = _next_cycle(start, int(v.browserbase_reset_day or 1))
+            if v.use_browserbase_fetch:
+                extras.append(f"Page fetches: {usage.get('browserbase_fetch', 0)} of {tool._limit('browserbase_fetch')}")
+        else:
+            start, resets = month_start, _next_cycle(month_start, 1)
+        if real and real.get("limit"):
+            extras.append(f"Limit reported by the service: {real['limit']:g}")
+    left = allowance - used - reserve_units
+    if left_cap is not None:
+        left = min(left, left_cap)
+    left = max(left, 0.0)
+    has = key and tool._has_credit(name, usage)
+    if not key:
+        status = "no key"
+    elif name == "parallel" and time.time() < getattr(tool, "_parallel_pause_until", 0):
+        status = "paused"
+    elif not has:
+        status = "used up"
+    elif left / (cost or 1) < reserve:
+        status = "near reserve"
+    else:
+        status = "available"
+    row.update({
+        "key": key, "status": status, "unit": row.get("unit") or UNITS.get(name, ""),
+        "used": _num(used), "allowance": _num(allowance), "reserve": _num(reserve_units), "left": _num(left),
+        "searches_left": int(left / cost) if cost else None, "cost": _num(cost), "searches": searches,
+        "cycle_start": start, "resets": resets,
+        "source": "service" if real and name not in getattr(tool, "_no_real", set()) else "tool",
+        "checked": _num(real.get("t")) if real else None,
+        "retry_group": _retry_group(tool, name),
+    })
+    return row
+
+
+def _history(entries: list) -> dict:
+    today = datetime.date.today()
+    days = [(today - datetime.timedelta(days=i)).isoformat() for i in range(HISTORY_DAYS - 1, -1, -1)]
+    per_day = {d: {"total": 0, "cached": 0, "services": {}, "apps": {}} for d in days}
+    for e in entries:
+        d = per_day.get(datetime.date.fromtimestamp(e["t"]).isoformat())
+        if d is None:
+            continue
+        service = ("cache" if e.get("cached") else e.get("service")) or "none"
+        d["total"] += 1
+        d["cached"] += bool(e.get("cached"))
+        d["services"][service] = d["services"].get(service, 0) + 1
+        app = e.get("app") or "?"
+        d["apps"][app] = d["apps"].get(app, 0) + 1
+    latest = [{k: e.get(k) for k in ("t", "app", "service", "results", "cached", "retry", "failed", "q") if k in e}
+              for e in reversed(entries[-LATEST_SEARCHES:])]
+    return {"days": [{"day": d, **per_day[d]} for d in days], "latest": latest}
+
+
+def usage_report(tool) -> dict:
+    """Everything /usage.json returns: each service in the active order, the cache, and the search history."""
+    mod = tool_module(tool)
+    usage = tool._usage()
+    ranks = tool._ranks()
+    last = len(ranks) + 1
+    groups = [g.strip() for g in tool._active_order().split(",") if g.strip()]
+
+    def share(name):
+        try:
+            return tool._share_left(name, usage)
+        except Exception:
+            return 0.0
+
+    order = sorted(mod.METERED, key=lambda n: (ranks.get(n, last), -share(n), mod.METERED.index(n)))
+    services = []
+    for name in order:
+        row = _service(tool, mod, name, usage)
+        row["rank"] = ranks[name] + 1 if name in ranks else None
+        row["group"] = groups[ranks[name]] if name in ranks and ranks[name] < len(groups) else ""
+        services.append(row)
+
+    v = tool.valves
+    temporary = bool(v.temporary_service_order.strip()) and mod._until(v.temporary_order_until)
+    entries = mod.read_log(time.time() - HISTORY_DAYS * 86400)
+    history = _history(entries)
+    today = history["days"][-1]
+    cache = mod.cache_info(tool.valves.cache_hours)
+    cache["hits_today"] = today["cached"]
+    cache["hits_30_days"] = sum(d["cached"] for d in history["days"])
+    return {
+        "generated": round(time.time(), 1),
+        "tool_version": (re.search(r"^\s*version:\s*(\S+)", mod.__doc__ or "", re.M) or [None, None])[1],
+        "order": {
+            "active": tool._active_order(),
+            "temporary": temporary,
+            "until": v.temporary_order_until.strip() if temporary else "",
+            "normal": v.service_order,
+        },
+        "usage_reserve": v.usage_reserve,
+        "services": services,
+        "searxng": {"url": v.searxng_url, "on": bool(v.searxng_url)},
+        "cache": cache,
+        "log": {"words": bool(getattr(v, "log_search_words", False)), "searches_30_days": sum(d["total"] for d in history["days"]),
+                "searches_today": today["total"]},
+        "history": history,
+    }
+
+
+# ---------------------------------------------------------------- settings page
+
+
+def settings_data(tool) -> dict:
+    """Every setting with its description, default and value; secrets only as set / not set."""
+    saved = read_settings()
+    fields = []
+    for name, field in tool.Valves.model_fields.items():
+        value = getattr(tool.valves, name)
+        kind = "bool" if isinstance(field.default, bool) else "int" if isinstance(field.default, int) else \
+            "float" if isinstance(field.default, float) else "str"
+        secret = bool(SECRET_RE.search(name))
+        row = {"name": name, "type": kind, "description": field.description or "", "secret": secret,
+               "default": None if secret else field.default, "changed": name in saved}
+        if secret:
+            row["set"] = bool(value)
+        else:
+            row["value"] = value
+        fields.append(row)
+    return {"file": SETTINGS_FILE, "fields": fields}
+
+
+def save_settings(tool, data: dict):
+    """{"values": {name: value}, "clear": [names]}: a secret left empty keeps its value; "clear" empties it.
+    Checked by the engine's own settings model before anything is written; only values that differ from the
+    defaults are kept in the file, so a later default applies to the rest."""
+    values = data.get("values") if isinstance(data.get("values"), dict) else {}
+    clear = {str(n) for n in data.get("clear") or []}
+    fields = tool.Valves.model_fields
+    unknown = sorted(set(values) - set(fields)) + sorted(clear - set(fields))
+    if unknown:
+        return 400, {"problems": [f"Unknown setting: {n}" for n in unknown]}
+    merged = {k: v for k, v in read_settings().items() if k in fields}
+    for name, value in values.items():
+        if SECRET_RE.search(name) and value in ("", None):
+            continue  # left empty: keep the key that is set
+        merged[name] = value
+    for name in clear:
+        merged.pop(name, None)
+    try:
+        checked = tool.Valves(**merged)
+    except Exception as e:  # pydantic's ValidationError lists each wrong field
+        errors = getattr(e, "errors", None)
+        problems = [f"{'.'.join(str(x) for x in err.get('loc', []))}: {err.get('msg')}" for err in errors()] if errors else [str(e)]
+        return 400, {"problems": problems}
+    out = {name: getattr(checked, name) for name in fields if getattr(checked, name) != fields[name].default}
+    before = read_settings()
+    changed = sorted(n for n in set(out) | set(before) if out.get(n) != before.get(n))
+    write_settings(out)
+    log(f"settings saved ({len(changed)} changed: {', '.join(changed) or 'none'})")  # names only, never values
+    return 200, {"ok": True, "changed": changed}
+
+
+# ---------------------------------------------------------------- HTTP
+
+
+def _local(handler) -> bool:
+    """A client on this computer, asking for 127.0.0.1 or localhost (not a name pointed at it: DNS rebinding)."""
+    client = handler.client_address[0] if handler.client_address else ""
+    host = (handler.headers.get("Host") or "").strip().lower()
+    host_name = host.rsplit(":", 1)[0] if not host.startswith("[") else host.split("]")[0] + "]"
+    return client in ("127.0.0.1", "::1", "::ffff:127.0.0.1") and host_name in LOCAL_HOSTS
+
+
+def _same_origin(handler) -> bool:
+    """No Origin (a program, not a browser) or this server's own: another website's page can't post here."""
+    origin = (handler.headers.get("Origin") or "").strip().lower()
+    host = (handler.headers.get("Host") or "").strip().lower()
+    return not origin or origin == f"http://{host}"
+
+
+def _json_post(handler, body: bytes):
+    """The JSON object of a change request, or None after answering 403/400."""
+    if "application/json" not in (handler.headers.get("Content-Type") or "") or not _same_origin(handler):
+        handler._send(403, {"error": "Changes are only accepted as JSON from this server's own pages."})
+        return None
+    try:
+        data = json.loads(body.decode("utf-8") or "{}")
+        if not isinstance(data, dict):
+            raise ValueError("not an object")
+        return data
+    except ValueError as e:
+        handler._send(400, {"problems": [f"Bad request: {e}"]})
+        return None
+
+
+class Handler(BaseHTTPRequestHandler):
+    server_version = "search-gateway/3.0"
+
+    def _params(self) -> dict:
+        return {k: v[-1] for k, v in parse_qs(urlparse(self.path).query).items()}
+
+    def _send(self, status: int, data: dict):
+        self._send_bytes(status, json.dumps(data, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
+
+    def _send_bytes(self, status: int, payload: bytes, content_type: str):
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Cache-Control", "no-store")
+        if content_type.startswith("text/html"):
+            # The pages load nothing from elsewhere and can't be framed by another site.
+            self.send_header("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; "
+                             "script-src 'self'; frame-ancestors 'none'")
+            self.send_header("X-Frame-Options", "DENY")
         self.end_headers()
+        self.wfile.write(payload)
+
+    def _page(self, path: str, content_type: str = "text/html; charset=utf-8"):
+        try:
+            with open(path, "rb") as f:
+                return self._send_bytes(200, f.read(), content_type)
+        except OSError as e:
+            return self._send(500, {"error": f"page missing: {e}"})
+
+    def _fail(self, what: str, e: Exception):
+        log(f"{what} failed: {type(e).__name__}: {e}")
+        if DEBUG:
+            traceback.print_exc()
+        self._send(500, {"error": f"{type(e).__name__}: {e}"})
+
+    def _handle(self, body: bytes = b""):
+        path = urlparse(self.path).path.rstrip("/")
+        method = self.command
+        if path in ("", "/healthz"):
+            try:
+                tool = run(_call(_tool))
+                return self._send(200, {"status": "ok", "engine_loaded": True, "settings": os.path.exists(SETTINGS_FILE),
+                                        "searxng": tool.valves.searxng_url})
+            except Exception as e:
+                return self._send(500, {"status": "error", "error": str(e)})
+        if path == "/chat-types" or path.startswith("/chat-types/"):
+            try:
+                sys.path.insert(0, HERE) if HERE not in sys.path else None
+                import chat_types_web  # services/chat_types_web.py: the protected chats' chat type page
+            except Exception as e:
+                return self._send(500, {"error": f"chat types page unavailable: {type(e).__name__}: {e}"})
+            chat_types_web.handle(self, path, method, body, DB_PATH, PORT)
+            return
+        if path == "/dashboard":
+            return self._page(DASHBOARD_FILE)
+        if path == "/dashboard/search_gateway_dashboard.css":
+            return self._page(DASHBOARD_CSS, "text/css; charset=utf-8")
+        if path == "/dashboard/search_gateway_dashboard.js":
+            return self._page(DASHBOARD_JS, "application/javascript; charset=utf-8")
+        if path == "/usage.json":
+            try:
+                return self._send(200, run(_call(lambda: usage_report(_tool()))))
+            except Exception as e:
+                return self._fail("usage report", e)
+        if path == "/settings" or path.startswith("/settings/"):
+            if not _local(self):
+                return self._send(403, {"error": "The settings page is only served to this computer (http://127.0.0.1)."})
+            if method == "GET" and path == "/settings":
+                return self._page(SETTINGS_PAGE)
+            if method == "GET" and path == "/settings/search_gateway_settings.css":
+                return self._page(SETTINGS_CSS, "text/css; charset=utf-8")
+            if method == "GET" and path == "/settings/search_gateway_settings.js":
+                return self._page(SETTINGS_JS, "application/javascript; charset=utf-8")
+            if method == "GET" and path == "/settings/data":
+                try:
+                    return self._send(200, run(_call(lambda: settings_data(_tool()))))
+                except Exception as e:
+                    return self._fail("settings", e)
+            if method == "POST" and path == "/settings/save":
+                data = _json_post(self, body)
+                if data is None:
+                    return
+                try:
+                    status, result = run(_call(lambda: save_settings(_tool(), data)))
+                    return self._send(status, result)
+                except Exception as e:
+                    return self._fail("saving the settings", e)
+            return self._send(404, {"error": "unknown settings page"})
+        if path.startswith("/tool/"):
+            if method != "POST":
+                return self._send(405, {"error": "POST a JSON object"})
+            data = _json_post(self, body)
+            if data is None:
+                return
+            try:
+                return self._send(200, run(tool_call(path[len("/tool/"):], data)))
+            except ValueError as e:
+                return self._send(404, {"error": str(e)})
+            except Exception as e:
+                return self._fail(f"tool {path}", e)
+        if path not in ("/search", "/read"):
+            return self._send(404, {"error": "served: /search, /read, /tool/<name>, /dashboard, /usage.json, /settings, /healthz"})
+        params = self._params()
+        try:
+            self._send(200, run(search(params) if path == "/search" else read(params)))
+        except Exception as e:
+            self._fail(path[1:], e)
 
     def do_GET(self):
-        parsed = urlparse(self.path)
-        path = parsed.path.rstrip("/") or "/"
-
-        # Static files
-        if path == "/dashboard.css":
-            if _serve_static(self, DASHBOARD_CSS, "text/css"):
-                return
-        if path == "/dashboard.js":
-            if _serve_static(self, DASHBOARD_JS, "application/javascript"):
-                return
-        if path == "/settings.css":
-            if _serve_static(self, SETTINGS_CSS, "text/css"):
-                return
-        if path == "/settings.js":
-            if _serve_static(self, SETTINGS_JS, "application/javascript"):
-                return
-
-        # Pages
-        if path == "/" or path == "/dashboard":
-            content = _read_file_safe(DASHBOARD_FILE)
-            if content is not None:
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html")
-                self.end_headers()
-                self.wfile.write(content.encode("utf-8"))
-            else:
-                _json_response(self, 503, {"error": "Dashboard not found"})
-            return
-
-        if path == "/settings" or path == "/settings.html":
-            content = _read_file_safe(SETTINGS_PAGE)
-            if content is not None:
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html")
-                self._cors_headers()
-                self.end_headers()
-                self.wfile.write(content.encode("utf-8"))
-            else:
-                _json_response(self, 503, {"error": "Settings page not found"})
-            return
-
-        # API endpoints
-        if path == "/health":
-            _json_response(self, 200, {"status": "ok"})
-            return
-
-        if path == "/settings":
-            settings = _load_settings()
-            # Don't expose API keys in GET
-            safe = {k: v for k, v in settings.items() if k != "api_keys"}
-            _json_response(self, 200, safe)
-            return
-
-        if path == "/chat-types":
-            ok, result = _call_engine("get_chat_types", None)
-            if ok:
-                _json_response(self, 200, result)
-            else:
-                _json_response(self, 502, {"error": result})
-            return
-
-        # Search endpoint
-        if path == "/search":
-            params = parse_qs(parsed.query)
-            q = params.get("q", [""])[0]
-            if not q:
-                _json_response(self, 400, {"error": "Missing 'q' parameter"})
-                return
-            max_results = int(params.get("max_results", ["10"])[0])
-            bangs = _get_bangs(q)
-            clean_q = _strip_bangs(q)
-            settings = _load_settings()
-            search_opts = {
-                "query": clean_q,
-                "max_results": min(max_results, settings.get("max_results", 10)),
-                "bangs": bangs,
-            }
-            ok, result = _call_engine("search", search_opts)
-            if ok:
-                _json_response(self, 200, result)
-            else:
-                _json_response(self, 502, {"error": result})
-            return
-
-        _json_response(self, 404, {"error": "Not found"})
+        self._handle()
 
     def do_POST(self):
-        parsed = urlparse(self.path)
-        path = parsed.path.rstrip("/") or "/"
+        length = int(self.headers.get("Content-Length") or 0)
+        self._handle(self.rfile.read(length) if length else b"")
 
-        # Read body
-        content_length = int(self.headers.get("Content-Length", 0))
-        body_raw = self.rfile.read(content_length) if content_length > 0 else b"{}"
-        try:
-            body = json.loads(body_raw)
-        except json.JSONDecodeError:
-            _json_response(self, 400, {"error": "Invalid JSON"})
-            return
-
-        if path == "/settings":
-            settings = _load_settings()
-            settings.update(body)
-            _save_settings(settings)
-            _json_response(self, 200, {"status": "saved"})
-            return
-
-        if path == "/search":
-            q = body.get("q", "")
-            if not q:
-                _json_response(self, 400, {"error": "Missing 'q' parameter"})
-                return
-            max_results = body.get("max_results", 10)
-            bangs = _get_bangs(q)
-            clean_q = _strip_bangs(q)
-            settings = _load_settings()
-            search_opts = {
-                "query": clean_q,
-                "max_results": min(int(max_results), settings.get("max_results", 10)),
-                "bangs": bangs,
-            }
-            ok, result = _call_engine("search", search_opts)
-            if ok:
-                _json_response(self, 200, result)
-            else:
-                _json_response(self, 502, {"error": result})
-            return
-
-        _json_response(self, 404, {"error": "Not found"})
+    def log_message(self, fmt, *args):
+        if DEBUG:
+            log(fmt % args)
 
 
 def main():
-    """Start the search gateway server."""
-    server = ThreadingHTTPServer((BIND, PORT), SearchHandler)
-    print(f"Search gateway running on http://{BIND}:{PORT}")
+    threading.Thread(target=LOOP.run_forever, name="search-loop", daemon=True).start()
+    try:
+        run(_call(_tool))
+    except Exception as e:
+        log(f"warning: {e}. Searches will fail until this is fixed.")
+    server = ThreadingHTTPServer((BIND, PORT), Handler)
+    server.daemon_threads = True
+    log(f"listening on http://{BIND}:{PORT}/search, dashboard /dashboard, settings /settings "
+        f"(settings: {SETTINGS_FILE}{'' if os.path.exists(SETTINGS_FILE) else ', not made yet'})")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
-    finally:
-        server.server_close()
-        print("\nSearch gateway stopped.")
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
