@@ -25,15 +25,5 @@
       "description": "Indexed library docs for a specific version",
       "directTools": true
     }
-  },
-  "toolGroups": {
-    "context7": ["docs", "gitmcp", "web-search"]
-  },
-  "defaults": {
-    "maxToolCalls": 10,
-    "timeoutMs": 30000,
-    "retryOnFailure": true,
-    "maxRetries": 3,
-    "backoffMs": 500
   }
 }
