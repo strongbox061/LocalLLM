@@ -11,7 +11,12 @@ read (Docling) and ranked (a reranker), and image generation (ComfyUI). Everythi
           (large-v3-turbo on the GPU), Docling, ComfyUI (a two-pass workflow, see hires_workflow), and the reranker
           from windows/versions.json (none: it doesn't fit on the helper's GPU).
 
-Usage: python topology.py <single|split> [--base-url URL]
+The embedding model is set by sync.py (LOCALLLM_EMBEDDING), which also indexes the Knowledge bases again with it.
+Run by ./localllm.sh switch (through windows/setup.ps1's Python on the helper), with Open WebUI's Python.
+
+Usage: python topology.py <single|split> <Open WebUI URL> <webui.db> <.webui_secret_key> <settings.json>
+settings.json: {"llama_url", "llama_key", "small_model": {"url", "alias"} or null, "whisper_model", "whisper_url" or "",
+                "reranking_model", "docling_url" or "", "comfyui": {"url", "checkpoint", "embeddings"} or null}
 """
 
 import json
@@ -119,140 +124,103 @@ def is_replaceable(text):
 
 
 def hires_workflow(checkpoint, embeddings):
-    """Return a ComfyUI workflow dict that does the portrait-then-hires-fix pipeline."""
-    base = {
-        "3": {
-            "class_type": "KSampler",
-            "inputs": {
-                "seed": 0,
-                "steps": 20,
-                "cfg": 7,
-                "sampler_name": "dpmpp_2m",
-                "scheduler": "karras",
-                "denoise": 1.0,
-                "model": ["4", 0],
-                "positive": ["6", 0],
-                "negative": ["7", 0],
-                "latent_image": ["5", 0],
-            },
-        },
+    """The two-pass workflow, with the node numbers of Open WebUI's default one (so the same field mapping fits)."""
+    negative = ", ".join([f"embedding:{e}" for e in embeddings] + [NEGATIVE])
+    sampler = lambda latent, steps, denoise: {"class_type": "KSampler", "inputs": {  # noqa: E731
+        "seed": 0, "steps": steps, **SAMPLER, "denoise": denoise,
+        "model": ["4", 0], "positive": ["6", 0], "negative": ["7", 0], "latent_image": latent}}
+    return {
+        "3": sampler(["5", 0], 30, 1.0),
         "4": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": checkpoint}},
         "5": {"class_type": "EmptyLatentImage", "inputs": {"width": 512, "height": 768, "batch_size": 1}},
-        "6": {"class_type": "CLIPTextEncode", "inputs": {"text": "{prompt}", "clip": ["4", 1]}},
-        "7": {"class_type": "CLIPTextEncode", "inputs": {"text": NEGATIVE, "clip": ["4", 1]}},
-        "8": {"class_type": "VAEDecode", "inputs": {"samples": ["3", 0], "vae": ["4", 2]}},
+        "6": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["4", 1]}},
+        "7": {"class_type": "CLIPTextEncode", "inputs": {"text": negative, "clip": ["4", 1]}},
+        "10": {"class_type": "LatentUpscaleBy", "_meta": {"title": MARK},
+               "inputs": {"upscale_method": "nearest-exact", "scale_by": HIRES_SCALE, "samples": ["3", 0]}},
+        "11": sampler(["10", 0], HIRES_STEPS, HIRES_DENOISE),
+        # Tiled decoding: the enlarged picture in one piece doesn't fit next to the model on a 6 GB card.
+        "8": {"class_type": "VAEDecodeTiled", "inputs": {"samples": ["11", 0], "vae": ["4", 2], "tile_size": 512,
+                                                         "overlap": 64, "temporal_size": 64, "temporal_overlap": 8}},
+        "9": {"class_type": "SaveImage", "inputs": {"filename_prefix": "ComfyUI", "images": ["8", 0]}},
     }
-    # Upscale pass
-    base["9"] = {
-        "class_type": "LatentUpscale",
-        "inputs": {"mode": "bicubic", "scale_factor": HIRES_SCALE, "samples": ["3", 0]},
-    }
-    base["10"] = {
-        "class_type": "KSampler",
-        "inputs": {
-            "seed": 0,
-            "steps": HIRES_STEPS,
-            "cfg": SAMPLER["cfg"],
-            "sampler_name": SAMPLER["sampler_name"],
-            "scheduler": SAMPLER["scheduler"],
-            "denoise": HIRES_DENOISE,
-            "model": ["4", 0],
-            "positive": ["6", 0],
-            "negative": ["7", 0],
-            "latent_image": ["9", 0],
-        },
-    }
-    base["11"] = {
-        "class_type": "VAEDecode",
-        "inputs": {"samples": ["10", 0], "vae": ["4", 2]},
-    }
-    base["12"] = {
-        "class_type": "SaveImage",
-        "inputs": {"images": ["11", 0], "filename_prefix": MARK},
-    }
-    # Embedding references for the negative prompt
-    for emb in embeddings:
-        base[f"emb_{emb}"] = {
-            "class_type": "EmbeddingLoader",
-            "inputs": {"embedding_name": emb},
-        }
-    return base
 
 
 def main(argv):
-    if len(argv) < 2 or argv[1] not in ("single", "split"):
-        print(f"Usage: {argv[0]} <single|split> [--base-url URL]", file=sys.stderr)
-        sys.exit(1)
+    if len(argv) != 6 or argv[1] not in ("single", "split"):
+        print(__doc__.strip(), file=sys.stderr)
+        return 2
+    mode, base, db, key, settings_file = argv[1], argv[2].rstrip("/"), argv[3], argv[4], argv[5]
+    s = json.loads(Path(settings_file).read_text(encoding="utf-8"))
+    args = (db, key)
+    split = mode == "split"
+    small = s.get("small_model") if split else None
+    comfy = s.get("comfyui") if split else None
 
-    # --- Read settings.json (shared with sync.py) ---
-    settings_path = Path(__file__).resolve().parent / "settings.json"
-    try:
-        s = json.loads(settings_path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        print(f"Error: {settings_path} not found", file=sys.stderr)
-        sys.exit(1)
-    except json.JSONDecodeError as e:
-        print(f"Error: {settings_path} is not valid JSON: {e}", file=sys.stderr)
-        sys.exit(1)
+    def openai(c):
+        # The chat model is always the first connection; the helper's small model the second (split mode only).
+        urls, keys = [s["llama_url"].rstrip("/") + "/v1"], [s.get("llama_key") or "none"]
+        configs = {"0": (c.get("OPENAI_API_CONFIGS") or {}).get("0") or {"enable": True}}
+        if small:
+            urls.append(small["url"].rstrip("/") + "/v1")
+            keys.append("none")
+            configs["1"] = {"enable": True, "model_ids": [small["alias"]]}
+        return {"ENABLE_OPENAI_API": True, "OPENAI_API_BASE_URLS": urls, "OPENAI_API_KEYS": keys,
+                "OPENAI_API_CONFIGS": configs}
+    update(base, args, "chat model connection", "/openai/config", "/openai/config/update", openai)
 
-    mode = argv[1]
-    base_url = s.get("llama_url", "http://127.0.0.1:8081").rstrip("/") + "/v1"
+    def tasks(c):
+        on = bool(small)
+        return {"TASK_MODEL": "", "TASK_MODEL_EXTERNAL": small["alias"] if small else "",
+                "ENABLE_TITLE_GENERATION": on, "ENABLE_TAGS_GENERATION": on, "ENABLE_FOLLOW_UP_GENERATION": on,
+                "IMAGE_PROMPT_GENERATION_PROMPT_TEMPLATE": IMAGE_PROMPT_TEMPLATE if comfy else ""}
+    update(base, args, "titles, tags and follow-ups", "/api/v1/tasks/config", "/api/v1/tasks/config/update", tasks)
 
-    print(f"Configuring Open WebUI in '{mode}' mode (base={base_url})")
-
-    # --- Chat model ---
-    def set_chat_model(flat, before):
-        flat["model"] = "openai"
-        flat["openai_api_base"] = base_url.replace("8080", "8081") if mode == "single" else "http://<main-pc>:8081"
-        flat["openai_api_key"] = "" if mode == "single" else "<api-key>"
-
-    update(base_url, None, "chat model", "/api/models", "/api/models/config", set_chat_model)
-
-    # --- Task model (titles, tags, follow-ups) ---
-    if mode == "single":
-        def disable_task(flat, _):
-            flat["task_api_enabled"] = False
-    else:
-        def set_task(flat, _):
-            flat["task_api_enabled"] = True
-            flat["task_model"] = "qwen-14b-chat"
-            flat["task_api_base"] = "http://<helper-pc>:8082"
-
-    task_fn = disable_task if mode == "single" else set_task
-    update(base_url, None, "task model", "/api/settings", "/api/settings", task_fn)
-
-    # --- Speech-to-text (Whisper) ---
-    def set_whisper(flat, _):
-        if mode == "single":
-            flat["stt_openai_api_base"] = "http://127.0.0.1:8000"
-            flat["stt_openai_api_key"] = ""
-            flat["stt_model"] = "small"
+    def audio(c):
+        whisper = s.get("whisper_url") if split else ""
+        if whisper:
+            # The helper's whisper service (services/whisper_server.py), as an OpenAI-compatible engine.
+            stt = {**c["stt"], "ENGINE": "openai", "OPENAI_API_BASE_URL": whisper.rstrip("/") + "/v1",
+                   "OPENAI_API_KEY": "not-needed", "MODEL": s["whisper_model"], "WHISPER_MODEL": s["whisper_model"]}
         else:
-            flat["stt_openai_api_base"] = "http://<helper-pc>:8000"
-            flat["stt_openai_api_key"] = ""
-            flat["stt_model"] = "small"
+            stt = {**c["stt"], "ENGINE": "", "WHISPER_MODEL": s["whisper_model"] if split else "small"}
+        tts = {**c["tts"], "ENGINE": "openai", "OPENAI_API_BASE_URL": "http://127.0.0.1:8881/v1"}
+        return {"stt": stt, "tts": tts}
+    # The audio settings go back whole: Open WebUI wants both groups (stt and tts) in every update.
+    update(base, args, "voice (Whisper, Kokoro)", "/api/v1/audio/config", "/api/v1/audio/config/update", audio)
 
-    update(base_url, None, "speech-to-text", "/api/settings", "/api/settings", set_whisper)
+    def retrieval(c):
+        docling = s.get("docling_url") if split else ""
+        return {"CONTENT_EXTRACTION_ENGINE": "docling" if docling else "",
+                "DOCLING_SERVER_URL": docling or c.get("DOCLING_SERVER_URL") or "",
+                "RAG_RERANKING_ENGINE": "", "RAG_RERANKING_MODEL": s["reranking_model"] if split else ""}
+    update(base, args, "documents (Docling, reranker)", "/api/v1/retrieval/config", "/api/v1/retrieval/config/update",
+           retrieval, partial=True)
 
-    # --- Document processing ---
-    def set_docs(flat, _):
-        flat["pdf_extractor_api_base"] = "http://127.0.0.1:8083" if mode == "single" else "http://<helper-pc>:8083"
-        flat["pdf_extractor_api_key"] = ""
+    def images(c):
+        if not comfy:
+            return {"ENABLE_IMAGE_GENERATION": False}
+        # Which fields of Open WebUI's default ComfyUI workflow get the prompt, model, size and steps (its admin page
+        # fills these in by hand; without them ComfyUI is asked for a "model.safetensors" that doesn't exist). No
+        # negative_prompt entry: a chat request has none, and Open WebUI would write "None" over NEGATIVE.
+        nodes = [{"type": "prompt", "key": "text", "node_ids": ["6"]},
+                 {"type": "model", "key": "ckpt_name", "node_ids": ["4"]},
+                 {"type": "width", "key": "width", "node_ids": ["5"]},
+                 {"type": "height", "key": "height", "node_ids": ["5"]},
+                 {"type": "n", "key": "batch_size", "node_ids": ["5"]},
+                 {"type": "steps", "key": "steps", "node_ids": ["3"]},
+                 {"type": "seed", "key": "seed", "node_ids": ["3", "11"]}]
+        current = c.get("COMFYUI_WORKFLOW")
+        workflow = (json.dumps(hires_workflow(comfy["checkpoint"], comfy.get("embeddings") or []), indent=2)
+                    if is_replaceable(current) else current)
+        return {"ENABLE_IMAGE_GENERATION": True, "IMAGE_GENERATION_ENGINE": "comfyui",
+                "COMFYUI_BASE_URL": comfy["url"], "IMAGE_GENERATION_MODEL": comfy["checkpoint"],
+                "IMAGE_SIZE": IMAGE_SIZE, "IMAGE_STEPS": 30, "ENABLE_IMAGE_PROMPT_GENERATION": True,
+                "COMFYUI_WORKFLOW_NODES": nodes, "COMFYUI_WORKFLOW": workflow}
+    update(base, args, "images (ComfyUI)", "/api/v1/images/config", "/api/v1/images/config/update", images)
 
-    update(base_url, None, "document processing", "/api/settings", "/api/settings", set_docs)
-
-    # --- Image generation ---
-    if mode == "split":
-        def setup_images(flat, before):
-            flat["image_generation_model"] = "stable-diffusion"
-            flat["image_generation_api_base"] = "http://<helper-pc>:8188"
-            flat["image_generation_api_key"] = ""
-            flat["image_size"] = IMAGE_SIZE
-
-        update(base_url, None, "image generation", "/api/settings", "/api/settings", setup_images)
-
-    print("Done.")
+    print(f"Open WebUI set for {mode} mode." if not FAILED else f"{FAILED} setting group(s) failed.")
+    return 1 if FAILED else 0
 
 
 if __name__ == "__main__":
-    main(sys.argv)
+    sys.exit(main(sys.argv))
