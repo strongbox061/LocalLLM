@@ -11,6 +11,8 @@ ExecStartPre=+@REPO_DIR@/services/gpu-limits.sh @USER@
 ExecStart=@REPO_DIR@/services/llm-server.sh
 Restart=on-failure
 RestartSec=5
+# llama-server is the largest process (~17.5 GB with the default profile). If RAM runs out, the kernel kills a runaway
+# container build or browser tab instead of the model.
 OOMScoreAdjust=-500
 
 [Install]
