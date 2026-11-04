@@ -70,71 +70,63 @@ if ((Get-Service sshd).Status -ne 'Running') { Start-Service sshd }
 Write-Host "sshd is installed, running, and starts at boot."
 
 # --- 3. Key login only, PowerShell as the shell ---
+Step "Key login"
+$sshDir = Join-Path $env:ProgramData 'ssh'
 # For an administrator, Windows' OpenSSH reads only this file (not the user's own .ssh\authorized_keys).
-$authKeys = "$env:ProgramFiles\OpenSSH\etc\sshd_config"
-$configContent = Get-Content $authKeys -ErrorAction SilentlyContinue
-
-# Set PowerShell as the default shell for SSH commands
-if ($configContent -notmatch '^Shell\s') {
-    (Get-Content $authKeys) -replace '^#?Shell\b', 'Shell C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe' | Set-Content $authKeys
-}
-
-# Add the public key if not already present
-$existing = Get-Content "$env:ProgramFiles\OpenSSH\etc\authorized_keys" -ErrorAction SilentlyContinue
+$keys = Join-Path $sshDir 'administrators_authorized_keys'
+$existing = @()
+if (Test-Path $keys) { $existing = @(Get-Content $keys) }
 if ($existing -contains $PublicKey) {
-    Write-Host "Public key already in authorized_keys."
+    Write-Host "The main PC's key is already allowed."
 } else {
-    Add-Content "$env:ProgramFiles\OpenSSH\etc\authorized_keys" $PublicKey
+    Add-Content -Path $keys -Value $PublicKey -Encoding ASCII
+    Write-Host "Allowed the main PC's key."
 }
-
 # Only Administrators and SYSTEM may read or change it (sshd ignores the file otherwise). SIDs: any Windows language.
-$want = @{
-    'BUILTIN\Administrators' = 'FullControl'
-    'SYSTEM'                 = 'FullControl'
-}
+& icacls.exe $keys /inheritance:r /grant '*S-1-5-32-544:F' /grant '*S-1-5-18:F' | Out-Null
 
+$config = Join-Path $sshDir 'sshd_config'
+$lines = @(Get-Content $config)
+$want = [ordered]@{ 'PubkeyAuthentication' = 'yes'; 'PasswordAuthentication' = 'no'; 'KbdInteractiveAuthentication' = 'no' }
 $changed = $false
-$acl = Get-Acl $authKeys
 foreach ($name in $want.Keys) {
-    $rule = $acl.Access | Where-Object { $_.IdentityReference -eq $name -and $_.FileSystemRights -eq $want[$name] }
-    if (-not $rule) {
-        $identity = New-Object System.Security.Principal.NTAccount($name)
-        $ruleType = [System.Security.AccessControl.AccessControlType]::Allow
-        $rights = [System.Security.FileSystemRights]::FullControl
-        $inherit = [System.Security.AccessControl.InheritanceFlags]::None
-        $propagation = [System.Security.AccessControl.PropagationFlags]::None
-        $ace = New-Object System.Security.AccessControl.FileSystemAccessRule($identity, $rights, $ruleType, $inherit, $propagation)
-        $acl.AddAccessRule($ace)
+    $line = "$name $($want[$name])"
+    $at = -1
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match "^\s*#?\s*$name\s") { $at = $i; break }
+        if ($lines[$i] -match '^\s*Match\s') { break }   # settings for everyone go before the first Match block
+    }
+    if ($at -ge 0) {
+        if ($lines[$at] -ne $line) { $lines[$at] = $line; $changed = $true }
+    } else {
+        $lines = @($line) + $lines
         $changed = $true
     }
 }
-
 if ($changed) {
-    Set-Acl $authKeys $acl
+    Set-Content -Path $config -Value $lines -Encoding ASCII
+    Write-Host "sshd_config: passwords off, keys only."
+} else {
+    Write-Host "sshd_config: already keys only."
 }
-
-# Disable password authentication in sshd_config
-$sshdConfig = "$env:ProgramFiles\OpenSSH\etc\sshd_config"
-$configLines = Get-Content $sshdConfig
-$modified = $false
-for ($i = 0; $i -lt $configLines.Count; $i++) {
-    if ($configLines[$i] -match '^#?\s*PasswordAuthentication\s') {
-        $configLines[$i] = 'PasswordAuthentication no'
-        $modified = $true
-    }
-}
-if (-not $modified) {
-    $configLines += 'PasswordAuthentication no'
-}
-$configLines | Set-Content $sshdConfig
-
-Restart-Service sshd
+$shell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+New-Item -Path 'HKLM:\SOFTWARE\OpenSSH' -Force | Out-Null
+New-ItemProperty -Path 'HKLM:\SOFTWARE\OpenSSH' -Name DefaultShell -Value $shell -PropertyType String -Force | Out-Null
+Write-Host "Shell for SSH commands: Windows PowerShell"
 
 # --- 4. Firewall: SSH only from Tailscale (100.64.0.0/10, fd7a:115c:a1e0::/48) and the local network ---
-$rule = Get-NetFirewallRule -DisplayName 'OpenSSH Server (sshd)' -ErrorAction SilentlyContinue
-if (-not $rule) {
-    New-NetFirewallRule -DisplayName 'OpenSSH Server (sshd)' -Direction Inbound -Protocol TCP -LocalPort 22 -Action Allow
+Step "Firewall"
+$remote = @('100.64.0.0/10', 'fd7a:115c:a1e0::/48', 'LocalSubnet')
+$rule = Get-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -ErrorAction SilentlyContinue
+if ($rule) {
+    Set-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -Enabled True -Profile Any -RemoteAddress $remote
+} else {
+    New-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -DisplayName 'OpenSSH Server (sshd)' -Direction Inbound `
+        -Protocol TCP -LocalPort 22 -Action Allow -Profile Any -RemoteAddress $remote | Out-Null
 }
+Write-Host "SSH (port 22) allowed only from Tailscale and the local network."
+
+Restart-Service sshd
 
 # --- 5. What the main PC needs ---
 Step "Done. For ./localllm.sh setup-helper on the main PC:"
