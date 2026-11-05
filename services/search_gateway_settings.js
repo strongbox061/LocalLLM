@@ -86,16 +86,6 @@ async function save() {
   }
 }
 
-form.addEventListener("input", () => {
-  let changed = false;
-  for (const box of form.children) {
-    const input = box.querySelector("input");
-    if (input && input.value !== "") changed = true;
-  }
-  saveBtn.disabled = !changed;
-});
-
 document.getElementById("filter").addEventListener("input", applyFilter);
-saveBtn.addEventListener("click", save);
-
+saveBtn.addEventListener("click", () => save().catch(e => { msg.className = "bad"; msg.textContent = String(e); saveBtn.disabled = false; }));
 load().catch(e => { msg.className = "bad"; msg.textContent = "Couldn't load the settings: " + e; });
