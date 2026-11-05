@@ -34,7 +34,7 @@
   const unlocked = new WeakSet();
   // (#audioElement, the player for "Read aloud" and automatic playback, already does this itself.)
   const unlock = (el) => {
-    if (el.id === "audioElement" || unlocked.has(el) || !el.paused || el.getAttribute("src") || !el.isConnected) return;
+    if (el.id === "audioElement" || unlocked.has(el) || !el.paused || el.getAttribute("src")) return;
     unlocked.add(el);
     el.src = SILENCE;
     nativePlay.call(el).then(
@@ -165,6 +165,4 @@
       return nativeGetUserMedia(constraints);
     };
   })();
-
-  try { log(`loaded: threshold=${SPEECH_THRESHOLD_DB}dB, autoGain=${AUTO_GAIN}`); } catch {}
 })();
