@@ -5,6 +5,7 @@ Searches through the services in your settings (~/.config/localllm/search-gatewa
 /settings page), counts their usage, caches results and logs searches in the gateway's own database
 (~/.local/share/localllm/search-gateway.db). Pi (web_search), Open WebUI ("Search Gateway" tool, a thin client) and
 Protected Lookup all search through it; it needs neither Open WebUI nor its database.
+What it does: Web search through Parallel (API key with the free $5 monthly credit, Fast mode), Exa, Linkup, Tavily, Firecrawl, Bright Data SERP, Context.dev, You.com (API key with its one-time credit, then keyless), SerpApi, Geekflare, HasData, Brave Search and Browserbase Search, tried in a preference order you set, with the local SearXNG as a last fallback. All use free allowances that renew every month (You.com: every day), except one-time signup credits that are used until they run out or expire (Parallel, Exa, You.com API, Firecrawl). Each service is stopped 50 requests before its free allowance runs out, using the real usage reported by Tavily, Brave, Bright Data, Parallel, Exa, SerpApi, Firecrawl, Linkup, HasData and You.com, and the tool's own count for the others. Page reading through Playwright, with Parallel Extract (also PDFs), Browserbase Fetch and Tavily Extract as fallbacks. Limits enforced in code: a search cap per answer, a research plan (plan_research tool) once research gets long, a warning when few searches are left, no unasked years in queries, recent results for current-information questions, a repeated search tried once more on a different kind of service (skipping the cache), no retrying blocked sites, a 24-hour result cache, and a clear stop when search is down. A request refused with "too many requests" is retried once after a short wait.
 """
 
 import asyncio
@@ -34,14 +35,13 @@ def lang_norm(text):
     t = unicodedata.normalize("NFD", str(text or "").lower())
     return unicodedata.normalize("NFC", _LANG_MARKS.sub("", t)).translate(_LANG_SAME)
 
-MONTHS = r"تشرين\s+الثاني|تشرین\s+الثانی|كانون\s+الثاني|کانون\s+الثانی|szeptember\w*|تشرين\s+الأول|تشرین\s+الاول|كانون\s+الأول|کانون\s+الاول|augusztus\w*|maaliskuu\w*|marraskuu\w*|pazdziernika|października|december\w*|heinakuu\w*|heinäkuu\w*|helmikuu\w*|huhtikuu\w*|joulukuu\w*|november\w*|pazdziernik|październik|tammikuu\w*|toukokuu\w*|σεπτέμβρ\w*|σεπτεμβρ\w*|φεβρουαρ\w*|ফেব্রুয়ারি|ফেব্রুয়ারী|ফাল্গুন\w*|ফাল্গুণ\w*|জানুয়ারি\w*|জানুয়ারী\w*|মার্চ\w*|মার্চ\w*|এপ্রিল\w*|আগস্ট\w*|আগস্ট\w*|আগস্তু\w*|আই\w*|আইন\w*|আইনুয়ারি\w*|আইনুয়ারী\w*|আইনুয়ার্দি\w*|আয়ন\w*|আয়েন\w*|আয়েনুয়ারি\w*|আয়েনুয়ারী\w*|আয়নুয়ারি\w*|आगस्ट\w*|आगस्त\w*|आइ\w*|आइन्\w*|आइनुअरि\w*|आइनुअरी\w*|आयन\w*|आयन्\w*|आयनूअरि\w*|आयनूअरी\w*|आयनुअरि\w*|जनवरी\w*|जनवरी\w*|फ़रवरी\w*|मार्च\w*|मई\w*|जून\w*|जुलाई\w*|आगस्ट\w*|सितंबर\w*|सितम्बर\w*|अक्टूबर\w*|नवंबर\w*|नवम्बर\w*|दिसंबर\w*|दिसम्बर\w*|জানুয়ারী\w*|ফেব্রুয়ারি\w*|ফেব্রুয়ারী\w*|মার্চ\w*|এপ্রিল\w*|মে\w*|জুন\w*|জুলাই\w*|আগস্ট\w*|সেপ্টেম্বর\w*|অক্টোবর\w*|নভেম্বর\w*|ডিসেম্বর\w*|জানুয়ারি\w*|ফেব্রুয়ারি\w*|মার্চ\w*|এপ্রিল\w*|মে\w*|জুন\w*|জুলাই\w*|আগস্ট\w*|সেপ্টেম্বর\w*|অক্টোবর\w*|নভেম্বর\w*|ডিসেম্বর\w*"
-# --- end of lang-words ---
 
+MONTHS = r"تشرين\s+الثاني|تشرین\s+الثانی|كانون\s+الثاني|کانون\s+الثانی|szeptember\w*|تشرين\s+الأول|تشرین\s+الاول|كانون\s+الأول|کانون\s+الاول|augusztus\w*|maaliskuu\w*|marraskuu\w*|pazdziernika|października|december\w*|heinakuu\w*|heinäkuu\w*|helmikuu\w*|huhtikuu\w*|joulukuu\w*|november\w*|pazdziernik|październik|tammikuu\w*|toukokuu\w*|σεπτέμβρ\w*|σεπτεμβρ\w*|φεβρουαρ\w*|ফেব্রুয়ারি|ফেব্রুয়ারী|aprilis\w*|februar\w*|február\w*|kesakuu\w*|kesäkuu\w*|lokakuu\w*|marcius\w*|március\w*|oktober\w*|október\w*|septembrie|septiembre|syyskuu\w*|április\w*|αυγουστ\w*|αύγουστ\w*|δεκέμβρ\w*|δεκεμβρ\w*|ιανουαρ\w*|сентябр\w*|সেপ্টেম্বর|กุมภาพันธ์|decembrie|diciembre|disyembre|elokuu\w*|februarie|fevereiro|januar\w*|január\w*|julius\w*|junius\w*|július\w*|június\w*|listopada|listopadu|nobyembre|noiembrie|noviembre|octombrie|september|septembre|setiembre|settembre|setyembre|νοέμβρ\w*|νοεμβρ\w*|οκτωβρ\w*|οκτώβρ\w*|август\w*|декабр\w*|листопада|октябр\w*|феврал\w*|জানুয়ারি|জানুয়ারী|พฤศจิกายน|augustus|cervence|cervenec|czerwiec|december|decembre|desember|dezember|dezembro|dicembre|disember|décembre|febbraio|februari|february|grudzien|grudzień|ianuarie|januarie|kwiecien|kwiecień|kwietnia|listopad|majus\w*|május\w*|november|novembre|novembro|prosince|prosinec|septemba|setembro|sierpien|sierpień|sierpnia|stycznia|wrzesien|wrzesień|wrzesnia|września|července|červenec|απριλ\w*|апрел\w*|березень|вересень|листопад|ноябр\w*|январ\w*|ডিসেম্বর|มิถุนายน|agustos|agustus|aprilie|augusti|ağustos|czerwca|desemba|febrero|februar|fevrier|février|gennaio|grudnia|haziran|janeiro|januari|january|janvier|juillet|novemba|october|octobre|octubre|oktober|oktubre|ottobre|outubro|pebrero|styczen|styczeń|ιουλ\w*|ιουν\w*|μαρτ\w*|березня|вересня|грудень|жовтень|квітень|март\w*|серпень|травень|червень|אוקטובר|سپتامبر|अक्टूबर|अक्तूबर|दिसम्बर|सितम्बर|অক্টোবর|নভেম্বর|กรกฎาคม|กันยายน|ธันวาคม|พฤษภาคม|สิงหาคม|agosti|agosto|aprile|aprili|aralık|august|brezen|brezna|březen|března|cerven|cervna|giugno|janner|januar|jänner|kveten|kvetna|květen|května|lipiec|luglio|lutego|maggio|martie|marzec|oktoba|temmuz|červen|června|μάι\w*|μαΐ\w*|μαι\w*|грудня|жовтня|июл\w*|июн\w*|квітня|липень|лютого|серпня|січень|травня|червня|אוגוסט|נובמבר|ספטמבר|פברואר|أكتوبر|اکتوبر|جولائی|جولایی|حزيران|حزیران|دسامبر|ديسمبر|دیسمبر|سبتمبر|فبراير|فبرایر|نوامبر|نوفمبر|ژانویه|अप्रैल|दिसंबर|नवम्बर|फ़रवरी|सितंबर|এপ্রিল|ตุลาคม|มกราคม|มีนาคม|เมษายน|abril|april|avril|duben|dubna|enero|eylul|eylül|hulyo|hunyo|iulie|iunie|julai|julho|julie|julio|junho|junie|junio|kasım|leden|ledna|lipca|maart|machi|marca|march|marco|maret|marso|marts|marzo|março|mayıs|nisan|rijen|rijna|srpen|srpna|subat|unora|února|říjen|října|şubat|липня|лютии|лютий|січня|אפריל|דצמבר|ינואר|آوریل|أبريل|أغسطس|أيلول|إبريل|ابریل|اغسطس|اوریل|اپریل|اکتبر|ایلول|جنوری|دسمبر|ستمبر|فروری|فوریه|نومبر|نيسان|نیسان|يناير|يوليو|يونيو|ژوئیه|ژوییه|ینایر|یولیو|یونیو|अगस्त|जनवरी|जुलाई|नवंबर|फरवरी|मार्च|আগস্ট|জুলাই|মার্চ|aout|août|ekim|juin|juli|july|june|juni|luty|maio|maja|mars|mart|marz|mayo|märz|ocak|ogos|sept|unor|zari|září|únor|יולי|יוני|آذار|أيار|اذار|اگست|ایار|تموز|شباط|مارس|مارچ|مايو|مایو|ژوئن|ژوین|apr|aug|dec|feb|jan|jul|jun|mac|mai|maj|mar|may|mei|nov|oct|sep|маи|май|мая|מאי|מרס|מרץ|اوت|جون|مئی|میی|जून|জুন|آب|اب|مه|मई|মে"
 # Wants current information: the search prefers recent pages.
-LANG_CURRENT_INFO_RE = re.compile(r"(?:อัตราแลกเปลี่ยน|สัปดาห์นี้|โปรโมชั่น|ปัจจุบัน|เดือนนี้|เท่าไหร่|ตอนนี้|ล่าสุด|วันนี้|เท่าไร|ปีนี้|為替レート|価格|价格多少|價格多少|いくら|セール|价格是|價格是|多少錢|多少钱|今天|今年|今日|今月|今週|优惠|価格|値段|優惠|汇率|最新|最近|本周|本日|本月|本週)", re.I)
-
+LANG_CURRENT_INFO_RE = re.compile(r"(?:อัตราแลกเปลี่ยน|สัปดาห์นี้|โปรโมชั่น|ปัจจุบัน|เดือนนี้|เท่าไหร่|ตอนนี้|ล่าสุด|วันนี้|เท่าไร|ปีนี้|為替レート|ราคา|价格多少|價格多少|いくら|セール|价格是|價格是|多少錢|多少钱|今天|今年|今日|今月|今週|优惠|価格|値段|優惠|匯率|当前|最新|最近|本周|本日|本月|本週|汇率|為替|现价|現價|現在|當前|目前|这周|這週)|(?<![\w\u0300-\u036f\u0900-\u0dff])(?:последн[\w\u0300-\u036f\u0900-\u0dff]*[\s-]+новост[\w\u0300-\u036f\u0900-\u0dff]*|последн[\w\u0300-\u036f\u0900-\u0dff]*[\s-]+верси[\w\u0300-\u036f\u0900-\u0dff]*|останн[\w\u0300-\u036f\u0900-\u0dff]*[\s-]+верси[\w\u0300-\u036f\u0900-\u0dff]*|останн[\w\u0300-\u036f\u0900-\u0dff]*[\s-]+новин[\w\u0300-\u036f\u0900-\u0dff]*|aktualn[\w\u0300-\u036f\u0900-\u0dff]*[\s-]+cen[\w\u0300-\u036f\u0900-\u0dff]*|поточн[\w\u0300-\u036f\u0900-\u0dff]*[\s-]+цін[\w\u0300-\u036f\u0900-\u0dff]*|текущ[\w\u0300-\u036f\u0900-\u0dff]*[\s-]+цен[\w\u0300-\u036f\u0900-\u0dff]*|aktualis[\s-]+ar[\w\u0300-\u036f\u0900-\u0dff]*|ile[\s-]+kosztuj[\w\u0300-\u036f\u0900-\u0dff]*|mais[\s-]+recent[\w\u0300-\u036f\u0900-\u0dff]*|plus[\s-]+recent[\w\u0300-\u036f\u0900-\u0dff]*|πιο[\s-]+προσφατ[\w\u0300-\u036f\u0900-\u0dff]*|piu[\s-]+recent[\w\u0300-\u036f\u0900-\u0dff]*|valuuttakurssi[\w\u0300-\u036f\u0900-\u0dff]*|cen[\w\u0300-\u036f\u0900-\u0dff]*[\s-]+za|цен[\w\u0300-\u036f\u0900-\u0dff]*[\s-]+на|цін[\w\u0300-\u036f\u0900-\u0dff]*[\s-]+на|actualizat[\w\u0300-\u036f\u0900-\u0dff]*|viimeisimm[\w\u0300-\u036f\u0900-\u0dff]*|ενημερωμεν[\w\u0300-\u036f\u0900-\u0dff]*|ajantasai[\w\u0300-\u036f\u0900-\u0dff]*|이번[\s-]+달[\w\u0300-\u036f\u0900-\u0dff]*|이번[\s-]+주[\w\u0300-\u036f\u0900-\u0dff]*|arfolyam[\w\u0300-\u036f\u0900-\u0dff]*|najnowsz[\w\u0300-\u036f\u0900-\u0dff]*|актуальн[\w\u0300-\u036f\u0900-\u0dff]*|наиновіш[\w\u0300-\u036f\u0900-\u0dff]*|нещодавн[\w\u0300-\u036f\u0900-\u0dff]*|aktualn[\w\u0300-\u036f\u0900-\u0dff]*|aktuell[\w\u0300-\u036f\u0900-\u0dff]*|indirim[\w\u0300-\u036f\u0900-\u0dff]*|aktuel[\w\u0300-\u036f\u0900-\u0dff]*|auf[\s-]+dem[\s-]+neuesten[\s-]+stand|uusimm[\w\u0300-\u036f\u0900-\u0dff]*|недавн[\w\u0300-\u036f\u0900-\u0dff]*|новеиш[\w\u0300-\u036f\u0900-\u0dff]*|akcio[\w\u0300-\u036f\u0900-\u0dff]*|kiwango[\s-]+cha[\s-]+ubadilishaji|가격[\w\u0300-\u036f\u0900-\u0dff]*|시세[\w\u0300-\u036f\u0900-\u0dff]*|얼마[\w\u0300-\u036f\u0900-\u0dff]*|오늘[\w\u0300-\u036f\u0900-\u0dff]*|올해[\w\u0300-\u036f\u0900-\u0dff]*|최근[\w\u0300-\u036f\u0900-\u0dff]*|최신[\w\u0300-\u036f\u0900-\u0dff]*|현재[\w\u0300-\u036f\u0900-\u0dff]*|환율[\w\u0300-\u036f\u0900-\u0dff]*|συναλλαγματικη[\s-]+ισοτιμια|hur[\s-]+mycket[\s-]+kostar|hvor[\s-]+meget[\s-]+koster|in[\s-]+questo[\s-]+momento|toleo[\s-]+jipya[\s-]+zaidi|αυτη[\s-]+την[\s-]+εβδομαδα|в[\s-]+настоящее[\s-]+время|cursul[\s-]+de[\s-]+schimb|ebben[\s-]+a[\s-]+honapban|на[\s-]+данныи[\s-]+момент|cea[\s-]+mai[\s-]+recenta|den[\s-]+har[\s-]+manaden|hvor[\s-]+mye[\s-]+koster|in[\s-]+acest[\s-]+moment|palitan[\s-]+ng[\s-]+pera|spesiale[\s-]+aanbiedinge|tasso[\s-]+di[\s-]+cambio|wie[\s-]+viel[\s-]+kostet|на[\s-]+дании[\s-]+момент|فی[\s-]+الوقت[\s-]+الحالی|bao[\s-]+nhieu[\s-]+tien|cel[\s-]+mai[\s-]+recent|den[\s-]+har[\s-]+veckan|dernieres[\s-]+nouvelles|harga[\s-]+saat[\s-]+ini|kasalukuyang[\s-]+presyo|op[\s-]+die[\s-]+oomblik|tasa[\s-]+de[\s-]+cambio|taux[\s-]+de[\s-]+change|taxa[\s-]+de[\s-]+cambio|tipo[\s-]+de[\s-]+cambio|w[\s-]+tym[\s-]+miesiacu|w[\s-]+tym[\s-]+tygodniu|αυτη[\s-]+τη[\s-]+στιγμη|αυτον[\s-]+τον[\s-]+μηνα|на[\s-]+этои[\s-]+неделе|baru[\s-]*baru[\s-]+ini|gia[\s-]+bao[\s-]+nhieu|how[\s-]+much[\s-]+does|ni[\s-]+kiasi[\s-]+gani|op[\s-]+dit[\s-]+moment|pada[\s-]+masa[\s-]+ini|в[\s-]+этом[\s-]+месяце|cea[\s-]+mai[\s-]+noua|en[\s-]+ce[\s-]+moment|ezen[\s-]+a[\s-]+heten|gia[\s-]+hien[\s-]+tai|how[\s-]+much[\s-]+are|ngay[\s-]+bay[\s-]+gio|saptamana[\s-]+aceasta|w[\s-]+tej[\s-]+chwili|a[\s-]+mai[\s-]+napon|bei[\s-]+ya[\s-]+sasa|derniere[\s-]+version|how[\s-]+much[\s-]+is|kadar[\s-]+pertukaran|precios[\s-]+actuales|questa[\s-]+settimana|siku[\s-]+ya[\s-]+leo|ultimas[\s-]+noticias|τελευταια[\s-]+εκδοση|в[\s-]+этом[\s-]+году|در[\s-]+حال[\s-]+حاضر|قیمت[\s-]+کیا[\s-]+ہے|कितने[\s-]+का[\s-]+है|डॉलर[\s-]+का[\s-]+रेट|ce[\s-]+mois[\s-]*ci|combien[\s-]+coutent|current[\s-]+version|paljonko[\s-]+maksaa|preturi[\s-]+actuale|ultima[\s-]+versione|up[\s-]+to[\s-]+date|w[\s-]+tym[\s-]+roku|τρεχουσεσ[\s-]+τιμεσ|الاسعار[\s-]+الحالیة|حال[\s-]+ہی[\s-]+میں|کتنے[\s-]+کا[\s-]+ہے|हाल[\s-]+ही[\s-]+में|as[\s-]+of[\s-]+now|current[\s-]+prices|for[\s-]+narvarande|for[\s-]+øyeblikket|interest[\s-]+rates|mennyibe[\s-]+kerul|ngayong[\s-]+linggo|prezzi[\s-]+attuali|prezzo[\s-]+attuale|son[\s-]+zamanlarda|talla[\s-]+hetkella|talla[\s-]+viikolla|ultima[\s-]+version|version[\s-]+actual|скільки[\s-]+коштує|cette[\s-]+semaine|combien[\s-]+coute|cuanto[\s-]+cuesta|current[\s-]+price|denne[\s-]+maneden|exchange[\s-]+rate|harga[\s-]+terkini|hierdie[\s-]+maand|hivi[\s-]+karibuni|interest[\s-]+rate|mas[\s-]+recientes|mees[\s-]+onlangse|meest[\s-]+recente|neste[\s-]+momento|ngayong[\s-]+buwan|precio[\s-]+actual|precos[\s-]+atuais|pretul[\s-]+actual|sekarang[\s-]+juga|siste[\s-]+versjon|ultima[\s-]+versao|v[\s-]+soucasnosti|yakın[\s-]+zamanda|ποσο[\s-]+κοστιζει|τρεχουσα[\s-]+τιμη|сколько[\s-]+стоит|הגרסה[\s-]+האחרונה|angebote[\s-]+fur|berapa[\s-]+harga|current[\s-]+rate|curs[\s-]+valutar|diesen[\s-]+monat|gerade[\s-]+jetzt|harga[\s-]+semasa|hierdie[\s-]+week|hoeveel[\s-]+kost|huidige[\s-]+prys|i[\s-]+øjeblikket|kurs[\s-]+wymiany|luna[\s-]+aceasta|mas[\s-]+reciente|ngayon[\s-]+mismo|ngayong[\s-]+araw|ngayong[\s-]+taon|quanto[\s-]+costa|quanto[\s-]+custa|tassa[\s-]+kuussa|курс[\s-]+доллара|прямо[\s-]+сеичас|цього[\s-]+місяця|המחיר[\s-]+הנוכחי|העדכני[\s-]+ביותר|السعر[\s-]+الحالی|agora[\s-]+mesmo|ahora[\s-]+mismo|anul[\s-]+acesta|cette[\s-]+annee|cuanto[\s-]+vale|denna[\s-]+manad|denna[\s-]+vecka|denne[\s-]+maned|diese[\s-]+woche|dieses[\s-]+jahr|esta[\s-]+semana|hoeveel[\s-]+kos|hvad[\s-]+koster|kolik[\s-]+stoji|kurs[\s-]+rupiah|mita[\s-]+maksaa|most[\s-]+recent|nilai[\s-]+tukar|nou[\s-]+dadelik|paling[\s-]+baru|preco[\s-]+atual|prijzen[\s-]+van|prix[\s-]+actuel|questo[\s-]+mese|smenny[\s-]+kurz|tana[\s-]+vuonna|tento[\s-]+mesic|tento[\s-]+tyden|курс[\s-]+долара|прямо[\s-]+зараз|цього[\s-]+тижня|שער[\s-]+החליפין|اخرین[\s-]+اخبار|موجودہ[\s-]+قیمت|هذا[\s-]+الاسبوع|मौजूदा[\s-]+कीमत|वर्तमान[\s-]+में|এই[\s-]+মুহূর্তে|বর্তমান[\s-]+দাম|বিনিময়[\s-]+হার|akkurat[\s-]+na|best[\s-]+deals|bons[\s-]+plans|chiar[\s-]+acum|denne[\s-]+uken|deze[\s-]+maand|doviz[\s-]+kuru|eppen[\s-]+most|harga[\s-]+dari|hva[\s-]+koster|in[\s-]+prezent|khuyen[\s-]+mai|kurs[\s-]+dolar|kurs[\s-]+walut|minggu[\s-]+ini|ofertas[\s-]+de|precios[\s-]+de|preise[\s-]+fur|preise[\s-]+von|siste[\s-]+nytt|this[\s-]+month|vad[\s-]+kostar|was[\s-]+kostet|курс[\s-]+валют|цього[\s-]+року|اخرین[\s-]+نسخه|এই[\s-]+সপ্তাহে|ডলারের[\s-]+রেট|bulan[\s-]+ini|cat[\s-]+costa|denne[\s-]+uge|deze[\s-]+week|for[\s-]+nylig|juuri[\s-]+nyt|lo[\s-]+ultimo|mwaka[\s-]+huu|mwezi[\s-]+huu|nejaktualnejsi|nu[\s-]+meteen|prave[\s-]+ted|precio[\s-]+de|precos[\s-]+de|preis[\s-]+fur|preis[\s-]+von|presyo[\s-]+ng|prezzi[\s-]+di|prezzo[\s-]+di|prices[\s-]+of|prijs[\s-]+van|priser[\s-]+pa|right[\s-]+now|sasa[\s-]+hivi|tahun[\s-]+ini|thang[\s-]+nay|this[\s-]+week|this[\s-]+year|tilbud[\s-]+pa|курс[\s-]+евро|ממש[\s-]+עכשיו|שער[\s-]+הדולר|اخر[\s-]+اصدار|تازہ[\s-]+ترین|جدید[\s-]+ترین|زر[\s-]+مبادلہ|سعر[\s-]+الصرف|قیمت[\s-]+فعلی|هذا[\s-]+الشهر|هذا[\s-]+العام|هذه[\s-]+السنة|همین[\s-]+الان|इस[\s-]+सप्ताह|कितने[\s-]+में|विनिमय[\s-]+दर|bei[\s-]+gani|bu[\s-]+hafta|deals[\s-]+on|dit[\s-]+jaar|este[\s-]+ano|este[\s-]+mes|hari[\s-]+ini|hien[\s-]+nay|hien[\s-]+tai|kac[\s-]+para|kurz[\s-]+men|kwa[\s-]+sasa|moi[\s-]+nhat|ne[\s-]+kadar|preco[\s-]+de|price[\s-]+of|prys[\s-]+van|recientemente|saat[\s-]+ini|tuan[\s-]+nay|wiki[\s-]+hii|τιμη[\s-]+τησ|τιμη[\s-]+του|כמה[\s-]+עולה|اس[\s-]+مہینے|این[\s-]+هفته|فی[\s-]+الحال|قیمت[\s-]+روز|نرخ[\s-]+دلار|ڈالر[\s-]+ریٹ|इस[\s-]+महीने|इस[\s-]+हफ्ते|सबसे[\s-]+नया|aanbiedingen|actuellement|aujourd'?hui|cost[\s-]+of|en[\s-]+yeni|gan[\s-]+đay|hom[\s-]+nay|just[\s-]+nu|lige[\s-]+nu|nam[\s-]+nay|on[\s-]+sale|pris[\s-]+pa|prix[\s-]+de|recentemente|su[\s-]+anda|מחיר[\s-]+של|اس[\s-]+ہفتے|این[\s-]+ماه|نرخ[\s-]+ارز|کم[\s-]+یکلف|इस[\s-]+वर्ष|এই[\s-]+মাসে|a[\s-]+jour|actualmente|attualmente|bei[\s-]+ya|bu[\s-]+yıl|en[\s-]+son|erbjudanden|kasalukuyan|legfrissebb|quest'?anno|ty[\s-]+gia|wechselkurs|wisselkoers|اس[\s-]+سال|اس[\s-]+وقت|کم[\s-]+ثمن|کم[\s-]+سعر|इस[\s-]+समय|इस[\s-]+साल|এই[\s-]+বছর|কত[\s-]+দাম|দাম[\s-]+কত|aggiornato|atualizado|atualmente|bu[\s-]+ay|hiljattain|i[\s-]+dag|kamakailan|momentalne|nejnovejsi|pinakabago|su[\s-]+an|tarjoukset|valutakurs|সাম্প্রতিক|지금[\s-]+당장|aktualnie|askettain|currently|fiyatları|i[\s-]+ar|legutobbi|momenteel|recemment|vaxelkurs|viimeisin|προσφορεσ|jelenleg|kurzlich|legujabb|momentan|neuesten|niedawno|nieuwste|ostatnio|promocje|recently|προσφατα|сьогодні|جدیدترین|বর্তমানে|সম্প্রতি|actueel|actuele|cotacao|derzeit|diskaun|dzisiaj|magkano|nedavno|neueste|nuutste|nykyaan|nyligen|obecnie|ofertas|offerte|onlangs|pricing|promosi|punguzo|senaste|seneste|terbaru|terkini|vandaag|vanjaar|zurzeit|сегодня|לאחרונה|هماکنون|लेटेस्ट|সর্বশেষ|astazi|diskon|fiyatı|guncel|hinnat|latest|newest|nyaste|nyeste|oferte|recent|tanaan|vandag|σημερα|знижки|наразі|скидки|מבצעים|नवीनतम|নতুনতম|bugun|heute|letos|nylig|promo|slevy|today|uusin|φετοσ|החודש|השבוע|עדכני|اخیرا|الیوم|امروز|امسال|تخفیف|حالیا|حالیہ|موخرا|dnes|dzis|hoje|idag|iden|oggi|tans|היום|השנה|כרגע|احدث|عروض|azi|hoy|اج|आज|আজ|요즘)(?![\w\u0300-\u036f\u0900-\u0dff])")
 # Text of a bot-check or access-denied page (short pages only).
-LANG_BOT_CHECK_RE = re.compile(r"(?:กำลังตรวจสอบเบราว์เซอร์|ยืนยันว่าคุณเป็นมนุษย์|การเข้าชมที่ผิดปกติ|การเข้าถึงถูกปฏิเสธ|ปฏิเสธการเข้าถึง|ブラウザをチェックしています|アクセスが拒否されました|ブラウザを確認しています|通常と異なるトラフィック|人間であることを確認|正在检查您的浏览器|正在檢查您的瀏覽器|異常なトラフィック|确认您是真人|確認您是真人|驗證您是人類|验证您是人类|访问被拒绝|存取遭拒|异常流量|拒绝访问|異常流量)|(?<![\w\u0300-\u036f\u0900-\u0dff])(?:just[\s-]+a[\s-]+moment\s*\.\s*\.\s*\.|ett[\s-]+ogonblick\s*\.\s*\.\s*\.\.|un[\s-]+momento\s*\.\s*\.\s*\.\.|chwilka[\s-]+proszę\s*\.\s*\.\s*\.\.|một[\s-]+chút\s*\.\s*\.\s*\.\.|bir[\s-]+saniye\s*\.\s*\.\s*\.\.|مجرد[\s-]+لحظة|רק[\s-]+רגע|un[\s-]+instant\s*\.\s*\.\s*\.\.|momentul[\s-]+asta|o[\s-]+chwilę|just[\s-]+a[\s-]+second|un[\s-]+segundo\s*\.\s*\.\s*\.\.)\s*(?:please|por[\s-]+favor|proszę|silakan|กรุณา|お待ちください|请稍候|請稍候|espera|por favor|bitên|lutfen|لطفاً|נא|من فضلك|krijayita)\s*$", re.I)
+LANG_BOT_CHECK_RE = re.compile(r"(?:กำลังตรวจสอบเบราว์เซอร์|ยืนยันว่าคุณเป็นมนุษย์|การเข้าชมที่ผิดปกติ|การเข้าถึงถูกปฏิเสธ|ปฏิเสธการเข้าถึง|ブラウザをチェックしています|アクセスが拒否されました|ブラウザを確認しています|通常と異なるトラフィック|人間であることを確認|正在检查您的浏览器|正在檢查您的瀏覽器|異常なトラフィック|确认您是真人|確認您是真人|驗證您是人類|验证您是人类|访问被拒绝|存取遭拒|异常流量|拒绝访问|異常流量)|(?<![\w\u0300-\u036f\u0900-\u0dff])(?:just[\s-]+a[\s-]+moment\s*\.\s*\.\s*\.|ett[\s-]+ogonblick\s*\.\s*\.\s*\.|een[\s-]+ogenblik\s*\.\s*\.\s*\.|egy[\s-]+pillanat\s*\.\s*\.\s*\.|einen[\s-]+moment\s*\.\s*\.\s*\.|et[\s-]+øyeblikk\s*\.\s*\.\s*\.|et[\s-]+øjeblik\s*\.\s*\.\s*\.|um[\s-]+momento\s*\.\s*\.\s*\.|un[\s-]+instant\s*\.\s*\.\s*\.|un[\s-]+momento\s*\.\s*\.\s*\.|μια[\s-]+στιγμη\s*\.\s*\.\s*\.|un[\s-]+moment\s*\.\s*\.\s*\.|chwileczke\s*\.\s*\.\s*\.|hetkinen\s*\.\s*\.\s*\.|oh[\s-]+noes\s*!|oh[\s-]+non\s*!)|(?<![\w\u0300-\u036f\u0900-\u0dff])(?:bestatigen[\s-]+sie\s*,[\s-]+dass[\s-]+sie[\s-]+ein[\s-]+mensch[\s-]+sind|verification[\s-]+que[\s-]+vous[\s-]+n'?etes[\s-]+pas[\s-]+un[\s-]+robot|wir[\s-]+uberprufen\s*,[\s-]+ob[\s-]+sie[\s-]+ein[\s-]+mensch[\s-]+sind|hubo[\s-]+un[\s-]+error[\s-]+accediendo[\s-]+a[\s-]+esta[\s-]+pagina|verificando[\s-]+que[\s-]+usted[\s-]+es[\s-]+un[\s-]+ser[\s-]+humano|verification[\s-]+que[\s-]+vous[\s-]+etes[\s-]+un[\s-]+humain|verifica[\s-]+di[\s-]+essere[\s-]+un[\s-]+essere[\s-]+umano|verificando[\s-]+que[\s-]+no[\s-]+eres[\s-]+un[\s-]+robot|verificerer[\s-]+at[\s-]+du[\s-]+er[\s-]+et[\s-]+menneske|verifierar[\s-]+att[\s-]+du[\s-]+ar[\s-]+en[\s-]+manniska|verifiez[\s-]+que[\s-]+vous[\s-]+etes[\s-]+un[\s-]+humain|verifiserer[\s-]+at[\s-]+du[\s-]+er[\s-]+et[\s-]+menneske|something[\s-]+went[\s-]+wrong[\s-]+on[\s-]+our[\s-]+end|bekrafta[\s-]+att[\s-]+du[\s-]+ar[\s-]+en[\s-]+manniska|controleer[\s-]+of[\s-]+je[\s-]+een[\s-]+mens[\s-]+bent|controleren[\s-]+of[\s-]+u[\s-]+een[\s-]+mens[\s-]+bent|verifique[\s-]+que[\s-]+es[\s-]+un[\s-]+ser[\s-]+humano|luu[\s-]+luong[\s-]+truy[\s-]+cap[\s-]+bat[\s-]+thuong|making[\s-]+sure[\s-]+you'?re[\s-]+not[\s-]+a[\s-]+bot|bekreft[\s-]+at[\s-]+du[\s-]+er[\s-]+et[\s-]+menneske|bekræft[\s-]+at[\s-]+du[\s-]+er[\s-]+et[\s-]+menneske|sprawdzanie\s*,[\s-]+czy[\s-]+jestes[\s-]+człowiekiem|weryfikacja\s*,[\s-]+czy[\s-]+jestes[\s-]+człowiekiem|bevestig[\s-]+dat[\s-]+jy[\s-]+'?n[\s-]+mens[\s-]+is|thibitisha[\s-]+kuwa[\s-]+wewe[\s-]+ni[\s-]+binadamu|पुष्टि[\s-]+करें[\s-]+कि[\s-]+आप[\s-]+इंसान[\s-]+हैं|realizando[\s-]+verificacion[\s-]+de[\s-]+seguridad|تصدیق[\s-]+کریں[\s-]+کہ[\s-]+اپ[\s-]+انسان[\s-]+ہیں|potwierdz\s*,[\s-]+ze[\s-]+jestes[\s-]+człowiekiem|sicherheitsuberprufung[\s-]+wird[\s-]+durchgefuhrt|xac[\s-]+minh[\s-]+ban[\s-]+la[\s-]+con[\s-]+nguoi|ελεγχοσ[\s-]+του[\s-]+προγραμματοσ[\s-]+περιηγησησ|আপনার[\s-]+ব্রাউজার[\s-]+যাচাই[\s-]+করা[\s-]+হচ্ছে|tarkistetaan\s*,[\s-]+etta[\s-]+olet[\s-]+ihminen|verificando[\s-]+se[\s-]+voce[\s-]+e[\s-]+humano|перевірка\s*,[\s-]+що[\s-]+ви[\s-]+не[\s-]+робот|проверка\s*,[\s-]+что[\s-]+вы[\s-]+не[\s-]+робот|se[\s-]+verifica[\s-]+daca[\s-]+sunteti[\s-]+om|verification[\s-]+de[\s-]+votre[\s-]+navigateur|confirme[\s-]+que[\s-]+voce[\s-]+e[\s-]+humano|verifique[\s-]+se[\s-]+voce[\s-]+e[\s-]+humano|επιβεβαιωστε[\s-]+οτι[\s-]+ειστε[\s-]+ανθρωποσ|নিশ্চিত[\s-]+করুন[\s-]+যে[\s-]+আপনি[\s-]+মানুষ|ellenorizzuk\s*,[\s-]+hogy[\s-]+on[\s-]+ember|uw[\s-]+browser[\s-]+wordt[\s-]+gecontroleerd|vahvista\s*,[\s-]+etta[\s-]+olet[\s-]+ihminen|verifica[\s-]+che[\s-]+tu[\s-]+sia[\s-]+umano|đang[\s-]+kiem[\s-]+tra[\s-]+trinh[\s-]+duyet|подтвердите\s*,[\s-]+что[\s-]+вы[\s-]+человек|تایید[\s-]+کنید[\s-]+که[\s-]+انسان[\s-]+هستید|patunayan[\s-]+na[\s-]+ikaw[\s-]+ay[\s-]+tao|verifikasi[\s-]+bahwa[\s-]+anda[\s-]+manusia|επαληθευση[\s-]+οτι[\s-]+ειστε[\s-]+ανθρωποσ|অ্যাক্সেস[\s-]+অস্বীকার[\s-]+করা[\s-]+হয়েছে|overujeme\s*,[\s-]+ze[\s-]+jste[\s-]+clovek|підтвердьте\s*,[\s-]+що[\s-]+ви[\s-]+людина|التحقق[\s-]+من[\s-]+انک[\s-]+لست[\s-]+روبوت|액세스가[\s-]+거부[\w\u0300-\u036f\u0900-\u0dff]*|erositse[\s-]+meg\s*,[\s-]+hogy[\s-]+ember|performing[\s-]+security[\s-]+verification|접근이[\s-]+거부[\w\u0300-\u036f\u0900-\u0dff]*|ihr[\s-]+browser[\s-]+wird[\s-]+uberpruft|sahkan[\s-]+bahawa[\s-]+anda[\s-]+manusia|δεν[\s-]+επιτρεπεται[\s-]+η[\s-]+προσβαση|overte\s*,[\s-]+ze[\s-]+jste[\s-]+clovek|اپ[\s-]+کے[\s-]+براوزر[\s-]+کی[\s-]+جانچ|truy[\s-]+cap[\s-]+bi[\s-]+tu[\s-]+choi|verificati[\s-]+ca[\s-]+sunteti[\s-]+om|insan[\s-]+oldugunuz[\s-]+dogrulanıyor|lalu[\s-]+lintas[\s-]+tidak[\s-]+biasa|tarayıcınız[\s-]+kontrol[\s-]+ediliyor|verifying[\s-]+you[\s-]+are[\s-]+human|insan[\s-]+oldugunuzu[\s-]+dogrulayın|kontrollerar[\s-]+din[\s-]+webblasare|uberprufung[\s-]+ihres[\s-]+browsers|आपके[\s-]+ब्राउज़र[\s-]+की[\s-]+जाँच|verificando[\s-]+seu[\s-]+navegador|verify[\s-]+you[\s-]+are[\s-]+human|یتم[\s-]+التحقق[\s-]+من[\s-]+متصفحک|comprobando[\s-]+su[\s-]+navegador|comprobando[\s-]+tu[\s-]+navegador|kontrollerer[\s-]+din[\s-]+browser|حرکة[\s-]+مرور[\s-]+غیر[\s-]+عادیة|sjekker[\s-]+nettleseren[\s-]+din|בודק[\s-]+את[\s-]+הדפדפן[\s-]+שלך|a[\s-]+bongeszo[\s-]+ellenorzese|memeriksa[\s-]+browser[\s-]+anda|tinanggihan[\s-]+ang[\s-]+access|ungewohnlicher[\s-]+datenverkehr|تحقق[\s-]+من[\s-]+انک[\s-]+انسان|checking[\s-]+your[\s-]+browser|controllo[\s-]+del[\s-]+browser|menyemak[\s-]+pelayar[\s-]+anda|проверяем[\s-]+ваш[\s-]+браузер|epatavallista[\s-]+liikennetta|sprawdzanie[\s-]+przegladarki|olagan[\s-]+dısı[\s-]+trafik|tarkistetaan[\s-]+selaintasi|verificarea[\s-]+browserului|ongebruikelijk[\s-]+verkeer|trafik[\s-]+luar[\s-]+biasa|verifica[\s-]+in[\s-]+corso|hozzaferes[\s-]+megtagadva|מוודאים[\s-]+שאתה[\s-]+אדם|بررسی[\s-]+مرورگر[\s-]+شما|غیر[\s-]+معمولی[\s-]+ٹریفک|ufikiaji[\s-]+umekataliwa|kontrola[\s-]+prohlizece|رسایی[\s-]+سے[\s-]+انکار|so[\s-]+um[\s-]+momento|szokatlan[\s-]+forgalom|zugriff[\s-]+verweigert|перевірка[\s-]+браузера|تم[\s-]+رفض[\s-]+الوصول|অস্বাভাবিক[\s-]+ট্রাফিক|dostep[\s-]+zabroniony|erisim[\s-]+reddedildi|olagandısı[\s-]+trafik|toegang[\s-]+geweigerd|traffico[\s-]+insolito|trafic[\s-]+inhabituel|trafic[\s-]+neobisnuit|usædvanlig[\s-]+trafik|ασυνηθιστη[\s-]+κινηση|доступ[\s-]+заборонено|проверка[\s-]+браузера|אמת[\s-]+שאתה[\s-]+אדם|دسترسی[\s-]+رد[\s-]+شد|असामान्य[\s-]+ट्रैफ़िक|브라우저를[\s-]+확인하는[\s-]+중|neobvykly[\s-]+provoz|αρνηση[\s-]+προσβασησ|незвичнии[\s-]+трафік|необычныи[\s-]+трафик|acceso[\s-]+denegado|akses[\s-]+dinafikan|pristup[\s-]+odepren|toegang[\s-]+geweier|trafego[\s-]+incomum|trafico[\s-]+inusual|tunggu[\s-]+sebentar|unusual[\s-]+traffic|uvanlig[\s-]+trafikk|доступ[\s-]+запрещен|एक्सेस[\s-]+अस्वीकृत|accesso[\s-]+negato|chvili[\s-]+strpeni|nietypowy[\s-]+ruch|odmowa[\s-]+dostepu|ovanlig[\s-]+trafik|tilgang[\s-]+nektet|ترافیک[\s-]+غیرعادی|دسترسی[\s-]+غیرمجاز|पहुँच[\s-]+अस्वीकृत|acces[\s-]+refuzat|access[\s-]+denied|acesso[\s-]+negado|adgang[\s-]+nægtet|akses[\s-]+ditolak|atkomst[\s-]+nekad|paasy[\s-]+estetty|acces[\s-]+refuse|одну[\s-]+секунду|תעבורה[\s-]+חריגה|even[\s-]+geduld|הגישה[\s-]+נדחתה|גישה[\s-]+נדחתה|رفض[\s-]+الوصول|비정상적인[\s-]+트래픽|사람인지[\s-]+확인|사람임을[\s-]+확인)(?![\w\u0300-\u036f\u0900-\u0dff])")
+# --- end of lang-words ---
 
 # Text that marks a bot-protection / challenge page (short pages only): names and codes here, the words in every
 # language in LANG_BOT_CHECK_RE.
@@ -61,295 +61,2298 @@ def wants_current_info(text):
     """Words in any language that mean the user wants current information ("latest version", "precio actual")."""
     return bool(LANG_CURRENT_INFO_RE.search(lang_norm(text)))
 
+
 # Empty searches in a row before the tool says that search is down.
 MAX_EMPTY_SEARCHES = 2
 
 BRAVE_FRESHNESS = {"day": "pd", "week": "pw", "month": "pm", "year": "py"}
 GOOGLE_TBS = {"day": "qdr:d", "week": "qdr:w", "month": "qdr:m", "year": "qdr:y"}
-
 # Google's redirect links ("https://www.google.com/goto?url=...", or just "/goto?url=..."), which some SERP services
 # return instead of the page's address. Google answers them with a 302 to the real page.
 GOOGLE_GOTO_RE = re.compile(r"^(?:https?://(?:www\.)?google\.[a-z.]+)?/goto\?url=", re.I)
-
 BROWSER_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
 
 # Services added in 0.14.0 that share one counting scheme: a free monthly allowance in "units"
 # (dollars, credits or searches) and a known cost per search in the same unit.
 SIMPLE = {
     "linkup": {"name": "Linkup", "unit": "$", "cost": 0.005, "free": 20.0},
+    "firecrawl": {"name": "Firecrawl", "unit": "credits", "cost": 2, "free": 1000},
+    "serpapi": {"name": "SerpApi", "unit": "searches", "cost": 1, "free": 250},
+    "contextdev": {"name": "Context.dev", "unit": "credits", "cost": 1, "free": 1000},
+    "hasdata": {"name": "HasData", "unit": "credits", "cost": 5, "free": 1000},
+    "geekflare": {"name": "Geekflare", "unit": "credits", "cost": 2, "free": 500},
+}
+
+# Services with an allowance, in order of preference when equally used.
+METERED = ("parallel", "brightdata", "tavily", "exa", "you", "youapi", "browserbase", "brave") + tuple(SIMPLE)
+YOUAPI_COST = 0.005  # $5 per 1,000 searches
+# Counted per calendar month in the usage file. Parallel is counted in dollars per billing cycle,
+# You.com per day.
+COUNTERS = ("brightdata", "tavily", "browserbase", "brave", "browserbase_fetch", "exa", "exa_usd") + tuple(
+    SIMPLE
+) + tuple(f"{k}_n" for k in SIMPLE) + tuple(f"{k}_u" for k in SIMPLE)
+# Spellings accepted in service_order (after removing everything but letters).
+SERVICE_ALIASES = {
+    "youcom": "you", "youcomapi": "youapi", "youapi": "youapi", "youcomkeyless": "you", "contextdev": "contextdev", "context": "contextdev",
+    "brightdatacom": "brightdata", "exaai": "exa", "parallelai": "parallel", "linkupso": "linkup",
+    "firecrawldev": "firecrawl", "serpapicom": "serpapi", "hasdatacom": "hasdata", "geekflarecom": "geekflare",
+    "bravesearch": "brave", "browserbasecom": "browserbase",
+}
+CONTEXTDEV_FRESHNESS = {"day": "last_24_hours", "week": "last_week", "month": "last_month", "year": "last_year"}
+GEEKFLARE_TIME = {"day": "d", "week": "w", "month": "m", "year": "y"}
+
+# Exa price per search by type, used until Exa reports the real cost (10 results included).
+EXA_SEARCH_COST = {"lite": 0.004, "instant": 0.004, "auto": 0.007, "fast": 0.007}
+
+# Parallel price per request, in US dollars (10 results included per search).
+PARALLEL_SEARCH_COST = {"turbo": 0.001, "fast": 0.001, "basic": 0.005, "advanced": 0.005}
+PARALLEL_EXTRACT_COST = 0.001
+DAYS_BACK = {"day": 1, "week": 7, "month": 31, "year": 365}
+
+SEARCH_DOWN = (
+    "Web search is not working right now{why}. Stop searching. You may still open pages with read_page "
+    "if you already have their URLs. If you have no sources, tell the user that web search is unavailable "
+    "and that you can't check current information. Do NOT give prices, rates or other current figures from memory."
+)
+
+
+class ProviderError(Exception):
+    def __init__(self, status: int, text: str = ""):
+        super().__init__(f"HTTP {status} {text}".strip())
+        self.status = status
+
+
+def _text_of(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(
+            p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"
+        )
+    return ""
+
+
+def _domain(url: str) -> str:
+    host = (urlparse(url).hostname or "").lower()
+    return host[4:] if host.startswith("www.") else host
+
+
+def _strip_unasked_years(query: str, user_text: str) -> str:
+    """Remove years (and the month written with them) that the user didn't mention."""
+    asked = set(YEAR_RE.findall(user_text))
+    out = YEAR_WITH_MONTH_RE.sub(lambda m: m.group(0) if m.group(1) in asked else "", query)
+    out = re.sub(r"\s{2,}", " ", out).strip()
+    return out or query
+
+
+def _html_to_text(raw: str) -> str:
+    """Rough text of an HTML page (for Browserbase Fetch, which returns HTML)."""
+    raw = re.sub(r"(?is)<(script|style|noscript|svg|head|template)\b.*?</\1>", " ", raw or "")
+    raw = re.sub(r"(?i)<br\s*/?>|</(p|div|li|tr|h[1-6]|section|article|table|ul|ol)>", "\n", raw)
+    raw = re.sub(r"<[^>]+>", " ", raw)
+    raw = html.unescape(raw)
+    lines = [" ".join(line.split()) for line in raw.splitlines()]
+    return "\n".join(line for line in lines if line)
+
+
+# Where each section of a page starts: the local browser puts SECTION_MARK + id + SECTION_END before every element a
+# #fragment can point to, and _split_sections takes them out again, keeping their positions.
+SECTION_MARK, SECTION_END = "\ue000", "\ue001"
+SECTION_JS = """() => {
+  const seen = new Set();
+  const els = document.querySelectorAll('section[id], article[id], h1[id], h2[id], h3[id], h4[id], h5[id], h6[id], a[name], dt[id], div[id] > h1, div[id] > h2, div[id] > h3');
+  let n = 0;
+  for (const el of els) {
+    const target = el.id ? el : el.getAttribute('name') ? el : el.parentElement;
+    const id = target.id || target.getAttribute('name');
+    if (!id || seen.has(id) || id.length > 80) continue;
+    seen.add(id);
+    target.insertAdjacentText('beforebegin', '\\ue000' + id + '\\ue001');
+    if (++n >= 600) break;
+  }
+}"""
+PAGE_CACHE_SECONDS = 15 * 60  # a page read once is kept this long, so its next parts cost no new fetch
+PAGE_CACHE_ENTRIES = 20
+
+
+def _split_sections(text: str) -> tuple[str, dict]:
+    """(text without the section marks, {section id: where it starts in that text})."""
+    text = re.sub(r"\n\s*\n+", "\n\n", text or "")
+    pieces = re.split(SECTION_MARK + "([^" + SECTION_END + "]{0,200})" + SECTION_END, text)
+    out, anchors = pieces[0], {}
+    for i in range(1, len(pieces), 2):
+        anchors.setdefault(pieces[i], len(out))
+        seg = pieces[i + 1]
+        if out.endswith("\n") and seg.startswith("\n"):
+            seg = seg.lstrip("\n")
+            if not out.endswith("\n\n"):
+                seg = "\n" + seg
+        out += seg
+    lead = len(out) - len(out.lstrip())
+    out = out.strip()
+    return out, {k: max(0, v - lead) for k, v in anchors.items() if v - lead < len(out)}
+
+
+def _heading_offset(text: str, fragment: str) -> int:
+    """Where a #fragment's heading starts in a page's text when the page came without section marks (from a fallback
+    service): a short line made of the fragment's words. A table of contents lists the same words in a run of short
+    lines, so the match followed by the most prose wins. -1 when none matches."""
+    words = " ".join(w for w in re.split(r"[-_\s.]+", unquote(fragment).lower()) if w)
+    if not words:
+        return -1
+    best, best_score, pos = -1, -1, 0
+    for line in text.split("\n"):
+        norm = " ".join(re.sub(r"[^\w\s]", " ", line.lower()).split())
+        norm = re.sub(r"^(?:\d+(?:\s\d+)*\s)", "", norm)  # "3.2 Usage" -> "usage"
+        if norm == words or (norm.startswith(words + " ") and len(norm) <= len(words) + 20):
+            after = text[pos + len(line): pos + len(line) + 600]
+            score = max((len(x) for x in after.split("\n")), default=0)
+            if score > best_score:
+                best, best_score = pos, score
+        pos += len(line) + 1
+    return best
+
+
+def _parts(text: str, size: int) -> list[int]:
+    """Where each part of a long text starts: about size characters each, ending at a line break when one is near."""
+    starts, i = [0], 0
+    while len(text) - i > size:
+        end = i + size
+        nl = text.rfind("\n", i + size * 4 // 5, end)
+        i = nl + 1 if nl > i else end
+        starts.append(i)
+    return starts
+
+
+# Services whose free allowance resets on a day of the month other than the 1st, with the counters
+# that follow that cycle instead of the calendar month.
+# Services in SIMPLE whose free credits are a one-time grant: their counts are never reset.
+ONE_TIME = ()
+CYCLE_COUNTERS = {
+    "browserbase": ("browserbase", "browserbase_fetch"),
+    **{k: (k, f"{k}_n", f"{k}_u") for k in SIMPLE if k not in ONE_TIME},
 }
 
 
-class SearchResult(BaseModel):
-    """A single search result."""
-    title: str
-    url: str
-    snippet: str = ""
-    source: str = ""
-
-
-class SearchResponse(BaseModel):
-    """Response from a search engine."""
-    results: list[SearchResult] = []
-    total: int = 0
-    query: str = ""
-    error: str = ""
-
-
-class SearchConfig(BaseModel):
-    """Configuration for a search engine."""
-    name: str
-    enabled: bool = True
-    api_key: str = ""
-    base_url: str = ""
-    max_results: int = 10
-    custom_params: dict = {}
-
-
-class SearchGatewayEngine:
-    """Main search gateway engine that orchestrates searches across multiple engines."""
-
-    def __init__(self, settings_path=None, db_path=None):
-        self.settings_path = settings_path or os.path.expanduser("~/.config/localllm/search-gateway.json")
-        self.db_path = db_path or os.path.expanduser("~/.local/share/localllm/search-gateway.db")
-        self.engines: dict[str, SearchConfig] = {}
-        self._lock = threading.Lock()
-        self._db_conn = None
-        self._empty_count = 0
-        self._load_settings()
-        self._init_db()
-
-    def _load_settings(self):
-        """Load search engine settings from JSON config."""
-        if not os.path.exists(self.settings_path):
-            return
-        try:
-            with open(self.settings_path, 'r') as f:
-                settings = json.load(f)
-            for name, config in settings.get('engines', {}).items():
-                self.engines[name] = SearchConfig(**config)
-        except (json.JSONDecodeError, KeyError):
-            pass
-
-    def _init_db(self):
-        """Initialize the SQLite database for logging searches."""
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        self._db_conn = sqlite3.connect(self.db_path)
-        cursor = self._db_conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS search_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                query TEXT NOT NULL,
-                engine TEXT NOT NULL,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                results_count INTEGER DEFAULT 0,
-                duration_ms INTEGER
-            )
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS usage_stats (
-                engine TEXT PRIMARY KEY,
-                search_count INTEGER DEFAULT 0,
-                last_used DATETIME
-            )
-        """)
-        self._db_conn.commit()
-
-    def _log_search(self, query: str, engine: str, results_count: int, duration_ms: int):
-        """Log a search to the database."""
-        try:
-            cursor = self._db_conn.cursor()
-            cursor.execute(
-                "INSERT INTO search_log (query, engine, results_count, duration_ms) VALUES (?, ?, ?, ?)",
-                (query, engine, results_count, duration_ms)
-            )
-            # Update usage stats
-            cursor.execute(
-                "INSERT INTO usage_stats (engine, search_count, last_used) VALUES (?, 1, CURRENT_TIMESTAMP) "
-                "ON CONFLICT(engine) DO UPDATE SET search_count = search_count + 1, last_used = CURRENT_TIMESTAMP",
-                (engine,)
-            )
-            self._db_conn.commit()
-        except sqlite3.Error:
-            pass
-
-    def _resolve_google_goto(self, url: str) -> str:
-        """Resolve Google's redirect links to the actual destination."""
-        if not GOOGLE_GOTO_RE.match(url):
-            return url
-        try:
-            parsed = urlparse(url)
-            params = parse_qs(parsed.query)
-            target_url = params.get('url', [''])[0]
-            if target_url:
-                return unquote(target_url)
-        except Exception:
-            pass
-        return url
-
-    async def search(self, query: str, engine_name: str = None, max_results: int = 10, freshness: str = None):
-        """Perform a search across configured engines.
-        
-        Args:
-            query: The search query string
-            engine_name: Optional specific engine to use (None = use all enabled)
-            max_results: Maximum number of results to return
-            freshness: Time filter - 'day', 'week', 'month', or 'year'
-        
-        Returns:
-            SearchResponse with results
-        """
-        start_time = time.time()
-        query = query.strip()
-        if not query:
-            self._empty_count += 1
-            if self._empty_count >= MAX_EMPTY_SEARCHES:
-                return SearchResponse(error="Too many empty searches", query=query)
-            return SearchResponse(query=query, results=[])
-
-        self._empty_count = 0
-        all_results = []
-
-        engines_to_use = {}
-        if engine_name:
-            if engine_name in self.engines and self.engines[engine_name].enabled:
-                engines_to_use[engine_name] = self.engines[engine_name]
+def _fresh_month(data: dict, starts: dict = None) -> dict:
+    """Reset the monthly counters when the calendar month changes. The counters in CYCLE_COUNTERS
+    follow their service's own cycle instead, which starts on starts[service] (a date; none: the 1st)."""
+    starts = starts or {}
+    old_cycles = data.get("cycles") or {}
+    if "bb_cycle" in data and "browserbase" not in old_cycles:  # 0.19.0 file
+        old_cycles["browserbase"] = data["bb_cycle"]
+    cycle_keep, cycles, new_cycle = {}, {}, []
+    for svc, counters in CYCLE_COUNTERS.items():
+        start = starts.get(svc) or _cycle_start("")
+        cycles[svc] = start
+        if svc not in old_cycles and data.get("month") != _month():
+            cycle_keep.update({k: 0 for k in counters})  # first run in a new month: nothing to carry over
+        elif svc not in old_cycles or old_cycles[svc] == start:
+            cycle_keep.update({k: data.get(k, 0) for k in counters})  # same cycle (or first run): keep the counts
         else:
-            engines_to_use = {name: cfg for name, cfg in self.engines.items() if cfg.enabled}
+            cycle_keep.update({k: 0 for k in counters})  # new cycle
+            new_cycle.append(svc)
+    if data.get("month") != _month():
+        keep = data.get("parallel")  # Parallel has its own billing cycle
+        keep_you = data.get("you")  # You.com is counted per day
+        keep_extra = data.get("parallel_extra")  # Parallel's one-time credit spans months
+        keep_exa_extra = data.get("exa_extra")  # so does Exa's
+        keep_fc_extra = data.get("firecrawl_extra")  # and Firecrawl's
+        keep_one_time = {k: data.get(k, 0) for name in ONE_TIME for k in (name, f"{name}_n", f"{name}_u")}
+        keep_one_time_real = {name: (data.get("real") or {}).get(name) for name in ONE_TIME}
+        keep_youapi = data.get("youapi")  # and You.com's
+        keep_real = (data.get("real") or {}).get("parallel")
+        data = {"month": _month(), **{k: 0 for k in COUNTERS}, "real": {}}
+        if isinstance(keep, dict):
+            data["parallel"] = keep
+        if isinstance(keep_you, dict):
+            data["you"] = keep_you
+        if isinstance(keep_extra, dict):
+            data["parallel_extra"] = keep_extra
+        if isinstance(keep_exa_extra, dict):
+            data["exa_extra"] = keep_exa_extra
+        if isinstance(keep_fc_extra, dict):
+            data["firecrawl_extra"] = keep_fc_extra
+        data.update(keep_one_time)
+        for name, r in keep_one_time_real.items():
+            if isinstance(r, dict):
+                data["real"][name] = r
+        if isinstance(keep_youapi, dict):
+            data["youapi"] = keep_youapi
+        if isinstance(keep_real, dict):
+            data["real"]["parallel"] = keep_real
+    data.update(cycle_keep)
+    for svc in new_cycle:  # what the service reported last cycle no longer applies
+        (data.get("real") or {}).pop(svc, None)
+    data["cycles"] = cycles
+    data.pop("bb_cycle", None)
+    return data
 
-        if not engines_to_use:
-            return SearchResponse(error="No enabled search engines configured", query=query)
 
-        async with aiohttp.ClientSession() as session:
-            tasks = []
-            for name, config in engines_to_use.items():
-                tasks.append(self._run_engine_search(session, query, config, max_results, freshness))
+def _sum_req(node):
+    """Requests in a Bright Data consumption reply. None if it holds no count.
+    Two formats: numeric "req" fields (older replies), or zone -> day -> domain -> requests (what /domains/req
+    answers now, e.g. {"serp_api1": {"2026-11-12T00:00:00.000Z": {"google.com": 11}}})."""
+    total, found = 0, False
+    leaves, leaf_found = 0, False
+    stack = [node]
+    while stack:
+        x = stack.pop()
+        if isinstance(x, dict):
+            for k, v in x.items():
+                if k == "req" and isinstance(v, (int, float)):
+                    total, found = total + v, True
+                elif isinstance(v, (dict, list)):
+                    stack.append(v)
+                elif isinstance(v, (int, float)) and not isinstance(v, bool):
+                    leaves, leaf_found = leaves + v, True
+        elif isinstance(x, list):
+            stack.extend(x)
+    if found:
+        return int(total)
+    return int(leaves) if leaf_found else None
 
-            responses = await asyncio.gather(*tasks, return_exceptions=True)
 
-            for response in responses:
-                if isinstance(response, Exception):
+def _retry_wait(headers: dict, longest: float):
+    """Seconds to wait before retrying a 429, from Retry-After (1 s if absent). None: don't retry."""
+    if longest <= 0:
+        return None
+    raw = headers.get("retry-after")
+    try:
+        wait = float(raw) if raw is not None else 1.0
+    except ValueError:
+        wait = 1.0  # an HTTP date or something odd: a short wait
+    return max(wait, 0.0) if wait <= longest else None
+
+
+def _find_number(node, words):
+    """First number in a JSON reply under a key containing one of words (e.g. "remaining")."""
+    stack = [node]
+    while stack:
+        x = stack.pop(0)
+        if isinstance(x, dict):
+            for k, v in x.items():
+                if isinstance(v, (int, float)) and not isinstance(v, bool) and any(w in k.lower() for w in words):
+                    return float(v)
+                if isinstance(v, (dict, list)):
+                    stack.append(v)
+        elif isinstance(x, list):
+            stack.extend(x)
+    return None
+
+
+def _items(node, keys=("results", "organic", "web", "data", "items")):
+    """The first list of result dicts in a reply, looking under the usual key names."""
+    if isinstance(node, list):
+        return [r for r in node if isinstance(r, dict)]
+    if isinstance(node, dict):
+        for k in keys:
+            if k in node:
+                found = _items(node[k], keys)
+                if found:
+                    return found
+    return []
+
+
+def _last_number(header: str):
+    """Last value of a header like "1, 1000" (Brave: per second, per month)."""
+    try:
+        return int(str(header).split(",")[-1].strip())
+    except ValueError:
+        return None
+
+
+def _until(last_day: str) -> bool:
+    """Today is on or before last_day (YYYY-MM-DD). False when it's empty or not a date."""
+    try:
+        return datetime.date.today() <= datetime.date.fromisoformat(str(last_day).strip())
+    except ValueError:
+        return False
+
+
+def _cycle_start(signup_date: str) -> str:
+    """First day of the current billing cycle: the signup day of this month or last month (local time).
+    No date: the 1st of the month."""
+    today = datetime.date.today()
+    try:
+        day = datetime.date.fromisoformat(signup_date.strip()).day
+    except ValueError:
+        day = 1
+
+    def on(year, month):
+        return datetime.date(year, month, min(day, calendar.monthrange(year, month)[1]))
+
+    start = on(today.year, today.month)
+    if today < start:
+        year, month = (today.year, today.month - 1) if today.month > 1 else (today.year - 1, 12)
+        start = on(year, month)
+    return start.isoformat()
+
+
+def _clean(text) -> str:
+    return " ".join(re.sub(r"<[^>]+>", "", str(text or "")).split())
+
+
+def _month() -> str:
+    return time.strftime("%Y-%m", time.gmtime())
+
+
+def _day() -> str:
+    return time.strftime("%Y-%m-%d", time.gmtime())
+
+
+def _jsonrpc_reply(raw: str, content_type: str, want_id):
+    """The JSON-RPC reply with id want_id, from a plain JSON body or an event stream (SSE)."""
+    messages = []
+    if "text/event-stream" in content_type:
+        for line in raw.splitlines():
+            if line.startswith("data:"):
+                try:
+                    messages.append(json.loads(line[5:].strip()))
+                except ValueError:
+                    pass
+    else:
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            return None
+        messages = data if isinstance(data, list) else [data]
+    for m in messages:
+        if isinstance(m, dict) and m.get("id") == want_id:
+            return m
+    return None
+
+
+def _you_results(result: dict) -> list:
+    """Results of You.com's you-search tool: structured data if present, otherwise its text blocks."""
+    data = result.get("structuredContent")
+    out = []
+    if isinstance(data, dict):
+        res = data.get("results") or {}
+        for r in (res.get("web") or []) + (res.get("news") or []):
+            if isinstance(r, dict):
+                snippets = r.get("snippets") or []
+                snippet = " … ".join(str(x) for x in snippets) if snippets else r.get("description") or ""
+                out.append({"title": r.get("title") or "", "url": r.get("url") or "", "snippet": snippet,
+                            "date": r.get("page_age") or ""})
+        if out:
+            return out
+    text = "\n".join(c.get("text", "") for c in result.get("content") or [] if isinstance(c, dict))
+    for block in re.split(r"\n-{3,}\n|\n={3,}\n", text):
+        title = re.search(r"^Title:\s*(.+)$", block, re.M)
+        url = re.search(r"^URL:\s*(\S+)", block, re.M)
+        if title and url:
+            desc = re.search(r"^Description:\s*(.+)$", block, re.M)
+            snippets = re.findall(r"^- (.+)$", block, re.M)
+            out.append({"title": title.group(1), "url": url.group(1),
+                        "snippet": " … ".join(snippets) or (desc.group(1) if desc else ""),
+                        "date": (re.search(r"^Published:\s*(.+)$", block, re.M) or [None, ""])[1] or ""})
+    return out
+
+
+# The gateway's state: one SQLite database for the usage counts (one JSON document), the result cache and the search
+# log. Each change is one short transaction (BEGIN IMMEDIATE: one writer at a time, for a millisecond), so searches
+# running at the same time, and the dashboard reading, never wait on each other for longer than that.
+STATE_DB = os.path.expanduser(os.environ.get("SEARCH_GATEWAY_DB", "~/.local/share/localllm/search-gateway.db"))
+SEARCH_LOG_DAYS = 90  # the search log keeps this many days
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS doc (name TEXT PRIMARY KEY, data TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, t REAL NOT NULL, provider TEXT NOT NULL, results TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS log (id INTEGER PRIMARY KEY, t REAL NOT NULL, entry TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS log_t ON log (t);
+"""
+_schema_done = set()
+_schema_lock = threading.Lock()
+
+
+def _db(path: str = None):
+    """A connection to the state database (made, with its tables and WAL mode, once per process on first use, even
+    when several searches start at the same moment; only you can read it)."""
+    path = path or STATE_DB
+    if path not in _schema_done:
+        with _schema_lock:
+            if path not in _schema_done:
+                os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+                for attempt in range(50):  # another process (the migration, the backup) may be setting it up too
+                    try:
+                        con = sqlite3.connect(path, timeout=30, isolation_level=None)
+                        try:
+                            con.execute("PRAGMA busy_timeout=30000")
+                            con.execute("PRAGMA journal_mode=WAL")
+                            con.executescript(_SCHEMA)
+                        finally:
+                            con.close()
+                        break
+                    except sqlite3.OperationalError:
+                        if attempt == 49:
+                            raise
+                        time.sleep(0.1)
+                try:
+                    os.chmod(path, 0o600)
+                except OSError:
+                    pass
+                _schema_done.add(path)
+    con = sqlite3.connect(path, timeout=30, isolation_level=None)
+    con.execute("PRAGMA busy_timeout=30000")
+    return con
+
+
+def _doc_update(name: str, update):
+    """Read a JSON document, change it with update(data) -> data and write it back, in one transaction."""
+    con = _db()
+    try:
+        con.execute("BEGIN IMMEDIATE")
+        row = con.execute("SELECT data FROM doc WHERE name = ?", (name,)).fetchone()
+        try:
+            data = json.loads(row[0]) if row else {}
+        except ValueError:
+            data = {}
+        data = update(data)
+        con.execute("INSERT INTO doc (name, data) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET data = excluded.data",
+                    (name, json.dumps(data)))
+        con.execute("COMMIT")
+        return data
+    finally:
+        if con.in_transaction:
+            con.execute("ROLLBACK")
+        con.close()
+
+
+def read_log(since: float) -> list:
+    """The search log's entries since a time, oldest first (the dashboard's history)."""
+    con = _db()
+    try:
+        rows = con.execute("SELECT entry FROM log WHERE t >= ? ORDER BY t, id", (since,)).fetchall()
+    finally:
+        con.close()
+    out = []
+    for (entry,) in rows:
+        try:
+            out.append(json.loads(entry))
+        except ValueError:
+            pass
+    return out
+
+
+def cache_info(hours: float) -> dict:
+    """How many results are cached, how many are still used (younger than hours), and the database's size."""
+    con = _db()
+    try:
+        entries, fresh = con.execute("SELECT count(*), coalesce(sum(t >= ?), 0) FROM cache",
+                                     (time.time() - hours * 3600,)).fetchone()
+    finally:
+        con.close()
+    try:
+        size = os.path.getsize(STATE_DB)
+    except OSError:
+        size = 0
+    return {"entries": entries, "fresh": fresh, "bytes": size, "hours": hours}
+
+
+class Tools:
+    class Valves(BaseModel):
+        service_order: str = Field(
+            default="brightdata, parallel, exa, linkup, tavily, firecrawl, contextdev, youapi, you, serpapi, geekflare, hasdata, brave, browserbase",
+            description="Order in which search services are tried, best first. Separate with commas. Join services with / to rank them equally: the one with more of its allowance left goes first (e.g. 'parallel, exa/tavily, brightdata'). Services left out are tried after the listed ones, most allowance left first. Services without a key or with no allowance left are skipped.",
+        )
+        temporary_service_order: str = Field(
+            default="",
+            description="An order used instead of service_order until temporary_order_until (for example while a paid plan lasts). Same format as service_order. Empty: not used.",
+        )
+        temporary_order_until: str = Field(
+            default="",
+            description="Last day (YYYY-MM-DD) temporary_service_order is used. From the next day on, service_order applies again.",
+        )
+        retry_groups: str = Field(
+            default="brightdata/serpapi/hasdata/geekflare",
+            description="Services that return the same search engine's results (the default group is Google's), one group per comma, members joined with /. When a search with the same words is repeated because its results weren't useful, the retry skips the cache, the service that answered and the rest of its group, so the results come from a different source. A service not listed is a group of its own.",
+        )
+        parallel_api_key: str = Field(
+            default="", description="Parallel API key (platform.parallel.ai). Empty: Parallel is not used."
+        )
+        parallel_signup_date: str = Field(
+            default="",
+            description="Day your Parallel credit renews, as YYYY-MM-DD (e.g. your signup date). Only the day counts; the budget restarts on that day each month. Empty: the 1st of each month.",
+        )
+        parallel_monthly_budget_usd: float = Field(
+            default=4.95,
+            description="Most dollars this tool spends on Parallel per billing cycle. The free credit is $5 a month; beyond it your card is charged. Fast mode: $0.001 per search or page, so $4.95 is 4,950 (50 below the 5,000 the credit covers).",
+        )
+        parallel_extra_credit_usd: float = Field(
+            default=0.0,
+            description="A one-time Parallel credit on top of the monthly one, e.g. the $20 signup credit. Spent after the monthly budget; not renewed. 0: none.",
+        )
+        parallel_extra_credit_expires: str = Field(
+            default="",
+            description="Last day the one-time credit can be used, as YYYY-MM-DD (shown on Parallel's billing page). From the next day only the monthly budget applies.",
+        )
+        parallel_mode: str = Field(
+            default="fast",
+            description="Parallel search mode. fast or turbo: $1 per 1,000 (turbo is English and Japanese only). basic or advanced: $5 per 1,000.",
+        )
+        parallel_send_question: bool = Field(
+            default=True,
+            description="Send the start of the user's question (300 characters) to Parallel as the search goal; it picks better excerpts. Off: only the search keywords are sent.",
+        )
+        parallel_excerpt_chars: int = Field(
+            default=1000, description="Longest excerpt kept per Parallel result (characters). Other services return short snippets."
+        )
+        parallel_pause_minutes: int = Field(
+            default=15, description="After Parallel says it is rate-limited, skip it for this many minutes."
+        )
+        use_parallel_extract: bool = Field(
+            default=True,
+            description="When the local browser can't read a page, or for PDFs, use Parallel Extract ($0.001 per page, from the same budget).",
+        )
+        brightdata_api_key: str = Field(
+            default="", description="Bright Data API key (Account settings). Empty: Bright Data is not used."
+        )
+        brightdata_zone: str = Field(
+            default="serp_api1", description="Name of your Bright Data SERP API (as created under Web Access API)."
+        )
+        brightdata_monthly_limit: int = Field(
+            default=4950,
+            description="Most Bright Data requests per month (free plan: 5,000 credits, shared with any other Bright Data product you use). Checked against the real request count of your SERP zone.",
+        )
+        tavily_api_key: str = Field(default="", description="Tavily API key (tvly-...). Empty: Tavily is not used.")
+        exa_api_key: str = Field(default="", description="Exa API key (dashboard.exa.ai). Empty: Exa is not used.")
+        exa_type: str = Field(
+            default="lite",
+            description="Exa search type. lite: $4 per 1,000 (about 2,500 a month on the $10 credit). auto: $7 per 1,000, better quality.",
+        )
+        exa_monthly_credit_usd: float = Field(
+            default=10.0,
+            description="Exa's free credit per month (resets on the 1st; no card, so Exa just stops at $0). The tool stops usage_reserve searches before it, using the real cost Exa reports for each search.",
+        )
+        exa_extra_credit_usd: float = Field(
+            default=0.0,
+            description="A one-time Exa credit on top of the monthly one, e.g. the $10 onboarding bonus. Used after the monthly credit, as Exa does. 0: none.",
+        )
+        exa_extra_credit_expires: str = Field(
+            default="",
+            description="Last day the one-time Exa credit can be used, as YYYY-MM-DD. Empty: it doesn't expire.",
+        )
+        you_api_key: str = Field(
+            default="", description="You.com API key (you.com/platform). Empty: only the keyless server is used."
+        )
+        you_api_credit_usd: float = Field(
+            default=100.0,
+            description="You.com's one-time signup credit in dollars ($100 covers about 20,000 searches at $5 per 1,000). Not renewed; when it's used up only the keyless server is used.",
+        )
+        you_api_credit_expires: str = Field(
+            default="", description="Last day the You.com credit can be used, as YYYY-MM-DD. Empty: it doesn't expire."
+        )
+        you_mcp_url: str = Field(
+            default="https://api.you.com/mcp?profile=free",
+            description="You.com's keyless search server: 100 searches a day, no account, no key, no card. Search keywords are sent to You.com. Empty: You.com is not used.",
+        )
+        you_daily_limit: int = Field(
+            default=50,
+            description="Most You.com searches per day (UTC). The free limit is 100; the default keeps usage_reserve (50) below it.",
+        )
+        browserbase_api_key: str = Field(
+            default="", description="Browserbase API key (Settings). Empty: Browserbase is not used."
+        )
+        browserbase_monthly_limit: int = Field(
+            default=950, description="Most Browserbase searches per usage cycle (free plan: 1,000). Browserbase doesn't report search usage, so the tool's own count is used."
+        )
+        browserbase_reset_day: int = Field(
+            default=1,
+            description="Day of the month Browserbase's free usage resets: the date after \"Resets\" in Browserbase's Free Usage panel (\"Resets Dec 10\" means 10). Both Browserbase counts restart on that day.",
+        )
+        use_browserbase_fetch: bool = Field(
+            default=True,
+            description="When the local browser can't read a page, try Browserbase Fetch (no JavaScript; uses the separate 1,000 free fetches).",
+        )
+        browserbase_fetch_monthly_limit: int = Field(
+            default=950, description="Most Browserbase page fetches per usage cycle (free plan: 1,000). Counted by the tool."
+        )
+        brave_api_key: str = Field(default="", description="Brave Search API key. Empty: Brave is not used.")
+        tavily_monthly_limit: int = Field(
+            default=950,
+            description="Most Tavily credits per month (free plan: 1,000). Searches and page extracts both count. Checked against Tavily's real usage.",
+        )
+        brave_monthly_limit: int = Field(
+            default=950,
+            description="Most Brave requests per month. The $5 monthly credit covers about 1,000; with auto-reload off, Brave rejects requests once it is used up. Checked against the remaining count Brave reports.",
+        )
+        linkup_api_key: str = Field(default="", description="Linkup API key (app.linkup.so). Empty: Linkup is not used.")
+        linkup_monthly_free: float = Field(
+            default=20.0,
+            description="Linkup's free credit in dollars per month (refilled monthly; reportedly $20 for work emails, possibly less otherwise). A standard search costs $0.005.",
+        )
+        linkup_reset_day: int = Field(
+            default=1,
+            description="Day of the month Linkup's free allowance renews (its billing page). The tool's Linkup count restarts on that day.",
+        )
+        firecrawl_api_key: str = Field(default="", description="Firecrawl API key (fc-...). Empty: Firecrawl is not used.")
+        firecrawl_monthly_free: float = Field(
+            default=1000, description="Firecrawl's free credits per month. A search of up to 10 results costs 2 credits. One-time credits go in firecrawl_extra_credits instead."
+        )
+        firecrawl_extra_credits: float = Field(
+            default=0,
+            description="Firecrawl's one-time credits (Usage → View all balances → One-time credits, Granted), used after the monthly credits run out each cycle and never refilled. 0: not used.",
+        )
+        firecrawl_reset_day: int = Field(
+            default=1,
+            description="Day of the month Firecrawl's free credits refresh: the date in \"credits being refreshed on\" on Firecrawl's Usage page (\"Dec 11\" means 11). The tool's Firecrawl count restarts on that day.",
+        )
+        serpapi_api_key: str = Field(default="", description="SerpApi API key. Empty: SerpApi is not used.")
+        serpapi_monthly_free: float = Field(default=250, description="SerpApi's free searches per month.")
+        serpapi_reset_day: int = Field(
+            default=1,
+            description="Day of the month SerpApi's free allowance renews (Your Plan, Subscription status: \"Renewal: 2026-12-11\" means 11). The tool's SerpApi count restarts on that day.",
+        )
+        contextdev_api_key: str = Field(default="", description="Context.dev API key. Empty: Context.dev is not used.")
+        contextdev_monthly_free: float = Field(
+            default=1000, description="Context.dev's free credits per month. A search (10 results) costs 1 credit."
+        )
+        contextdev_reset_day: int = Field(
+            default=1,
+            description="Day of the month Context.dev's free allowance renews (its dashboard). The tool's Context.dev count restarts on that day.",
+        )
+        hasdata_api_key: str = Field(default="", description="HasData API key. Empty: HasData is not used.")
+        hasdata_monthly_free: float = Field(
+            default=1000, description="HasData's free credits per month. A Google SERP Light search costs 5 credits."
+        )
+        hasdata_reset_day: int = Field(
+            default=1,
+            description="Day of the month HasData's free allowance renews (its dashboard). The tool's HasData count restarts on that day.",
+        )
+        geekflare_api_key: str = Field(default="", description="Geekflare API key. Empty: Geekflare is not used.")
+        geekflare_monthly_free: float = Field(
+            default=500, description="Geekflare's free credits per month (shared with its other APIs). A search costs 2 credits."
+        )
+        geekflare_reset_day: int = Field(
+            default=1,
+            description="Day of the month Geekflare's credits renew (its dashboard). The tool's Geekflare count restarts on that day.",
+        )
+        geekflare_paid_monthly: float = Field(
+            default=0, description="Credits per month on a paid Geekflare plan, used instead of geekflare_monthly_free until geekflare_paid_until. 0: free plan."
+        )
+        geekflare_paid_until: str = Field(
+            default="", description="Last day (YYYY-MM-DD) of the paid Geekflare plan. From the next day on, geekflare_monthly_free applies again."
+        )
+        usage_reserve: int = Field(
+            default=50,
+            description="When a service reports its real limit or balance, stop this many requests before it.",
+        )
+        usage_check_minutes: int = Field(
+            default=10,
+            description="How often to ask Tavily, Bright Data, Parallel, SerpApi, Firecrawl, Linkup, HasData and You.com for their real usage (Brave reports it with every search).",
+        )
+        searxng_url: str = Field(
+            default="http://127.0.0.1:8080/search",
+            description="Local SearXNG, used when every other service is unavailable or used up. Empty to disable.",
+        )
+        use_tavily_extract: bool = Field(
+            default=True,
+            description="When the local browser can't read a page, try Tavily Extract (uses Tavily credits).",
+        )
+        cache_hours: int = Field(default=24, description="Reuse results of an identical search for this many hours (no credits used).")
+        max_searches: int = Field(default=8, description="Most web searches per answer.")
+        plan_after_searches: int = Field(
+            default=2,
+            description="After this many searches in one answer, the model must include a research plan to search again. 0: plan before the first search. 99: never.",
+        )
+        low_budget_warning: int = Field(
+            default=3, description="Warn the model when this many searches (or fewer) are left in an answer. 0 to disable."
+        )
+        max_page_reads: int = Field(default=8, description="Most page reads per answer.")
+        results_per_search: int = Field(default=5, description="Results returned per search.")
+        recent_time_range: str = Field(
+            default="year",
+            description="For current-information questions, only ask for pages from this period: day, week, month, year, or empty to disable.",
+        )
+        max_page_chars: int = Field(
+            default=20000,
+            description="Longest page text returned to the model (characters). Longer pages are cut.",
+        )
+        page_timeout_seconds: int = Field(default=30, description="Time limit for loading a page.")
+        retry_wait_max_seconds: float = Field(
+            default=2.0,
+            description="When a service answers 'too many requests', wait what it asks (1 s if it doesn't say) and retry once, if that is at most this many seconds. 0: never retry.",
+        )
+        log_search_words: bool = Field(
+            default=False,
+            description="Also write each search's words to the search log (in the gateway's database, shown on its dashboard). Off: the log has only the time, app, service, result count and failures, so private searches aren't stored.",
+        )
+        debug: bool = Field(default=False, description="Write search service errors to the gateway's log (journalctl --user -u search-gateway).")
+
+    def __init__(self):
+        self.valves = self.Valves()
+        self.citation = False  # we emit our own citations
+        self._state = {}  # per answer: counts, past queries, blocked domains
+        self._parallel_pause_until = 0.0  # set when Parallel reports a rate limit
+        self._last_usage = {}
+        self._checked = {}  # when each service's real usage was last asked for
+        self._no_real = set()  # services whose usage endpoint refused our key
+        self._in_flight = {}  # searches running right now, per service (counted when they finish)
+        self._pages = {}  # recently read pages: URL without #fragment -> (time, text, section starts, via)
+
+    # ------------------------------------------------------------------ per-answer state
+
+    def _turn(self, metadata) -> dict:
+        key = (metadata or {}).get("message_id") or (metadata or {}).get("chat_id") or "default"
+        now = time.time()
+        # forget answers older than 2 hours
+        for k in [k for k, v in self._state.items() if now - v["t"] > 7200]:
+            del self._state[k]
+        if key not in self._state:
+            self._state[key] = {
+                "searches": 0, "reads": 0, "empty": 0, "down": "", "plan": "", "plan_refusals": 0,
+                "queries": set(), "blocked": set(), "failed": set(), "t": now,
+                "answered": {}, "retried": set(),
+                "chat": (metadata or {}).get("chat_id") or key,
+            }
+        return self._state[key]
+
+    @staticmethod
+    def _last_user_text(messages) -> str:
+        for m in reversed(messages or []):
+            if m.get("role") == "user":
+                return _text_of(m.get("content"))
+        return ""
+
+    # ------------------------------------------------------------------ monthly usage
+
+    def _fresh(self, data: dict) -> dict:
+        starts = {}
+        for svc in CYCLE_COUNTERS:
+            day = min(max(int(getattr(self.valves, f"{svc}_reset_day", 1) or 1), 1), 31)
+            starts[svc] = _cycle_start(f"2000-01-{day:02d}")
+        return _fresh_month(data, starts)
+
+    def _usage(self) -> dict:
+        self._last_usage = _doc_update("usage", self._fresh)
+        return self._last_usage
+
+    def _add_usage(self, counter: str, n: int = 1):
+        def add(data):
+            data = self._fresh(data)
+            data[counter] = data.get(counter, 0) + n
+            return data
+
+        _doc_update("usage", add)
+
+    def _parallel_usage(self, usage: dict) -> dict:
+        p = usage.get("parallel")
+        start = _cycle_start(self.valves.parallel_signup_date)
+        if not isinstance(p, dict) or p.get("cycle") != start:
+            p = {"cycle": start, "usd": 0.0, "searches": 0, "pages": 0}
+        return p
+
+    def _extra_active(self) -> bool:
+        """The one-time credit is set and not expired (it can be used through its expiry day)."""
+        if self.valves.parallel_extra_credit_usd <= 0:
+            return False
+        try:
+            return datetime.date.today() <= datetime.date.fromisoformat(self.valves.parallel_extra_credit_expires.strip())
+        except ValueError:
+            return False
+
+    def _extra_spent(self, usage: dict) -> float:
+        e = usage.get("parallel_extra")
+        # a new expiry date means a new credit: start counting again
+        if not isinstance(e, dict) or e.get("expires") != self.valves.parallel_extra_credit_expires.strip():
+            return 0.0
+        return float(e.get("usd", 0.0))
+
+    def _add_parallel(self, usd: float, kind: str):
+        def add(data):
+            data = self._fresh(data)
+            p = self._parallel_usage(data)
+            if self._extra_active() and p["usd"] + usd > self.valves.parallel_monthly_budget_usd:
+                # monthly budget used: this goes on the one-time credit
+                data["parallel_extra"] = {
+                    "expires": self.valves.parallel_extra_credit_expires.strip(),
+                    "usd": round(self._extra_spent(data) + usd, 6),
+                }
+            else:
+                p["usd"] = round(p["usd"] + usd, 6)
+            p[kind] = p.get(kind, 0) + 1
+            data["parallel"] = p
+            return data
+
+        _doc_update("usage", add)
+
+    def _parallel_search_cost(self) -> float:
+        return PARALLEL_SEARCH_COST.get(self.valves.parallel_mode.strip().lower(), 0.005)
+
+    def _parallel_has(self, usage: dict, cost: float) -> bool:
+        if not self.valves.parallel_api_key or time.time() < self._parallel_pause_until:
+            return False
+        monthly_ok = self._parallel_usage(usage)["usd"] + cost <= self.valves.parallel_monthly_budget_usd
+        extra_ok = self._extra_active() and self._extra_spent(usage) + cost <= self.valves.parallel_extra_credit_usd
+        if not (monthly_ok or extra_ok):
+            return False
+        left = self._parallel_balance_left(usage)  # the real credit, when Parallel reports it
+        reserve = self.valves.usage_reserve * self._parallel_search_cost()
+        return left is None or left - cost >= reserve
+
+    def _share_left(self, name: str, usage: dict) -> float:
+        if name == "parallel":
+            budget, spent = self.valves.parallel_monthly_budget_usd, self._parallel_usage(usage)["usd"]
+            if self._extra_active():
+                budget, spent = budget + self.valves.parallel_extra_credit_usd, spent + self._extra_spent(usage)
+            return 1 - spent / (budget or 1)
+        if name == "exa":
+            total = self.valves.exa_monthly_credit_usd + (self.valves.exa_extra_credit_usd if self._exa_extra_active() else 0)
+            return self._exa_left(usage) / (total or 1)
+        if name in SIMPLE:
+            return 1 - usage.get(name, 0) / (self._simple_free(name, usage) or 1)
+        if name == "you":
+            return 1 - self._you_today(usage) / (self.valves.you_daily_limit or 1)
+        if name == "youapi":
+            return 1 - self._youapi_spent(usage) / (self.valves.you_api_credit_usd or 1)
+        limit = self._limit(name)
+        return 1 - usage.get(name, 0) / limit if limit else 0
+
+    def _limit(self, counter: str) -> int:
+        """The limit in the Valves, lowered to the real limit minus the reserve when the service reports one."""
+        limit = getattr(self.valves, f"{counter}_monthly_limit")
+        real = ((self._last_usage or {}).get("real") or {}).get(counter) or {}
+        if real.get("limit"):
+            limit = min(limit, real["limit"] - self.valves.usage_reserve)
+        return max(limit, 0)
+
+    def _set_real(self, name: str, info: dict):
+        """Store what a service reported. Counts only ever go up: the higher of our count and theirs is kept."""
+
+        def put(data):
+            data = self._fresh(data)
+            real = data.setdefault("real", {})
+            if name in COUNTERS and info.get("used") is not None:
+                data[name] = max(data.get(name, 0), info["used"])
+            # "own" is the count right after this report: only searches made after it are new spending
+            real[name] = {**info, "t": time.time(), "own": data.get(name, 0)}
+            return data
+
+        self._last_usage = _doc_update("usage", put)
+
+    def _parallel_balance_left(self, usage: dict):
+        """Parallel credit left, estimated from the last real balance minus what we spent since. None if unknown.
+        Parallel's balance (its Account API) takes only a short-lived OAuth sign-in token, not an API key, so the gateway
+        doesn't ask for it and counts Parallel's spending itself; this stays for a balance kept from an older version."""
+        real = (usage.get("real") or {}).get("parallel")
+        if not real or "balance_usd" not in real:
+            return None
+        spent_since = self._parallel_usage(usage)["usd"] - real.get("own_usd", 0)
+        if real.get("cycle") != self._parallel_usage(usage)["cycle"]:
+            spent_since = self._parallel_usage(usage)["usd"]
+        return real["balance_usd"] - max(spent_since, 0)
+
+    async def _check_tavily(self, session):
+        data = self._json(*(await self._request(
+            session, "GET", "https://api.tavily.com/usage", headers={"Authorization": f"Bearer {self.valves.tavily_api_key}"}
+        ))[::2])
+        key, account = data.get("key") or {}, data.get("account") or {}
+        used = max(int(key.get("usage") or 0), int(account.get("plan_usage") or 0))
+        limit = account.get("plan_limit") or key.get("limit")
+        self._set_real("tavily", {"used": used, "limit": int(limit) if limit else None})
+
+    async def _check_brightdata(self, session):
+        today = datetime.datetime.now(datetime.timezone.utc).date()
+        params = {"from": today.replace(day=1).isoformat(), "to": today.isoformat(), "zones": self.valves.brightdata_zone}
+        data = self._json(*(await self._request(
+            session, "GET", "https://api.brightdata.com/domains/req", params=params,
+            headers={"Authorization": f"Bearer {self.valves.brightdata_api_key}"},
+        ))[::2])
+        used = 0 if data in ([], {}) else _sum_req(data)
+        if used is None:
+            raise ProviderError(0, f"no request count in reply: {str(data)[:100]}")
+        self._set_real("brightdata", {"used": used})
+
+    async def _check_serpapi(self, session):
+        data = self._json(*(await self._request(
+            session, "GET", "https://serpapi.com/account.json", params={"api_key": self.valves.serpapi_api_key}
+        ))[::2])
+        used, limit = data.get("this_month_usage"), data.get("searches_per_month")
+        if used is None and limit is None:
+            raise ProviderError(0, f"no usage in reply: {str(data)[:100]}")
+        info = {"used": float(used or 0)}
+        if limit:
+            info["limit"] = float(limit)
+        if data.get("total_searches_left") is not None:
+            info["remaining"] = float(data["total_searches_left"])
+        self._set_real("serpapi", info)
+
+    async def _check_firecrawl(self, session):
+        data = self._json(*(await self._request(
+            session, "GET", "https://api.firecrawl.dev/v2/team/credit-usage",
+            headers={"Authorization": f"Bearer {self.valves.firecrawl_api_key}"},
+        ))[::2])
+        remaining = _find_number(data, ("remaining",))
+        if remaining is None:
+            raise ProviderError(0, f"no remaining credits in reply: {str(data)[:100]}")
+        self._set_real("firecrawl", {"remaining": remaining})
+
+    async def _check_hasdata(self, session):
+        data = self._json(*(await self._request(
+            session, "GET", "https://api.hasdata.com/user/me/usage",
+            headers={"x-api-key": self.valves.hasdata_api_key, "Content-Type": "application/json"},
+        ))[::2])
+        d = data.get("data") if isinstance(data.get("data"), dict) else data
+        available, total = d.get("availableCredits"), d.get("totalCredits")
+        if not isinstance(available, (int, float)):
+            raise ProviderError(0, f"no available credits in reply: {str(data)[:100]}")
+        info = {"remaining": float(available)}
+        if isinstance(total, (int, float)) and total >= available:
+            info["used"] = float(total - available)
+        self._set_real("hasdata", info)
+
+    async def _check_linkup(self, session):
+        # Linkup documents a balance lookup; the path below is the usual one but not confirmed.
+        data = self._json(*(await self._request(
+            session, "GET", "https://api.linkup.so/v1/credits/balance",
+            headers={"Authorization": f"Bearer {self.valves.linkup_api_key}"},
+        ))[::2])
+        balance = _find_number(data, ("balance", "credit", "remaining"))
+        if balance is None:
+            raise ProviderError(0, f"no balance in reply: {str(data)[:100]}")
+        self._set_real("linkup", {"remaining": balance})
+
+    async def _check_youapi(self, session):
+        data = self._json(*(await self._request(
+            session, "GET", "https://api.you.com/v1/billing/account_balance",
+            headers={"X-API-Key": self.valves.you_api_key, "Accept": "application/json"},
+        ))[::2])
+        cents = _find_number(data, ("balance", "credit", "remaining"))
+        if cents is None and isinstance(data, (int, float)):
+            cents = float(data)
+        if cents is None:
+            raise ProviderError(0, f"no balance in reply: {str(data)[:100]}")
+        self._set_real("youapi", {"remaining": round(cents / 100, 4), "own_usd": self._youapi_spent(self._usage())})
+
+    async def _refresh_real(self):
+        """Ask the services that report real usage, at most every usage_check_minutes each."""
+        now = time.time()
+        jobs = []
+        for name, key in (("tavily", self.valves.tavily_api_key), ("brightdata", self.valves.brightdata_api_key),
+                          ("serpapi", self.valves.serpapi_api_key),
+                          ("firecrawl", self.valves.firecrawl_api_key), ("linkup", self.valves.linkup_api_key),
+                          ("hasdata", self.valves.hasdata_api_key), ("youapi", self.valves.you_api_key)):
+            if key and name not in self._no_real and now - self._checked.get(name, 0) >= self.valves.usage_check_minutes * 60:
+                self._checked[name] = now
+                jobs.append((name, getattr(self, f"_check_{name}")))
+        if not jobs:
+            return
+
+        async def run(name, job, session):
+            try:
+                await job(session)
+                self._log(f"{name} real usage updated")
+            except ProviderError as e:
+                self._log(f"{name} usage check failed: {e}")
+                if e.status in (401, 403, 404):
+                    self._no_real.add(name)  # this key can't read usage; use our own count
+            except Exception as e:
+                self._log(f"{name} usage check failed: {type(e).__name__}: {e}")
+
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
+            await asyncio.gather(*(run(n, j, session) for n, j in jobs))
+
+    def _key(self, counter: str) -> str:
+        if counter == "you":
+            return self.valves.you_mcp_url
+        # "browserbase_fetch" uses the Browserbase key
+        return getattr(self.valves, f"{counter.split('_')[0]}_api_key")
+
+    # -- services in SIMPLE: units used this month vs the free allowance, 50 searches' worth kept back
+    def _one_time_expired(self, name: str) -> bool:
+        """True once the expiry date in the Valves has passed (local time). No date: never."""
+        date = str(getattr(self.valves, f"{name}_credit_expires", "") or "").strip()
+        if not date:
+            return False
+        try:
+            return datetime.date.today() > datetime.date.fromisoformat(date)
+        except ValueError:
+            return False
+
+    def _fc_extra_spent(self, usage: dict) -> float:
+        """Firecrawl one-time credits used so far, across all cycles."""
+        return float((usage.get("firecrawl_extra") or {}).get("spent", 0))
+
+    def _simple_free(self, name: str, usage: dict) -> float:
+        free = float(getattr(self.valves, f"{name}_monthly_free"))
+        if name == "geekflare" and self.valves.geekflare_paid_monthly > 0 and _until(self.valves.geekflare_paid_until):
+            free = float(self.valves.geekflare_paid_monthly)
+        if name == "firecrawl" and self.valves.firecrawl_extra_credits > 0:
+            # this cycle's allowance: the monthly credits plus what was left of the one-time credits
+            # when the cycle started (one-time credits used this cycle are still part of it)
+            this_cycle = max(usage.get("firecrawl", 0) - free, 0)
+            left_at_start = self.valves.firecrawl_extra_credits - (self._fc_extra_spent(usage) - this_cycle)
+            return free + max(left_at_start, 0)
+        real = (usage.get("real") or {}).get(name) or {}
+        if real.get("limit"):
+            free = min(free, float(real["limit"]))
+        return free
+
+    def _simple_cost(self, name: str, usage: dict) -> float:
+        """Cost of the next search: the average this month, or the list price."""
+        # only the tool's own searches: a higher count reported by the service (other apps' use)
+        # must not raise the cost per search
+        n, used = usage.get(f"{name}_n", 0), usage.get(f"{name}_u", 0)
+        return used / n if n and used else SIMPLE[name]["cost"]
+
+    def _simple_has(self, name: str, usage: dict) -> bool:
+        if not getattr(self.valves, f"{name}_api_key"):
+            return False
+        if name in ONE_TIME and self._one_time_expired(name):
+            return False
+        cost = self._simple_cost(name, usage)
+        reserve = cost * self.valves.usage_reserve
+        if usage.get(name, 0) + cost + reserve > self._simple_free(name, usage):
+            return False
+        remaining = ((usage.get("real") or {}).get(name) or {}).get("remaining")
+        if remaining is not None:
+            # what the service reported, minus what this tool spent since it was reported
+            spent_since = usage.get(name, 0) - ((usage.get("real") or {}).get(name) or {}).get("own", 0)
+            if remaining - max(spent_since, 0) - cost < reserve:
+                return False
+        return True
+
+    def _add_simple(self, name: str, units: float):
+        def add(d):
+            d = self._fresh(d)
+            if name == "firecrawl" and self.valves.firecrawl_extra_credits > 0:
+                # the part of this search beyond the monthly credits comes out of the one-time credits
+                monthly, before = float(self.valves.firecrawl_monthly_free), d.get(name, 0)
+                over = max(before + float(units) - monthly, 0) - max(before - monthly, 0)
+                if over:
+                    e = d.get("firecrawl_extra") or {}
+                    d["firecrawl_extra"] = {"spent": round(float(e.get("spent", 0)) + over, 6)}
+            d[name] = round(d.get(name, 0) + float(units), 6)
+            d[f"{name}_n"] = d.get(f"{name}_n", 0) + 1
+            d[f"{name}_u"] = round(d.get(f"{name}_u", 0) + float(units), 6)
+            return d
+
+        self._last_usage = _doc_update("usage", add)
+
+    # -- You.com's keyed API: a one-time dollar credit, counted across months
+    def _youapi_active(self) -> bool:
+        if not self.valves.you_api_key or self.valves.you_api_credit_usd <= 0:
+            return False
+        date = self.valves.you_api_credit_expires.strip()
+        if not date:
+            return True
+        try:
+            return datetime.date.today() <= datetime.date.fromisoformat(date)
+        except ValueError:
+            return False
+
+    def _youapi_spent(self, usage: dict) -> float:
+        y = usage.get("youapi")
+        return float(y.get("usd", 0.0)) if isinstance(y, dict) else 0.0
+
+    def _youapi_has(self, usage: dict) -> bool:
+        reserve = YOUAPI_COST * self.valves.usage_reserve
+        if not self._youapi_active() or self._youapi_spent(usage) + YOUAPI_COST + reserve > self.valves.you_api_credit_usd:
+            return False
+        real = (usage.get("real") or {}).get("youapi") or {}
+        if "remaining" in real:
+            # the balance You.com reported, minus what this tool spent since
+            left = real["remaining"] - max(self._youapi_spent(usage) - real.get("own_usd", 0.0), 0.0)
+            return left - YOUAPI_COST >= reserve
+        return True
+
+    def _add_youapi(self):
+        def add(d):
+            d = self._fresh(d)
+            y = d.get("youapi") if isinstance(d.get("youapi"), dict) else {"usd": 0.0, "n": 0}
+            d["youapi"] = {"usd": round(y.get("usd", 0.0) + YOUAPI_COST, 6), "n": y.get("n", 0) + 1}
+            return d
+
+        self._last_usage = _doc_update("usage", add)
+
+    def _you_today(self, usage: dict) -> int:
+        y = usage.get("you")
+        return y.get("count", 0) if isinstance(y, dict) and y.get("day") == _day() else 0
+
+    def _add_you(self):
+        def add(data):
+            data = self._fresh(data)
+            y = data.get("you")
+            if not isinstance(y, dict) or y.get("day") != _day():
+                y = {"day": _day(), "count": 0}
+            y["count"] += 1
+            data["you"] = y
+            return data
+
+        self._last_usage = _doc_update("usage", add)
+
+    def _exa_cost_estimate(self, usage: dict) -> float:
+        """Cost of the next Exa search: the average Exa has reported this month, or the list price."""
+        n, usd = usage.get("exa", 0), usage.get("exa_usd", 0.0)
+        return usd / n if n else EXA_SEARCH_COST.get(self.valves.exa_type.strip().lower(), 0.007)
+
+    def _exa_extra_active(self) -> bool:
+        if self.valves.exa_extra_credit_usd <= 0:
+            return False
+        date = self.valves.exa_extra_credit_expires.strip()
+        if not date:
+            return True
+        try:
+            return datetime.date.today() <= datetime.date.fromisoformat(date)
+        except ValueError:
+            return False
+
+    def _exa_extra_spent(self, usage: dict) -> float:
+        e = usage.get("exa_extra")
+        return float(e.get("usd", 0.0)) if isinstance(e, dict) else 0.0
+
+    def _exa_left(self, usage: dict) -> float:
+        """Exa credit left: this month's credit, then the one-time credit."""
+        left = max(self.valves.exa_monthly_credit_usd - usage.get("exa_usd", 0.0), 0.0)
+        if self._exa_extra_active():
+            left += max(self.valves.exa_extra_credit_usd - self._exa_extra_spent(usage), 0.0)
+        return left
+
+    def _exa_has(self, usage: dict) -> bool:
+        if not self.valves.exa_api_key:
+            return False
+        cost = self._exa_cost_estimate(usage)
+        return self._exa_left(usage) >= cost * (1 + self.valves.usage_reserve)
+
+    def _use_up(self, counter: str):
+        """The service says the allowance is gone: stop using it until next month (or billing cycle)."""
+
+        def full(data):
+            data = self._fresh(data)
+            if counter == "parallel":
+                p = self._parallel_usage(data)
+                p["usd"] = max(p["usd"], self.valves.parallel_monthly_budget_usd)
+                data["parallel"] = p
+                if self._extra_active():
+                    data["parallel_extra"] = {"expires": self.valves.parallel_extra_credit_expires.strip(),
+                                              "usd": self.valves.parallel_extra_credit_usd}
+            elif counter == "exa":
+                data["exa_usd"] = max(data.get("exa_usd", 0.0), self.valves.exa_monthly_credit_usd)
+                if self._exa_extra_active():
+                    data["exa_extra"] = {"usd": self.valves.exa_extra_credit_usd}
+            elif counter in SIMPLE:
+                data[counter] = max(data.get(counter, 0), self._simple_free(counter, data))
+                if counter == "firecrawl" and self.valves.firecrawl_extra_credits > 0:
+                    data["firecrawl_extra"] = {"spent": float(self.valves.firecrawl_extra_credits)}
+            elif counter == "youapi":
+                data["youapi"] = {"usd": self.valves.you_api_credit_usd, "n": (data.get("youapi") or {}).get("n", 0)}
+            elif counter == "you":
+                data["you"] = {"day": _day(), "count": max(self._you_today(data), self.valves.you_daily_limit)}
+            else:
+                data[counter] = max(data.get(counter, 0), getattr(self.valves, f"{counter}_monthly_limit"))
+            return data
+
+        _doc_update("usage", full)
+
+    def _has_credit(self, counter: str, usage: dict) -> bool:
+        if counter == "youapi":
+            return self._youapi_has(usage)
+        if counter in SIMPLE:
+            return self._simple_has(counter, usage)
+        if counter == "parallel":
+            return self._parallel_has(usage, self._parallel_search_cost())
+        if counter == "exa":
+            return self._exa_has(usage)
+        if counter == "you":
+            return bool(self.valves.you_mcp_url) and self._you_today(usage) < self.valves.you_daily_limit
+        return bool(self._key(counter)) and usage.get(counter, 0) < self._limit(counter)
+
+    def _usage_line(self, usage: dict) -> str:
+        """Usage per service; "(real)" when the count was confirmed by the service this month."""
+        real = usage.get("real") or {}
+        parts = []
+        if self.valves.parallel_api_key:
+            p = self._parallel_usage(usage)
+            left = self._parallel_balance_left(usage)
+            balance = f"; credit left ${left:.2f} (real)" if left is not None else ""
+            if self._extra_active():
+                balance += (
+                    f"; one-time credit ${self._extra_spent(usage):.3f}/${self.valves.parallel_extra_credit_usd:.2f}"
+                    f" until {self.valves.parallel_extra_credit_expires.strip()}"
+                )
+            parts.append(
+                f"Parallel ${p['usd']:.3f}/${self.valves.parallel_monthly_budget_usd:.2f} since {p['cycle']} "
+                f"({p['searches']} searches, {p['pages']} pages{balance})"
+            )
+        names = {"brightdata": "Bright Data", "tavily": "Tavily", "browserbase": "Browserbase", "brave": "Brave"}
+        if self.valves.exa_api_key:
+            parts.append(
+                f"Exa ${usage.get('exa_usd', 0.0):.3f}/${self.valves.exa_monthly_credit_usd:.2f} "
+                f"({usage.get('exa', 0)} searches, cost reported by Exa"
+                + (f"; one-time credit ${self._exa_extra_spent(usage):.3f}/${self.valves.exa_extra_credit_usd:.2f}"
+                   if self._exa_extra_active() else "")
+                + ")"
+            )
+        if self._youapi_active():
+            y = usage.get("youapi") if isinstance(usage.get("youapi"), dict) else {}
+            r = (usage.get("real") or {}).get("youapi") or {}
+            left = f"; credit left ${r['remaining']:.2f} (real)" if "remaining" in r else ""
+            parts.append(
+                f"You.com API ${self._youapi_spent(usage):.3f}/${self.valves.you_api_credit_usd:.2f} one-time ({y.get('n', 0)} searches{left})"
+            )
+        if self.valves.you_mcp_url:
+            parts.append(f"You.com {self._you_today(usage)}/{self.valves.you_daily_limit} today")
+        for c, info in SIMPLE.items():
+            if getattr(self.valves, f"{c}_api_key"):
+                used, free = usage.get(c, 0), self._simple_free(c, usage)
+                mark = " (real)" if c in real else ""
+                amount = f"${used:.3f}/${free:.2f}" if info["unit"] == "$" else f"{used:g}/{free:g} {info['unit']}"
+                if c in ONE_TIME:
+                    expires = str(getattr(self.valves, f"{c}_credit_expires", "") or "").strip()
+                    amount += " one-time" + (" (expired)" if self._one_time_expired(c) else f", expires {expires}" if expires else "")
+                if c == "firecrawl" and self.valves.firecrawl_extra_credits > 0:
+                    amount += f" incl. one-time {self._fc_extra_spent(usage):g}/{self.valves.firecrawl_extra_credits:g} used in all"
+                parts.append(f"{info['name']} {amount} ({usage.get(f'{c}_n', 0)} searches){mark}")
+        for c in METERED[1:]:
+            if c in ("exa", "you", "youapi") or c in SIMPLE:
+                continue
+            if self._key(c):
+                mark = " (real)" if c in real else ""
+                parts.append(f"{names[c]} {usage.get(c, 0)}/{self._limit(c)}{mark}")
+        if self.valves.browserbase_api_key and self.valves.use_browserbase_fetch:
+            parts.append(f"Browserbase fetch {usage.get('browserbase_fetch', 0)}/{self._limit('browserbase_fetch')}")
+        return ", ".join(parts)
+
+    def _log_search(self, turn: dict, query: str, results: list, used: str, problems: list, retry: bool):
+        """One line in the search log. Never stops a search: a write that fails is only reported in debug mode."""
+        entry = {
+            "t": round(time.time(), 1),
+            "app": turn.get("app") or "Open WebUI",  # the gateway sets "Pi" or "Protected Lookup" for theirs
+            "service": used.split(",")[0] if used else "",
+            "results": len(results),
+            "cached": used.endswith(", cached"),
+            "retry": retry,
+            # only the service names: a service's error text may repeat the search words
+            "failed": sorted({str(p).split(":")[0] for p in problems if not str(p).endswith(": no results")}),
+        }
+        if self.valves.log_search_words:
+            entry["q"] = query
+        try:
+            con = _db()
+            try:
+                con.execute("INSERT INTO log (t, entry) VALUES (?, ?)", (entry["t"], json.dumps(entry, ensure_ascii=False)))
+                con.execute("DELETE FROM log WHERE t < ?", (entry["t"] - SEARCH_LOG_DAYS * 86400,))
+            finally:
+                con.close()
+        except sqlite3.Error as e:
+            self._log(f"search log not written: {e}")
+
+    def _log(self, text: str):
+        if self.valves.debug:
+            print(f"[search-gateway] {text}", flush=True)
+
+    def _active_order(self) -> str:
+        """temporary_service_order through temporary_order_until, otherwise service_order."""
+        if self.valves.temporary_service_order.strip() and _until(self.valves.temporary_order_until):
+            return self.valves.temporary_service_order
+        return self.valves.service_order
+
+    def _ranks(self) -> dict:
+        """Rank of each service from the active order (0 = best). Unlisted services rank after all listed ones."""
+        ranks = {}
+        for rank, group in enumerate(self._active_order().lower().split(",")):
+            for name in group.split("/"):
+                name = re.sub(r"[^a-z]", "", name)
+                name = SERVICE_ALIASES.get(name, name)
+                if name in METERED and name not in ranks:
+                    ranks[name] = rank
+        return ranks
+
+    def _retry_skip(self, used) -> set:
+        """Services a retry of the same search skips: the ones that answered it ("geekflare" or "geekflare, cached")
+        and the rest of their retry_groups."""
+        def canon(name: str) -> str:
+            name = re.sub(r"[^a-z]", "", name.lower())
+            return SERVICE_ALIASES.get(name, name)
+
+        answered = {canon(str(u).split(",")[0]) for u in used if u}
+        answered.discard("")
+        skip = set(answered)
+        for group in self.valves.retry_groups.split(","):
+            members = {canon(m) for m in group.split("/")} - {""}
+            if members & answered:
+                skip |= members
+        return skip
+
+    def _with_in_flight(self, usage: dict) -> dict:
+        """The usage as if the searches still running had been counted (they are, when they finish), so searches
+        at the same time don't all pass the same last bit of an allowance. Parallel, Exa and the You.com API are
+        counted in dollars: their reserve (usage_reserve searches' worth) covers the few searches running at once."""
+        running = {name: n for name, n in self._in_flight.items() if n > 0}
+        if not running:
+            return usage
+        u = json.loads(json.dumps(usage))
+        for name, n in running.items():
+            if name in SIMPLE:
+                u[name] = u.get(name, 0) + n * self._simple_cost(name, usage)
+            elif name in ("brightdata", "tavily", "brave", "browserbase"):
+                u[name] = u.get(name, 0) + n
+            elif name == "you" and isinstance(u.get("you"), dict) and u["you"].get("day") == _day():
+                u["you"]["count"] = u["you"].get("count", 0) + n
+        return u
+
+    def _provider_order(self, turn: dict, skip=()) -> list:
+        """Services in the preference order (service_order); equal ranks, and unlisted services, go
+        most-allowance-left first. Services that can't be used, or are in skip, are left out; SearXNG is always last."""
+        usage = self._with_in_flight(self._usage())
+        ranks = self._ranks()
+        last = len(ranks) + 1
+        options = []
+        for i, name in enumerate(METERED):
+            if name in turn["failed"] or name in skip or not self._has_credit(name, usage):
+                continue
+            options.append((ranks.get(name, last), -self._share_left(name, usage), i, name))
+        order = [option[-1] for option in sorted(options)]
+        if self.valves.searxng_url and "searxng" not in turn["failed"] and "searxng" not in skip:
+            order.append("searxng")
+        return order
+
+    # ------------------------------------------------------------------ cache
+
+    def _cache_get(self, key: str):
+        if self.valves.cache_hours <= 0:
+            return None
+        con = _db()
+        try:
+            row = con.execute("SELECT t, provider, results FROM cache WHERE key = ? AND t >= ?",
+                              (key, time.time() - self.valves.cache_hours * 3600)).fetchone()
+        finally:
+            con.close()
+        if not row:
+            return None
+        try:
+            return {"t": row[0], "provider": row[1], "results": json.loads(row[2])}
+        except ValueError:
+            return None
+
+    def _cache_put(self, key: str, provider: str, results: list):
+        if self.valves.cache_hours <= 0:
+            return
+        now = time.time()
+        con = _db()
+        try:
+            con.execute("BEGIN IMMEDIATE")
+            con.execute("DELETE FROM cache WHERE t < ?", (now - self.valves.cache_hours * 3600,))
+            con.execute("INSERT INTO cache (key, t, provider, results) VALUES (?, ?, ?, ?) ON CONFLICT (key) DO UPDATE SET "
+                        "t = excluded.t, provider = excluded.provider, results = excluded.results",
+                        (key, now, provider, json.dumps(results)))
+            con.execute("COMMIT")
+        finally:
+            if con.in_transaction:
+                con.execute("ROLLBACK")
+            con.close()
+
+    # ------------------------------------------------------------------ events
+
+    @staticmethod
+    async def _status(emitter, text: str, done: bool = False):
+        if emitter:
+            await emitter({"type": "status", "data": {"description": text, "done": done}})
+
+    @staticmethod
+    async def _cite(emitter, url: str, text: str):
+        if emitter:
+            await emitter(
+                {
+                    "type": "citation",
+                    "data": {
+                        "document": [text[:2000]],
+                        "metadata": [{"source": url}],
+                        "source": {"name": url, "url": url},
+                    },
+                }
+            )
+
+    # ------------------------------------------------------------------ HTTP
+
+    async def _request(self, session, method: str, url: str, **kwargs):
+        """One HTTP call, retried once after a 429. Returns (status, headers with lower-case names, body text)."""
+        for attempt in (1, 2):
+            async with session.request(method, url, **kwargs) as resp:
+                status = resp.status
+                headers = {k.lower(): v for k, v in resp.headers.items()}
+                text = await resp.text()
+            if status == 429 and attempt == 1:
+                wait = _retry_wait(headers, self.valves.retry_wait_max_seconds)
+                if wait is not None:
+                    self._log(f"429 from {urlparse(url).hostname}; retrying in {wait:g} s")
+                    await asyncio.sleep(wait)
                     continue
-                if isinstance(response, SearchResponse) and not response.error:
-                    all_results.extend(response.results)
+            return status, headers, text
 
-        # Deduplicate by URL
-        seen_urls = set()
-        unique_results = []
-        for result in all_results:
-            url = self._resolve_google_goto(result.url)
-            if url not in seen_urls:
-                seen_urls.add(url)
-                result.url = url
-                unique_results.append(result)
+    @staticmethod
+    def _json(status: int, text: str):
+        if not 200 <= status < 300:  # any success code: Geekflare answers 201
+            raise ProviderError(status, text[:200])
+        try:
+            return json.loads(text)
+        except ValueError:
+            raise ProviderError(0, f"reply was not JSON: {text[:100]}")
 
-        duration_ms = int((time.time() - start_time) * 1000)
+    # ------------------------------------------------------------------ search providers
+    # Each returns a list of {"title", "url", "snippet", "date"}.
 
-        # Log the search
-        self._log_search(query, engine_name or "all", len(unique_results), duration_ms)
+    async def _parallel(self, session, query: str, time_range: str, user_text: str = "") -> list:
+        objective = " ".join(user_text.split())[:300] if self.valves.parallel_send_question and user_text else ""
+        mode = self.valves.parallel_mode.strip().lower()
+        settings = {"max_results": min(self.valves.results_per_search, 10)}  # more than 10 costs extra
+        if time_range in DAYS_BACK:
+            after = datetime.date.today() - datetime.timedelta(days=DAYS_BACK[time_range])
+            settings["source_policy"] = {"after_date": after.isoformat()}
+        body = {
+            "search_queries": [query],
+            "mode": mode if mode in PARALLEL_SEARCH_COST else "fast",
+            "max_chars_total": self.valves.parallel_excerpt_chars * settings["max_results"],
+            "advanced_settings": settings,
+        }
+        if objective:
+            body["objective"] = objective
+        headers = {"x-api-key": self.valves.parallel_api_key}
+        data = self._json(*(await self._request(session, "POST", "https://api.parallel.ai/v1/search", json=body, headers=headers))[::2])
+        self._add_parallel(self._parallel_search_cost(), "searches")
+        out = []
+        for r in data.get("results") or []:
+            if not isinstance(r, dict):
+                continue
+            ex = r.get("excerpts") or []
+            snippet = " … ".join(str(e) for e in ex) if isinstance(ex, list) else str(ex)
+            out.append({"title": r.get("title") or "", "url": r.get("url") or "", "snippet": snippet,
+                        "date": r.get("publish_date") or ""})
+        return out
 
-        return SearchResponse(
-            results=unique_results[:max_results],
-            total=len(unique_results),
-            query=query
+    async def _tavily(self, session, query: str, time_range: str) -> list:
+        body = {
+            "query": query,
+            "search_depth": "basic",  # 1 credit; "advanced" costs 2
+            "max_results": self.valves.results_per_search,
+            "include_answer": False,
+            "include_raw_content": False,
+        }
+        if time_range:
+            body["time_range"] = time_range
+        headers = {"Authorization": f"Bearer {self.valves.tavily_api_key}"}
+        data = self._json(*(await self._request(session, "POST", "https://api.tavily.com/search", json=body, headers=headers))[::2])
+        self._add_usage("tavily")
+        return [
+            {"title": r.get("title", ""), "url": r.get("url", ""), "snippet": r.get("content", ""),
+             "date": r.get("published_date") or ""}
+            for r in data.get("results", [])
+        ]
+
+    async def _brightdata(self, session, query: str, time_range: str) -> list:
+        url = f"https://www.google.com/search?q={quote_plus(query)}&brd_json=1"
+        if time_range in GOOGLE_TBS:
+            url += f"&tbs={GOOGLE_TBS[time_range]}"
+        # Light JSON: the top results with their real links (Full JSON gives only Google redirect links), and faster.
+        body = {"zone": self.valves.brightdata_zone, "url": url, "format": "raw", "data_format": "parsed_light"}
+        headers = {"Authorization": f"Bearer {self.valves.brightdata_api_key}"}
+        status, _, text = await self._request(session, "POST", "https://api.brightdata.com/request", json=body, headers=headers)
+        if status != 200:
+            raise ProviderError(status, text[:200])
+        self._add_usage("brightdata")
+        try:
+            data = json.loads(text)
+        except ValueError:
+            raise ProviderError(0, f"reply was not JSON (set the zone's Data format to Full JSON or Light JSON): {text[:80]}")
+        items = [r for r in (data.get("organic") or []) if isinstance(r, dict)]
+        # News questions: Google's top stories are often the best results.
+        if time_range:
+            items = [r for r in (data.get("top_stories") or []) if isinstance(r, dict)] + items
+        results = [
+            {"title": r.get("title", ""), "url": r.get("link") or r.get("url") or "",
+             "snippet": r.get("description") or r.get("snippet") or "", "date": r.get("date") or ""}
+            for r in items
+        ]
+        results = [r for r in results if r["url"]][: max(self.valves.results_per_search * 2, 10)]
+        return await self._resolve_google_links(session, results)
+
+    async def _resolve_google_links(self, session, results: list) -> list:
+        """Google sometimes gives a redirect link (/goto?url=..., /url?q=...) instead of the page's address.
+        Each one is opened once, without following it, to read the real address. Unresolved ones are dropped."""
+
+        async def real_url(link: str) -> str:
+            full = link if link.startswith("http") else "https://www.google.com" + (link if link.startswith("/") else "/" + link)
+            parsed = urlparse(full)
+            if not (parsed.hostname or "").endswith("google.com") or parsed.path not in ("/goto", "/url"):
+                return link
+            direct = (parse_qs(parsed.query).get("q") or parse_qs(parsed.query).get("url") or [""])[0]
+            if direct.startswith("http"):
+                return direct  # /url?q=https://... carries the address itself
+            try:
+                async with session.get(full, allow_redirects=False, timeout=aiohttp.ClientTimeout(total=6)) as resp:
+                    location = resp.headers.get("Location") or resp.headers.get("location") or ""
+            except Exception as e:
+                self._log(f"google link not resolved: {type(e).__name__}")
+                return ""
+            return location if location.startswith("http") and "google.com/" not in location.split("?")[0] else ""
+
+        urls = await asyncio.gather(*(real_url(r["url"]) for r in results))
+        out = []
+        for r, u in zip(results, urls):
+            if u:
+                out.append({**r, "url": u})
+        return out
+
+    async def _browserbase(self, session, query: str, time_range: str) -> list:
+        # No date filter in this API.
+        body = {"query": query[:200], "numResults": self.valves.results_per_search}
+        headers = {"X-BB-API-Key": self.valves.browserbase_api_key}
+        data = self._json(*(await self._request(session, "POST", "https://api.browserbase.com/v1/search", json=body, headers=headers))[::2])
+        self._add_usage("browserbase")
+        return [
+            {"title": r.get("title") or "", "url": r.get("url") or "",
+             "snippet": r.get("description") or r.get("snippet") or r.get("text") or "",
+             "date": r.get("publishedDate") or ""}
+            for r in (data.get("results") or [])
+            if isinstance(r, dict)
+        ]
+
+    async def _exa(self, session, query: str, time_range: str) -> list:
+        kind = self.valves.exa_type.strip().lower() or "lite"
+        body = {
+            "query": query,
+            "type": kind,
+            "numResults": min(self.valves.results_per_search, 10),  # more than 10 costs extra
+            "contents": {"highlights": True},
+        }
+        if time_range in DAYS_BACK:
+            start = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=DAYS_BACK[time_range])
+            body["startPublishedDate"] = start.strftime("%Y-%m-%dT00:00:00.000Z")
+        status, _, text = await self._request(
+            session, "POST", "https://api.exa.ai/search", json=body, headers={"x-api-key": self.valves.exa_api_key}
+        )
+        data = self._json(status, text)
+        cost = (data.get("costDollars") or {}).get("total")
+        if not isinstance(cost, (int, float)):
+            cost = EXA_SEARCH_COST.get(kind, 0.007)
+
+        def add(d):
+            d = self._fresh(d)
+            d["exa"] = d.get("exa", 0) + 1
+            if self._exa_extra_active() and d.get("exa_usd", 0.0) + float(cost) > self.valves.exa_monthly_credit_usd:
+                # this month's credit is used up: Exa takes it from the one-time credit
+                d["exa_extra"] = {"usd": round(self._exa_extra_spent(d) + float(cost), 6)}
+            else:
+                d["exa_usd"] = round(d.get("exa_usd", 0.0) + float(cost), 6)
+            return d
+
+        self._last_usage = _doc_update("usage", add)
+        out = []
+        for r in data.get("results") or []:
+            if not isinstance(r, dict):
+                continue
+            hl = r.get("highlights") or []
+            snippet = " … ".join(str(h) for h in hl) if hl else str(r.get("summary") or r.get("text") or "")
+            out.append({"title": r.get("title") or "", "url": r.get("url") or "", "snippet": snippet,
+                        "date": r.get("publishedDate") or ""})
+        return out
+
+    async def _mcp_tool(self, session, url: str, tool: str, arguments: dict) -> dict:
+        """Call one tool on a remote MCP server (Streamable HTTP, no login). Returns the MCP result."""
+        state = {"sid": None, "proto": None}
+
+        async def post(payload):
+            headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+            if state["sid"]:
+                headers["Mcp-Session-Id"] = state["sid"]
+            if state["proto"]:
+                headers["MCP-Protocol-Version"] = state["proto"]
+            status, resp_headers, raw = await self._request(session, "POST", url, json=payload, headers=headers)
+            state["sid"] = resp_headers.get("mcp-session-id") or state["sid"]
+            if "id" not in payload:
+                return None
+            if status != 200:
+                raise ProviderError(status, raw[:200])
+            reply = _jsonrpc_reply(raw, resp_headers.get("content-type", ""), payload["id"])
+            if reply is None:
+                raise ProviderError(0, "no reply from the search server")
+            if "error" in reply:
+                err = reply["error"]
+                msg = str(err.get("message") if isinstance(err, dict) else err)
+                raise ProviderError(429 if re.search(r"rate|limit|quota|too many", msg, re.I) else 0, msg[:200])
+            return reply.get("result") or {}
+
+        init = await post({
+            "jsonrpc": "2.0", "id": 1, "method": "initialize",
+            "params": {"protocolVersion": "2025-06-18", "capabilities": {},
+                       "clientInfo": {"name": "search-gateway", "version": "0.18.0"}},
+        })
+        state["proto"] = init.get("protocolVersion")
+        await post({"jsonrpc": "2.0", "method": "notifications/initialized"})
+        result = await post({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                             "params": {"name": tool, "arguments": arguments}})
+        if state["sid"]:
+            try:  # end the session; not required
+                await self._request(session, "DELETE", url, headers={"Mcp-Session-Id": state["sid"]})
+            except Exception:
+                pass
+        if result.get("isError"):
+            text = "\n".join(c.get("text", "") for c in result.get("content") or [] if isinstance(c, dict))
+            raise ProviderError(429 if re.search(r"rate|limit|quota|too many", text, re.I) else 0, text[:200])
+        return result
+
+    async def _youapi(self, session, query: str, time_range: str) -> list:
+        params = {"query": query, "count": self.valves.results_per_search}
+        if time_range in DAYS_BACK:
+            params["freshness"] = time_range
+        data = self._json(*(await self._request(
+            session, "GET", "https://ydc-index.io/v1/search", params=params,
+            headers={"X-API-Key": self.valves.you_api_key, "Accept": "application/json"},
+        ))[::2])
+        self._add_youapi()
+        return _you_results({"structuredContent": data})  # same result format as the keyless server
+
+    async def _you(self, session, query: str, time_range: str) -> list:
+        args = {"query": query, "count": self.valves.results_per_search}
+        if time_range in DAYS_BACK:
+            args["freshness"] = time_range
+        result = await self._mcp_tool(session, self.valves.you_mcp_url, "you-search", args)
+        self._add_you()
+        return _you_results(result)
+
+    @staticmethod
+    def _rows(items, title="title", url="url", snippet=("description", "snippet", "content"), date=("date",)):
+        out = []
+        for r in items:
+            text = next((r.get(k) for k in snippet if r.get(k)), "")
+            when = next((r.get(k) for k in date if r.get(k)), "")
+            out.append({"title": r.get(title) or "", "url": r.get(url) or r.get("link") or "", "snippet": text,
+                        "date": when})
+        return out
+
+    async def _linkup(self, session, query: str, time_range: str) -> list:
+        body = {"q": query, "depth": "standard", "outputType": "searchResults",
+                "maxResults": self.valves.results_per_search}
+        if time_range in DAYS_BACK:
+            body["fromDate"] = (datetime.date.today() - datetime.timedelta(days=DAYS_BACK[time_range])).isoformat()
+        data = self._json(*(await self._request(
+            session, "POST", "https://api.linkup.so/v1/search", json=body,
+            headers={"Authorization": f"Bearer {self.valves.linkup_api_key}"},
+        ))[::2])
+        self._add_simple("linkup", SIMPLE["linkup"]["cost"])
+        items = [r for r in data.get("results") or [] if isinstance(r, dict) and r.get("type", "text") == "text"]
+        return self._rows(items, title="name", snippet=("content",))
+
+    async def _firecrawl(self, session, query: str, time_range: str) -> list:
+        body = {"query": query, "limit": min(self.valves.results_per_search, 10), "sources": ["web"]}
+        if time_range in GOOGLE_TBS:
+            body["tbs"] = GOOGLE_TBS[time_range]
+        data = self._json(*(await self._request(
+            session, "POST", "https://api.firecrawl.dev/v2/search", json=body,
+            headers={"Authorization": f"Bearer {self.valves.firecrawl_api_key}"},
+        ))[::2])
+        used = data.get("creditsUsed")
+        self._add_simple("firecrawl", used if isinstance(used, (int, float)) else SIMPLE["firecrawl"]["cost"])
+        web = (data.get("data") or {}).get("web") if isinstance(data.get("data"), dict) else data.get("data")
+        return self._rows([r for r in web or [] if isinstance(r, dict)])
+
+    async def _serpapi(self, session, query: str, time_range: str) -> list:
+        params = {"engine": "google", "q": query, "api_key": self.valves.serpapi_api_key}
+        if time_range in GOOGLE_TBS:
+            params["tbs"] = GOOGLE_TBS[time_range]
+        data = self._json(*(await self._request(session, "GET", "https://serpapi.com/search.json", params=params))[::2])
+        if data.get("error") and not data.get("organic_results"):
+            if re.search(r"run out|limit|plan", str(data["error"]), re.I):
+                raise ProviderError(402, str(data["error"])[:200])
+            if "hasn't returned any results" not in str(data["error"]):
+                raise ProviderError(0, str(data["error"])[:200])
+        self._add_simple("serpapi", SIMPLE["serpapi"]["cost"])
+        return self._rows(data.get("organic_results") or [], url="link", snippet=("snippet",))
+
+    async def _contextdev(self, session, query: str, time_range: str) -> list:
+        body = {"query": query[:500], "numResults": 10}  # 10 is the minimum; 10 results cost 1 credit
+        if time_range in CONTEXTDEV_FRESHNESS:
+            body["freshness"] = CONTEXTDEV_FRESHNESS[time_range]
+        data = self._json(*(await self._request(
+            session, "POST", "https://api.context.dev/v1/web/search", json=body,
+            headers={"Authorization": f"Bearer {self.valves.contextdev_api_key}"},
+        ))[::2])
+        used = _find_number(data.get("key_metadata") or {}, ("credits_consumed",))
+        self._add_simple("contextdev", used if used is not None else SIMPLE["contextdev"]["cost"])
+        return self._rows(data.get("results") or [])
+
+    async def _hasdata(self, session, query: str, time_range: str) -> list:
+        # Google SERP Light (5 credits). No date filter documented for it.
+        data = self._json(*(await self._request(
+            session, "GET", "https://api.hasdata.com/scrape/google-light/serp", params={"q": query},
+            headers={"x-api-key": self.valves.hasdata_api_key},
+        ))[::2])
+        self._add_simple("hasdata", SIMPLE["hasdata"]["cost"])
+        return self._rows(data.get("organicResults") or [], url="link", snippet=("snippet", "description"))
+
+    async def _resolve_google_goto(self, session, url: str) -> str:
+        """The page a Google "/goto?url=..." link leads to, or "" if Google doesn't say."""
+        full = url if url.startswith("http") else "https://www.google.com" + url
+        try:
+            async with session.get(full, allow_redirects=False, headers={"User-Agent": BROWSER_UA},
+                                   timeout=aiohttp.ClientTimeout(total=8)) as r:
+                target = r.headers.get("Location", "")
+                if not target:
+                    found = re.search(r'href="(https?://[^"]+)"', await r.text(), re.I)
+                    target = html.unescape(found.group(1)) if found else ""
+        except Exception:
+            return ""
+        return target if re.match(r"https?://", target) and not GOOGLE_GOTO_RE.match(target) else ""
+
+    async def _geekflare(self, session, query: str, time_range: str) -> list:
+        # SERP mode first: Google's results with full links. If it fails on Geekflare's side (5xx: not charged), the
+        # standard search, which returns the same Google results but sometimes with relative "/goto?url=..." links
+        # (_search_chain resolves those). Both cost 2 credits. SERP mode returns only the first page, and fails when
+        # limit or source are sent with it.
+        last = None
+        for body in ({"query": query, "serp": True}, {"query": query, "limit": self.valves.results_per_search, "source": "web"}):
+            if time_range in GEEKFLARE_TIME:
+                body["time"] = GEEKFLARE_TIME[time_range]
+            status, _, text = await self._request(
+                session, "POST", "https://api.geekflare.com/search", json=body,
+                headers={"x-api-key": self.valves.geekflare_api_key},
+            )
+            if status >= 500 and "serp" in body:
+                last = ProviderError(status, text[:200])
+                self._log(f"geekflare SERP mode failed ({status}); trying the standard search")
+                continue
+            data = self._json(status, text)
+            if data.get("apiStatus") == "failure":
+                raise ProviderError(0, str(data.get("message") or data)[:200])
+            self._add_simple("geekflare", SIMPLE["geekflare"]["cost"])
+            serp = data.get("data") if isinstance(data.get("data"), dict) else {}
+            organic = [r for r in (serp.get("organic") or []) if isinstance(r, dict)]
+            if organic:
+                return self._rows(organic[: self.valves.results_per_search], url="link", snippet=("description", "snippet"))
+            return self._rows(_items(data.get("data")) or _items(data))
+        raise last or ProviderError(0, "no reply")
+
+    async def _brave(self, session, query: str, time_range: str) -> list:
+        params = {"q": query, "count": self.valves.results_per_search}
+        if time_range in BRAVE_FRESHNESS:
+            params["freshness"] = BRAVE_FRESHNESS[time_range]
+        headers = {"Accept": "application/json", "X-Subscription-Token": self.valves.brave_api_key}
+        status, resp_headers, text = await self._request(
+            session, "GET", "https://api.search.brave.com/res/v1/web/search", params=params, headers=headers
+        )
+        data = self._json(status, text)
+        limit = _last_number(resp_headers.get("x-ratelimit-limit", ""))
+        remaining = _last_number(resp_headers.get("x-ratelimit-remaining", ""))
+        self._add_usage("brave")
+        if limit and remaining is not None:  # 0 means no monthly quota on the plan
+            self._set_real("brave", {"used": max(limit - remaining, 0), "limit": limit})
+        return [
+            {"title": r.get("title", ""), "url": r.get("url", ""), "snippet": r.get("description", ""),
+             "date": r.get("page_age") or ""}
+            for r in (data.get("web") or {}).get("results", [])
+        ]
+
+    async def _searxng(self, session, query: str, time_range: str) -> list:
+        async def ask(tr):
+            params = {"q": query, "format": "json"}
+            if tr:
+                params["time_range"] = tr
+            return self._json(*(await self._request(session, "GET", self.valves.searxng_url, params=params))[::2])
+
+        data = await ask(time_range)
+        if not data.get("results") and time_range:
+            data = await ask("")  # free, so retry without the date filter
+        return [
+            {"title": r.get("title", ""), "url": r.get("url", ""), "snippet": r.get("content", ""),
+             "date": r.get("publishedDate") or ""}
+            for r in data.get("results", [])
+        ]
+
+    # ------------------------------------------------------------------ tools
+
+    def _plan_line(self, turn: dict) -> str:
+        return f"\nYour plan: {turn['plan']}" if turn["plan"] else ""
+
+    def _footer(self, turn: dict) -> str:
+        """Reminders added after the results: the plan, a plan request, a low-budget warning."""
+        left = self.valves.max_searches - turn["searches"]
+        notes = []
+        if turn["plan"]:
+            notes.append(f"Your plan: {turn['plan']}")
+        elif left > 0 and turn["searches"] >= self.valves.plan_after_searches:
+            notes.append(
+                "Before any more searches, call plan_research with the facts still needed for the answer, "
+                "most decisive first."
+            )
+        if 0 < left <= self.valves.low_budget_warning:
+            notes.append(
+                f"Only {left} search{'es' if left > 1 else ''} left. Use {'them' if left > 1 else 'it'} for what is still missing for the "
+                "user's answer, not for options you have already ruled out or facts you already have."
+            )
+        elif left <= 0:
+            reads_left = self.valves.max_page_reads - turn["reads"]
+            notes.append(
+                "No searches left."
+                + (f" You can still open {reads_left} pages from these results with read_page." if reads_left > 0 else "")
+                + " Then answer."
+            )
+        return ("\n\n" + "\n".join(notes)) if notes else ""
+
+    async def _search_chain(self, cleaned: str, time_range: str, user_text: str, turn: dict, skip=(), fresh=False):
+        """One search: the cache, then each service in order until one returns results.
+        skip: services to leave out; fresh: don't use the cache (a retry for different results).
+        Returns (results, service used, problems). Used by web_search and by the Pi search server."""
+        norm = " ".join(sorted(cleaned.lower().split()))
+        cache_key = f"{norm}|{time_range}"
+        results, used, problems = [], "", []
+        cached = None if fresh else self._cache_get(cache_key)
+        if cached:
+            results, used = cached["results"], f"{cached['provider']}, cached"
+        else:
+            await self._refresh_real()
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=25)) as session:
+                for provider in self._provider_order(turn, skip):
+                    self._in_flight[provider] = self._in_flight.get(provider, 0) + 1
+                    try:
+                        if provider == "parallel":
+                            found = await self._parallel(session, cleaned, time_range, user_text)
+                        else:
+                            found = await getattr(self, f"_{provider}")(session, cleaned, time_range)
+                    except ProviderError as e:
+                        problems.append(f"{provider}: {e}")
+                        self._log(f"{provider} failed: {e}")
+                        turn["failed"].add(provider)
+                        # Tavily 432/433: plan limit reached. 402: payment needed (Exa: credit used up).
+                        if provider in METERED and e.status in (402, 432, 433):
+                            self._use_up(provider)
+                        # You.com: still refused after the retry means today's 100 are used up.
+                        if provider == "you" and e.status == 429:
+                            self._use_up("you")
+                        # Still rate-limited after the retry: skip Parallel for a while, in every chat.
+                        if provider == "parallel" and e.status == 429:
+                            self._parallel_pause_until = time.time() + self.valves.parallel_pause_minutes * 60
+                        continue
+                    except Exception as e:
+                        problems.append(f"{provider}: {type(e).__name__}")
+                        self._log(f"{provider} failed: {type(e).__name__}: {e}")
+                        turn["failed"].add(provider)
+                        continue
+                    finally:
+                        self._in_flight[provider] -= 1
+                    # Google redirect links become the page's real address; other links that can't be opened
+                    # (relative ones) are left out.
+                    for r in found or []:
+                        if GOOGLE_GOTO_RE.match(str(r.get("url") or "")):
+                            r["url"] = await self._resolve_google_goto(session, str(r["url"]))
+                    found = [r for r in (found or []) if re.match(r"https?://", str(r.get("url") or ""), re.I)]
+                    if found:
+                        results, used = found, provider
+                        break
+                    problems.append(f"{provider}: no results")
+            if results:
+                self._cache_put(cache_key, used, results)
+        self._log_search(turn, cleaned, results, used, problems, retry=bool(skip) or fresh)
+        return results, used, problems
+
+    async def plan_research(
+        self,
+        plan: str,
+        __metadata__: dict = None,
+        __event_emitter__=None,
+    ) -> str:
+        """
+        Write or update your research plan. Required before searching further once research takes several searches.
+        List the facts still needed for the user's answer, most decisive first, in a few short lines. Leave out what you already know.
+        Prefer the options most likely to fit the user's constraints; check unlikely or expensive ones only if searches remain.
+        :param plan: The facts still needed, most decisive first.
+        """
+        turn = self._turn(__metadata__)
+        text = " ".join((plan or "").split())[:600]
+        if not text:
+            return "The plan is empty. Write the facts still needed for the answer, most decisive first."
+        turn["plan"] = text
+        left = self.valves.max_searches - turn["searches"]
+        await self._status(__event_emitter__, "Research plan saved")
+        return f"Plan saved: {text}\nSearches left for this answer: {left}. Follow the plan in order."
+
+    async def web_search(
+        self,
+        query: str,
+        __messages__: list = None,
+        __metadata__: dict = None,
+        __event_emitter__=None,
+    ) -> str:
+        """
+        Search the web and get a list of results (title, URL, snippet).
+        Use a few specific keywords. Don't add years or months; recent results are chosen automatically.
+        Before searching again, check whether a result or page you already have answers the question.
+        There is a limit on searches per answer; when it is reached, answer with what you found.
+        Once research takes several searches, call plan_research before searching further.
+        :param query: The search keywords.
+        """
+        turn = self._turn(__metadata__)
+        user_text = self._last_user_text(__messages__)
+        cleaned = _strip_unasked_years(query, user_text)
+
+        if turn["down"]:
+            return SEARCH_DOWN.format(why=turn["down"])
+
+        if turn["searches"] >= self.valves.max_searches:
+            reads_left = self.valves.max_page_reads - turn["reads"]
+            return (
+                f"Search limit reached ({self.valves.max_searches} searches for this answer). Don't search again. "
+                + (
+                    f"You can still open {reads_left} pages with read_page: use URLs from results you already have. "
+                    if reads_left > 0
+                    else ""
+                )
+                + "Then answer with what you found, and say clearly what you couldn't find."
+                + self._plan_line(turn)
+            )
+
+        # A plan is needed once research gets long. Refused at most twice, so the tool can never get stuck.
+        if (
+            not turn["plan"]
+            and turn["plan_refusals"] < 2
+            and turn["searches"] >= self.valves.plan_after_searches
+        ):
+            turn["plan_refusals"] += 1
+            return (
+                "This search was not run, and it didn't count. First call the plan_research tool with the facts "
+                "still needed for the user's answer, most decisive first, in a few short lines. "
+                "Then repeat this search."
+            )
+
+        norm = " ".join(sorted(cleaned.lower().split()))
+        # A repeat means the results weren't useful: try once more on a different kind of service.
+        retry_skip = set()
+        if norm in turn["queries"]:
+            if norm in turn.setdefault("retried", set()):
+                return (
+                    "You already ran this search twice, the second time on a different search service. "
+                    "Use those results, or try different keywords."
+                )
+            retry_skip = self._retry_skip(turn.setdefault("answered", {}).get(norm, [])) or {"cache"}
+
+        for blocked in turn["blocked"]:
+            # "mercadolibre.com.co" also matches a query that just says "mercadolibre"
+            name = blocked.split(".")[0]
+            if blocked in cleaned.lower() or (len(name) >= 4 and name in cleaned.lower()):
+                return (
+                    f"{blocked} was blocked or failed to load earlier in this answer. "
+                    "Don't search for it again; use other sources, or say it was unavailable."
+                )
+
+        # Current-information questions without a year the user asked for: prefer recent pages.
+        wants_recent = wants_current_info(user_text) or wants_current_info(cleaned)
+        has_year = bool(YEAR_RE.search(cleaned))
+        time_range = self.valves.recent_time_range if wants_recent and not has_year else ""
+
+        await self._status(
+            __event_emitter__, f"Searching: {cleaned}" + (f" (past {time_range})" if time_range else "")
         )
 
-    async def _run_engine_search(self, session: aiohttp.ClientSession, query: str, config: SearchConfig,
-                                  max_results: int, freshness: str = None) -> SearchResponse:
-        """Run a search against a specific engine."""
+        results, used, problems = await self._search_chain(
+            cleaned, time_range, user_text, turn, skip=retry_skip, fresh=bool(retry_skip)
+        )
+        if retry_skip:
+            turn["retried"].add(norm)
+
+        if not results and retry_skip:
+            await self._status(__event_emitter__, "No other results", done=True)
+            return (
+                f'No other search service found anything for "{cleaned}". '
+                "Use the earlier results, or try different keywords."
+            )
+
+        if not results:
+            # An empty search doesn't use up the per-answer budget. Several in a row mean search is down.
+            turn["empty"] += 1
+            why = "; ".join(problems) or "no search service configured"
+            if turn["empty"] >= MAX_EMPTY_SEARCHES:
+                turn["down"] = f" ({why})"
+                await self._status(__event_emitter__, "Search unavailable", done=True)
+                return SEARCH_DOWN.format(why=turn["down"])
+            await self._status(__event_emitter__, "No results", done=True)
+            return (
+                f'No results for "{cleaned}" ({why}). '
+                "This search didn't count. Try once more with 2-4 simple keywords."
+            )
+
+        turn["empty"] = 0
+        turn["queries"].add(norm)
+        turn.setdefault("answered", {}).setdefault(norm, []).append(used)
+        turn["searches"] += 1
+
+        snippet_chars = self.valves.parallel_excerpt_chars if used.startswith(("parallel", "exa", "linkup")) else 300
+        no_snippets = all(not _clean(r.get("snippet")) for r in results)
+        lines, seen = [], set()
+        for r in results:
+            url = r.get("url", "")
+            if not url or url in seen:
+                continue
+            seen.add(url)
+            note = " (this site was blocked earlier; don't open it)" if _domain(url) in turn["blocked"] else ""
+            date = str(r.get("date") or "")
+            date = date[:10] if re.match(r"\d{4}-\d{2}-\d{2}", date) else date[:20]
+            date_note = f" [{date}]" if date else ""
+            lines.append(
+                f"{len(lines) + 1}. {_clean(r.get('title'))[:150]}{date_note}{note}\n   {url}\n   {_clean(r.get('snippet'))[:snippet_chars]}"
+            )
+            if len(lines) >= self.valves.results_per_search:
+                break
+
+        left = self.valves.max_searches - turn["searches"]
+        usage = self._usage()
+        await self._status(
+            __event_emitter__,
+            f"Search done via {used} ({left} left) · month: {self._usage_line(usage)}",
+            done=True,
+        )
+        no_date_filter = used.startswith(("browserbase", "hasdata"))
+        recent_note = f", from the past {time_range}" if time_range and not no_date_filter else ""
+        again = "; a different search service than your earlier search with these words" if retry_skip else ""
+        header = f'Results for "{cleaned}" (via {used}{recent_note}{again}; searches left for this answer: {left}):'
+        hint = "\n\n(These results have no snippets; open the most promising page with read_page.)" if no_snippets else ""
+        return header + "\n\n" + "\n".join(lines) + hint + self._footer(turn)
+
+    # ------------------------------------------------------------------ page reading
+
+    async def _read_local(self, url: str):
+        """Returns (text, problem, section starts). problem is empty when the page was read."""
         try:
-            if config.name == "brave":
-                return await self._search_brave(session, query, config, max_results, freshness)
-            elif config.name == "google":
-                return await self._search_google(session, query, config, max_results, freshness)
-            else:
-                return SearchResponse(error=f"Unknown engine: {config.name}", query=query)
+            from playwright.async_api import async_playwright
+
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                try:
+                    page = await browser.new_page()
+                    resp = await page.goto(
+                        url, wait_until="domcontentloaded", timeout=self.valves.page_timeout_seconds * 1000
+                    )
+                    status = resp.status if resp else None
+                    await page.wait_for_timeout(1500)  # let scripts fill the page
+                    try:
+                        await page.evaluate(SECTION_JS)
+                    except Exception:
+                        pass  # no section marks: a #fragment then falls back to finding its heading
+                    text = await page.inner_text("body")
+                finally:
+                    await browser.close()
         except Exception as e:
-            return SearchResponse(error=str(e), query=query)
+            return "", f"couldn't be loaded ({type(e).__name__})", {}
+        if status and status >= 400:
+            return "", f"returned an error (HTTP {status})", {}
+        text, anchors = _split_sections(text)
+        if len(text) < 200 or (len(text) < 1500 and looks_like_bot_check(text)):
+            return "", "returned an empty page or a bot check", {}
+        return text, "", anchors
 
-    async def _search_brave(self, session: aiohttp.ClientSession, query: str, config: SearchConfig,
-                             max_results: int, freshness: str = None) -> SearchResponse:
-        """Search using Brave Search API."""
-        params = {
-            'q': query,
-            'count': min(max_results, 20),
-        }
-        if freshness and freshness in BRAVE_FRESHNESS:
-            params['freshness'] = BRAVE_FRESHNESS[freshness]
+    def _parallel_extract_ok(self) -> bool:
+        return self.valves.use_parallel_extract and self._parallel_has(self._usage(), PARALLEL_EXTRACT_COST)
 
-        headers = {
-            'Authorization': f'Bearer {config.api_key}',
-            'Accept': 'application/json',
-        }
-
-        async with session.get('https://api.search.brave.com/res/v1/web/search', params=params, headers=headers) as resp:
-            if resp.status != 200:
-                return SearchResponse(error=f"Brave API error: {resp.status}", query=query)
-            data = await resp.json()
-
-        results = []
-        for item in data.get('web', {}).get('results', [])[:max_results]:
-            results.append(SearchResult(
-                title=html.unescape(item.get('title', '')),
-                url=item.get('url', ''),
-                snippet=html.unescape(item.get('description', '')),
-                source='brave'
-            ))
-
-        return SearchResponse(results=results, total=data.get('web', {}).get('total_results', 0), query=query)
-
-    async def _search_google(self, session: aiohttp.ClientSession, query: str, config: SearchConfig,
-                              max_results: int, freshness: str = None) -> SearchResponse:
-        """Search using a Google SERP API (e.g., SerpApi, Serper.dev)."""
-        if not config.api_key:
-            return SearchResponse(error="Google search requires an API key", query=query)
-
-        # Try SerpApi format first
-        params = {
-            'q': query,
-            'num': min(max_results, 20),
-            'hl': 'en',
-            'gl': 'us',
-        }
-        if freshness and freshness in GOOGLE_TBS:
-            params['tbs'] = f"qdr:{freshness[0]}"
-
-        headers = {
-            'Authorization': f'Bearer {config.api_key}',
-        }
-
-        async with session.get('https://serpapi.com/search', params=params, headers=headers) as resp:
-            if resp.status != 200:
-                return SearchResponse(error=f"SerpApi error: {resp.status}", query=query)
-            data = await resp.json()
-
-        results = []
-        organic_results = data.get('organic_results', [])
-        for item in organic_results[:max_results]:
-            url = self._resolve_google_goto(item.get('link', ''))
-            results.append(SearchResult(
-                title=html.unescape(item.get('title', '')),
-                url=url,
-                snippet=html.unescape(item.get('snippet', '')),
-                source='google'
-            ))
-
-        return SearchResponse(results=results, total=len(organic_results), query=query)
-
-    def get_usage_stats(self) -> dict:
-        """Get usage statistics for all engines."""
-        stats = {}
+    async def _read_parallel(self, url: str) -> str:
+        """Parallel Extract (renders JavaScript, reads PDFs). Returns the page text, or empty if it failed."""
+        if not self._parallel_extract_ok():
+            return ""
+        body = {"urls": [url], "advanced_settings": {"full_content": True}}
         try:
-            cursor = self._db_conn.cursor()
-            cursor.execute("SELECT engine, search_count, last_used FROM usage_stats ORDER BY search_count DESC")
-            for row in cursor.fetchall():
-                stats[row[0]] = {'searches': row[1], 'last_used': row[2]}
-        except sqlite3.Error:
-            pass
-        return stats
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
+                status, _, text = await self._request(
+                    session, "POST", "https://api.parallel.ai/v1/extract", json=body,
+                    headers={"x-api-key": self.valves.parallel_api_key},
+                )
+            if status == 402:
+                self._use_up("parallel")
+            if status == 429:  # still refused after the retry
+                self._parallel_pause_until = time.time() + self.valves.parallel_pause_minutes * 60
+            if status != 200:
+                self._log(f"parallel extract failed: HTTP {status} {text[:200]}")
+                return ""
+            data = json.loads(text)
+        except Exception as e:
+            self._log(f"parallel extract failed: {type(e).__name__}: {e}")
+            return ""
+        results = [r for r in (data.get("results") or []) if isinstance(r, dict)]
+        if results:  # billed per URL extracted
+            self._add_parallel(PARALLEL_EXTRACT_COST, "pages")
+        for r in results:
+            text = r.get("full_content") or "\n\n".join(str(e) for e in (r.get("excerpts") or []))
+            text = re.sub(r"\n\s*\n+", "\n\n", str(text)).strip()
+            if len(text) >= 200:
+                return text
+        return ""
 
-    def close(self):
-        """Close the database connection."""
-        if self._db_conn:
-            self._db_conn.close()
-            self._db_conn = None
+    async def _read_browserbase(self, url: str) -> str:
+        """Browserbase Fetch (plain HTTP, no JavaScript). Returns the page text, or empty if it failed."""
+        if not (self.valves.use_browserbase_fetch and self._has_credit("browserbase_fetch", self._usage())):
+            return ""
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=40)) as session:
+                status, _, text = await self._request(
+                    session, "POST", "https://api.browserbase.com/v1/fetch",
+                    json={"url": url, "allowRedirects": True},
+                    headers={"X-BB-API-Key": self.valves.browserbase_api_key},
+                )
+            if status == 402:
+                self._use_up("browserbase_fetch")
+            if status != 200:
+                self._log(f"browserbase fetch failed: HTTP {status}")
+                return ""
+            data = json.loads(text)
+        except Exception as e:
+            self._log(f"browserbase fetch failed: {type(e).__name__}: {e}")
+            return ""
+        self._add_usage("browserbase_fetch")
+        if (data.get("statusCode") or 200) >= 400:
+            return ""
+        content = str(data.get("content") or "")
+        if "html" in str(data.get("contentType") or "html").lower():
+            content = _html_to_text(content)
+        if len(content) < 200 or (len(content) < 1500 and looks_like_bot_check(content)):
+            return ""
+        return content
+
+    async def _read_tavily(self, url: str) -> str:
+        """Tavily Extract. Returns the page text, or empty if it failed."""
+        if not (self.valves.use_tavily_extract and self._has_credit("tavily", self._usage())):
+            return ""
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=40)) as session:
+                status, _, text = await self._request(
+                    session, "POST", "https://api.tavily.com/extract",
+                    json={"urls": [url], "extract_depth": "basic"},
+                    headers={"Authorization": f"Bearer {self.valves.tavily_api_key}"},
+                )
+            if status in (432, 433):
+                self._use_up("tavily")
+            if status != 200:
+                self._log(f"tavily extract failed: HTTP {status}")
+                return ""
+            data = json.loads(text)
+        except Exception as e:
+            self._log(f"tavily extract failed: {type(e).__name__}: {e}")
+            return ""
+        # Billed per 5 successful pages; counted as a whole credit to stay on the safe side.
+        self._add_usage("tavily")
+        for r in data.get("results", []):
+            text = re.sub(r"\n\s*\n+", "\n\n", str(r.get("raw_content") or "")).strip()
+            if len(text) >= 200:
+                return text
+        return ""
+
+    async def read_page(
+        self,
+        url: str,
+        part: int = 1,
+        __metadata__: dict = None,
+        __event_emitter__=None,
+    ) -> str:
+        """
+        Open a web page and return its text.
+        Only open URLs that appeared in search results or that the user gave you; don't make up URLs.
+        After reading, note the key facts you take from it in your answer.
+        If the page is blocked or empty, don't retry that site; use another source.
+        A long page comes in parts; the note at its end lists the page's sections. To read on, call again with part=2, 3...
+        To start at a section, add its #anchor to the URL (e.g. https://example.com/page#install).
+        :param url: The full URL of the page (starting with http:// or https://), optionally with a #section.
+        :param part: Which part of a long page: 1 (the start, or the #section's start), 2, 3...
+        """
+        turn = self._turn(__metadata__)
+        if not re.match(r"^https?://", url or ""):
+            return "Give a full URL starting with http:// or https://."
+        try:
+            part = max(1, int(part or 1))
+        except (TypeError, ValueError):
+            part = 1
+        page_url, fragment = urldefrag(url)
+        domain = _domain(url)
+
+        if domain in turn["blocked"]:
+            return f"{domain} was blocked or failed earlier in this answer. Don't retry it; use another source or say it was unavailable."
+        if turn["reads"] >= self.valves.max_page_reads:
+            return (
+                f"Page limit reached ({self.valves.max_page_reads} pages for this answer). "
+                "Answer now with what you have read."
+            )
+        is_pdf = bool(re.search(r"\.pdf(?:$|[?#])", url, re.I))
+        await self._refresh_real()
+        if is_pdf and not self._parallel_extract_ok():
+            return "This is a PDF, which this tool can't read. Look for an HTML version of the same document."
+
+        turn["reads"] += 1
+        where = f" (part {part})" if part > 1 else ""
+        await self._status(__event_emitter__, f"Reading: {url}{where}")
+
+        now = time.time()
+        self._pages = {k: v for k, v in self._pages.items() if now - v[0] < PAGE_CACHE_SECONDS}
+        cached = self._pages.get(page_url)
+        if cached:
+            await self._status(__event_emitter__, f"Read: {domain}{cached[3]} (kept from an earlier read)", done=True)
+            return await self._page_part(url, cached[1], cached[2], fragment, part, cached[3], __event_emitter__)
+
+        anchors = {}
+        if is_pdf:  # only Parallel Extract reads PDFs
+            text, problem = "", "is a PDF that couldn't be read"
+        else:
+            text, problem, anchors = await self._read_local(page_url)
+        via = ""
+        if problem and self._parallel_extract_ok():
+            await self._status(__event_emitter__, f"Trying Parallel Extract: {domain}")
+            text = await self._read_parallel(page_url)
+            via = " (fetched via Parallel)" if text else ""
+        if not text and problem and not is_pdf and self.valves.browserbase_api_key and self.valves.use_browserbase_fetch:
+            await self._status(__event_emitter__, f"Trying Browserbase Fetch: {domain}")
+            text = await self._read_browserbase(page_url)
+            via = " (fetched via Browserbase)" if text else ""
+        if not text and problem and not is_pdf and self.valves.tavily_api_key:
+            await self._status(__event_emitter__, f"Local browser failed; trying Tavily Extract: {domain}")
+            text = await self._read_tavily(page_url)
+            via = " (fetched via Tavily)" if text else ""
+
+        if not text:
+            turn["blocked"].add(domain)
+            await self._status(__event_emitter__, f"Blocked: {domain}", done=True)
+            return (
+                f"{domain} {problem or 'could not be read'}. Don't retry this site and don't guess what it says. "
+                "Use another source, or say it was unavailable."
+            )
+
+        if len(self._pages) >= PAGE_CACHE_ENTRIES:
+            self._pages.pop(min(self._pages, key=lambda k: self._pages[k][0]))
+        self._pages[page_url] = (now, text, anchors, via)
+        await self._status(__event_emitter__, f"Read: {domain}{via}", done=True)
+        return await self._page_part(url, text, anchors, fragment, part, via, __event_emitter__)
+
+    async def _page_part(self, url, text, anchors, fragment, part, via, emitter) -> str:
+        """The part of a page's text to return: from the #fragment's section (when given and found), cut into parts of
+        max_page_chars, with a note on what else there is."""
+        notes = []
+        start = 0
+        if fragment:
+            start = anchors.get(fragment, anchors.get(unquote(fragment), -1))
+            if start < 0:
+                start = _heading_offset(text, fragment)
+            if start < 0:
+                notes.append(f"Section #{fragment} wasn't found on this page; this is the start of the page.")
+                start = 0
+        body = text[start:]
+        size = max(1000, self.valves.max_page_chars)
+        starts = _parts(body, size)
+        total = len(starts)
+        if part > total:
+            return (f"Page: {url}{via}\n\nThis page has only {total} part{'s' if total != 1 else ''}"
+                    f"{' from that section' if start else ''}; part {part} doesn't exist.")
+        a = starts[part - 1]
+        b = starts[part] if part < total else len(body)
+        chunk = body[a:b]
+        if total > 1:
+            where = f" from section #{fragment}" if start else ""
+            notes.append(f"Part {part} of {total}{where} (characters {start + a + 1:,}-{start + b:,} of {len(text):,})."
+                         + (f" For the next part, call read_page again with the same URL and part={part + 1}."
+                            if part < total else " This is the last part."))
+        if anchors and (total > 1 or (fragment and not start)):
+            later = [k for k, v in sorted(anchors.items(), key=lambda kv: kv[1]) if v >= start + b]
+            listed, length = [], 0
+            for k in later:
+                if length + len(k) + 2 > 1500:
+                    listed.append("...")
+                    break
+                listed.append("#" + k)
+                length += len(k) + 2
+            if listed:
+                notes.append("Sections after this part (add one to the URL to start there): " + " ".join(listed))
+        await self._cite(emitter, url, chunk)
+        note = ("\n\n[" + " ".join(notes) + "]") if notes else ""
+        label = f" (part {part} of {total})" if total > 1 else ""
+        return f"Page: {url}{via}{label}\n\n{chunk}{note}"
