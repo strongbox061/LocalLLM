@@ -151,9 +151,12 @@ function politeClose(daemon: BrowserProcess): Promise<void> {
   // Without its socket, `close` would start a new daemon instead of failing.
   if (!socketDir || !fs.existsSync(path.join(socketDir, `${session}.sock`))) return Promise.resolve();
   const env = { ...process.env, AGENT_BROWSER_SOCKET_DIR: socketDir };
-  return new Promise((resolve) => {
-    execFile(BIN, ["--session", session, "close"], { timeout: 10000, env }, () => resolve());
-  });
+  return Promise.race([
+    new Promise<void>((resolve) => {
+      execFile(BIN, ["--session", session, "close"], { timeout: 10000, env }, () => resolve());
+    }),
+    new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+  ]).catch(() => {});
 }
 
 export default function (pi: any) {
