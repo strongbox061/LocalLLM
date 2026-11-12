@@ -4,35 +4,16 @@
 # rewritten. In split mode (LOCALLLM_MODE in local.env) llama-server asks for an API key, since the helper PC reaches
 # it over Tailscale: Pi gets the key from ~/.config/localllm/llama-api-key (then models.json is made yours only).
 # Run by install/pi.sh and by ./localllm.sh switch.
-
 set -euo pipefail
 
-mkdir -p "$PI_AGENT_DIR"
+source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
+source "$REPO_DIR/lib/model.sh"
+load_model_profile || exit 1
 MODELS_JSON="$PI_AGENT_DIR/models.json"
-MODEL_ALIAS="local"
-MODEL_NAME="${MODEL_NAME:-Qwen3-30B-A3B-Instruct-2507}"
-CTX_PER_SLOT=128
-MAX_TOKENS=4096
-
-# Load model profile if available
-if [[ -f "${PI_AGENT_DIR}/lib/model.sh" ]]; then
-    source "${PI_AGENT_DIR}/lib/model.sh"
-fi
-
-CONTEXT=$((CTX_PER_SLOT - MAX_TOKENS))
-
-# Read API key for split mode
-API_KEY=""
-if [[ -n "${LOCALLLM_MODE:-}" ]] && [[ -f "$HOME/.config/localllm/llama-api-key" ]]; then
-    API_KEY="$(cat "$HOME/.config/localllm/llama-api-key")"
-fi
-
-# Generate models.json using embedded Python
-# Generate models.json using embedded Python (heredoc to avoid quoting issues)
-MODEL_ID="$MODEL_ALIAS" MODEL_NAME="$MODEL_NAME" CONTEXT="$CONTEXT" MAX_TOKENS="$MAX_TOKENS" \
-    API_KEY="$API_KEY" python3 - "$MODELS_JSON" <<'EOF_PY'
+mkdir -p "$PI_AGENT_DIR"
+MODEL_ID="$MODEL_ALIAS" MODEL_NAME="$MODEL_NAME" CONTEXT=$((CTX_PER_SLOT - MAX_TOKENS)) MAX_TOKENS="$MAX_TOKENS" \
+    LLAMA_URL="$LLAMA_URL" API_KEY="$(llama_api_key_for_clients)" python3 - "$MODELS_JSON" <<'EOF_PY'
 import json, os, sys
-
 path = sys.argv[1]
 try:
     with open(path) as f:
@@ -40,15 +21,21 @@ try:
 except FileNotFoundError:
     data = {"$schema": "https://pi.dev/schemas/models.schema.json"}
 provider = data.setdefault("providers", {}).setdefault("llamacpp", {})
-key = os.environ.get("API_KEY", "")
-if key:
-    provider["apiKey"] = key
-provider.update({"baseUrl": os.environ["LLAMA_URL"] + "/v1"})
+key = os.environ["API_KEY"]
+before = dict(provider)
+provider.update({"baseUrl": os.environ["LLAMA_URL"] + "/v1", "api": "openai-completions", "apiKey": key})
 models = [{"id": os.environ["MODEL_ID"], "name": os.environ["MODEL_NAME"],
            "contextWindow": int(os.environ["CONTEXT"]), "maxTokens": int(os.environ["MAX_TOKENS"])}]
-provider["models"] = models
-with open(path, "w") as f:
-    json.dump(data, f, indent=2)
-    f.write("\n")
-print(f"Wrote {path} (model {os.environ['MODEL_ID']}: {os.environ['MODEL_NAME']})")
+if provider.get("models") == models and before == provider and os.path.exists(path):
+    print(f"{path} is up to date.")
+else:
+    provider["models"] = models
+    # The API key (split mode) is yours only; "none" (single mode) isn't a secret.
+    with open(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600 if key != "none" else 0o644), "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+    if key != "none":
+        os.chmod(path, 0o600)
+    print(f"Wrote {path} (model {os.environ['MODEL_ID']}: {os.environ['MODEL_NAME']}"
+          f"{', with the API key' if key != 'none' else ''})")
 EOF_PY
