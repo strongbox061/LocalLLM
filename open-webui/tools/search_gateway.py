@@ -75,6 +75,7 @@ class Tools:
         """
         Write or update your research plan. Required before searching further once research takes several searches.
         List the facts still needed for the user's answer, most decisive first, in a few short lines. Leave out what you already know.
+        Prefer the options most likely to fit the user's constraints; check unlikely or expensive ones only if searches remain.
         :param plan: The facts still needed, most decisive first.
         """
         return await self._call("plan_research", {"plan": plan}, __metadata__, __event_emitter__)
@@ -94,8 +95,6 @@ class Tools:
         Once research takes several searches, call plan_research before searching further.
         :param query: The search keywords.
         """
-        if not query or not query.strip():
-            return "No search query provided. Please enter your search keywords."
         status = f"Searching: {query}"
         if __event_emitter__:
             await __event_emitter__({"type": "status", "data": {"description": status, "done": False}})
