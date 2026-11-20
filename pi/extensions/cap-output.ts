@@ -94,93 +94,123 @@ function expand(p: string, cwd: string): string {
   return path.resolve(cwd || process.cwd(), e);
 }
 
+// Why read should not run on this file, or undefined for text, images and files that can't be opened (read then
+// reports those itself).
 export function binaryReason(shown: string, file: string): string | undefined {
-  if (shown.includes("[binary") || shown.includes("[...")) {
-    return `Full content saved to ${file}`;
-  }
-  return undefined;
+  let head: Buffer, size: number;
+  try {
+    const fd = fs.openSync(file, "r");
+    try {
+      size = fs.fstatSync(fd).size;
+      head = Buffer.alloc(Math.min(8192, size));
+      fs.readSync(fd, head, 0, head.length, 0);
+    } finally { fs.closeSync(fd); }
+  } catch { return undefined; }
+  const latin = head.toString("latin1");
+  if (IMAGE_MAGIC.some((re) => re.test(latin))) return undefined;
+  if (!head.includes(0)) return undefined;
+  const [kind, how] = kindOf(latin);
+  const mb = size >= 1048576 ? `${(size / 1048576).toFixed(1)} MB` : `${size.toLocaleString("en")} bytes`;
+  return `${shown} is ${kind} (${mb}), not text: read would only show its bytes. ` +
+    `Look inside with bash instead: ${how.replace(/FILE/g, JSON.stringify(shown))}. Or describe it from its name, size and location.`;
 }
 
 export function capFor(contextWindow: unknown): number {
-  const win = typeof contextWindow === "number" && contextWindow > 0
-    ? contextWindow
-    : DEFAULT_WINDOW;
-  return Math.max(MIN_CAP, Math.floor(win * SHARE_OF_WINDOW));
+  const w = typeof contextWindow === "number" && contextWindow > 0 ? contextWindow : DEFAULT_WINDOW;
+  return Math.max(MIN_CAP, Math.floor(w * SHARE_OF_WINDOW));
 }
 
 function saveFull(text: string, tool: string): string | undefined {
   try {
     const dir = path.join(os.tmpdir(), "pi-cap-output");
     fs.mkdirSync(dir, { recursive: true });
-    const safeTool = tool.replace(/[^a-zA-Z0-9_-]/g, "_");
-    const filePath = path.join(dir, `${safeTool}-${Date.now()}.txt`);
-    fs.writeFileSync(filePath, text);
-    return filePath;
+    const file = path.join(dir, `${tool.replace(/[^\w-]/g, "_")}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.txt`);
+    fs.writeFileSync(file, text);
+    return file;
   } catch {
     return undefined;
   }
 }
 
-export function capText(
-  tool: string,
-  input: any,
-  text: string,
-  cap: number,
-  save = saveFull,
-): string | undefined {
+// Returns the text the model should see, or undefined when it fits.
+export function capText(tool: string, input: any, text: string, cap: number, save = saveFull): string | undefined {
   if (text.length <= cap) return undefined;
+  const file = save(text, tool);
+  const where = file ? ` Full text: ${file}` : "";
+  const cut = text.length;
 
-  const savedPath = save(text, tool);
-  const hint = savedPath ? ` Full text saved to: ${savedPath}` : "";
-
-  // bash: keep start and end
-  if (tool === "bash") {
-    const keepStart = Math.floor(cap * 0.25);
-    const kept = text.slice(0, keepStart) + "\n\n[... truncated ...]\n\n" + text.slice(-Math.floor(cap * 0.75));
-    return `${kept}\n\n${CODEMODE_HINT}${hint}`;
+  if (tool === "read") {
+    let head = text.slice(0, cap);
+    const nl = head.lastIndexOf("\n");
+    if (nl > cap / 2) head = head.slice(0, nl);
+    // Pi's read ends a partial result with "[... Use offset=N to continue.]"; drop that line from the kept start.
+    head = head.replace(/\n*\[[^\]]*Use offset=\d+ to continue[^\]]*\]\s*$/, "");
+    const lines = head.split("\n").length;
+    const next = (Number(input?.offset) > 0 ? Number(input.offset) : 1) + lines;
+    return `${head}\n\n[Cut to ${head.length} of ${cut} characters to keep the context small.${where} ` +
+      `Read on with a smaller limit, or search the file with rg first. Use offset=${next} to continue.]`;
   }
 
-  // read: keep start at line boundary, drop Pi's partial-result marker if present
-  let head = text.slice(0, cap);
-  const nl = head.lastIndexOf("\n");
-  if (nl > cap / 2) head = head.slice(0, nl);
-  head = head.replace(/\n*\[[^\]]*Use offset=\d+ to continue[^\]]*\]\s*$/, "");
-  const lines = head.split("\n").length;
-  const next = (Number(input?.offset) > 0 ? Number(input.offset) : 1) + lines;
-  return `${head}\n\n[Cut to ${head.length} of ${text.length} characters to keep the context small.${hint} Read on with a smaller limit, or search the file with rg first. Use offset=${next} to continue.]`;
+  const headShare = tool === "bash" ? 0.25 : 0.75;
+  const headLen = Math.floor(cap * headShare);
+  const tailLen = cap - headLen;
+  const head = text.slice(0, headLen);
+  const tail = text.slice(cut - tailLen);
+  const hint = tool === "bash"
+    ? "Narrow the command instead (head, tail, grep, rg -l, wc -l, ! -path '*/.git/*'), or filter it in a codemode script."
+    : "Ask for less, or filter the result in a codemode script.";
+  return `${head}\n\n[... ${cut - headLen - tailLen} of ${cut} characters cut to keep the context small.${where} ${hint}]\n\n${tail}`;
 }
 
 export default function (pi: any) {
-  const windowTokenCount = pi?.config?.contextWindow || DEFAULT_WINDOW;
-  const cap = capFor(windowTokenCount);
+  pi.on("tool_call", (event: any, ctx: any) => {
+    if (event?.toolName !== "read") return;
+    const p = event.input?.path ?? event.input?.file_path;
+    if (typeof p !== "string" || !p) return;
+    const reason = binaryReason(p, expand(p, ctx?.cwd));
+    if (reason) return { block: true, reason };
+  });
 
-  // Wrap bash tool
-  if (pi?.tools?.bash) {
-    const originalBash = pi.tools.bash;
-    pi.tools.bash = async function (args: any) {
-      const result = await originalBash(args);
-      if (result.output && typeof result.output === "string") {
-        const capped = capText("bash", args, result.output, cap);
-        if (capped) {
-          result.output = capped;
-        }
-      }
-      return result;
-    };
-  }
+  pi.on("tool_result", (event: any, ctx: any) => {
+    const tool = String(event?.toolName ?? "");
+    const parts: any[] = Array.isArray(event?.content) ? event.content : [];
+    const texts = parts.filter((p) => p?.type === "text" && typeof p.text === "string");
 
-  // Wrap read tool
-  if (pi?.tools?.read) {
-    const originalRead = pi.tools.read;
-    pi.tools.read = async function (args: any) {
-      const result = await originalRead(args);
-      if (result.content && typeof result.content === "string") {
-        const capped = capText("read", args, result.content, cap);
-        if (capped) {
-          result.content = capped;
-        }
+    // bash, also inside codemode scripts (which get structuredContent.output, not the text).
+    let structured = event?.structuredContent;
+    let binaryOut: string | undefined;
+    if (tool === "bash") {
+      if (typeof structured?.output === "string") {
+        const o = collapseBinary(structured.output);
+        if (o !== undefined) structured = { ...structured, output: o };
       }
-      return result;
-    };
-  }
+      if (texts.length) binaryOut = collapseBinary(texts.map((p) => p.text).join("\n"));
+    }
+
+    if (event?.parentToolCallId) {
+      if (structured === event?.structuredContent && binaryOut === undefined) return;
+      const others = parts.filter((p) => !texts.includes(p));
+      return {
+        content: binaryOut === undefined ? parts : [{ type: "text", text: binaryOut }, ...others],
+        ...(structured !== undefined ? { structuredContent: structured } : {}),
+      };
+    }
+    if (!texts.length) return;
+
+    let text = binaryOut ?? texts.map((p) => p.text).join("\n");
+    let changed = binaryOut !== undefined;
+
+    if (tool === "codemode" && /Script failed/.test(text) && NODE_API_RE.test(text)) {
+      text += CODEMODE_HINT;
+      changed = true;
+    }
+
+    const capped = capText(tool, event.input, text, capFor(ctx?.model?.contextWindow));
+    if (capped !== undefined) { text = capped; changed = true; }
+    if (!changed) return;
+
+    // Images (read of a picture, codemode's image()) stay; the text parts become one.
+    const others = parts.filter((p) => !texts.includes(p));
+    return { content: [{ type: "text", text }, ...others] };
+  });
 }
