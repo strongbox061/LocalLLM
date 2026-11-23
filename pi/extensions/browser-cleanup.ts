@@ -151,12 +151,9 @@ function politeClose(daemon: BrowserProcess): Promise<void> {
   // Without its socket, `close` would start a new daemon instead of failing.
   if (!socketDir || !fs.existsSync(path.join(socketDir, `${session}.sock`))) return Promise.resolve();
   const env = { ...process.env, AGENT_BROWSER_SOCKET_DIR: socketDir };
-  return Promise.race([
-    new Promise<void>((resolve) => {
-      execFile(BIN, ["--session", session, "close"], { timeout: 10000, env }, () => resolve());
-    }),
-    new Promise<void>((resolve) => setTimeout(resolve, 5000)),
-  ]).catch(() => {});
+  return new Promise((resolve) => {
+    execFile(BIN, ["--session", session, "close"], { timeout: 10000, env }, () => resolve());
+  });
 }
 
 export default function (pi: any) {
@@ -166,27 +163,37 @@ export default function (pi: any) {
   const names = new Set<string>(); // managed sessions seen in results
   let usedThisPrompt = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let pending: Promise<void> = Promise.resolve();
 
-  const close = async (why: string) => {
+  const closeNow = async (why: string) => {
     const found = findOwned(owner, names);
     if (!found.length) { names.clear(); return; }
     const pids = found.map((p) => p.pid);
-
-    for (const daemon of found.filter((p) => p.env.has("AGENT_BROWSER_DAEMON"))) {
-      await politeClose(daemon);
-    }
-
+    await Promise.all(found.filter((p) => p.env.has("AGENT_BROWSER_DAEMON")).map(politeClose));
     let alive = await waitGone(pids, 3000);
+    // Anything that appeared during the close counts too.
+    alive = [...new Set([...alive, ...findOwned(owner, names).map((p) => p.pid)])];
     names.clear();
-    if (alive.length > 0) {
+    let method = "close";
+    if (alive.length) {
+      method = "TERM";
       signal(alive, "SIGTERM");
       alive = await waitGone(alive, 2000);
     }
-    if (alive.length > 0) {
+    if (alive.length) {
+      method = "KILL";
       signal(alive, "SIGKILL");
       alive = await waitGone(alive, 2000);
     }
-    log(`${why}: ${pids.length} processes, still running=${alive.length}`);
+    log(`${why}: ${pids.length} processes, method=${method}, still running=${alive.length}`);
+  };
+
+  // One at a time, so an exit during a close waits for it. Never rejects: a
+  // cleanup problem must not break Pi.
+  const close = (why: string): Promise<void> => {
+    if (timer) { clearTimeout(timer); timer = undefined; }
+    pending = pending.then(() => closeNow(why)).catch((err) => log(`${why}: ${err}`));
+    return pending;
   };
 
   pi.on("tool_result", (event: any) => {
@@ -197,6 +204,7 @@ export default function (pi: any) {
     if (timer) { clearTimeout(timer); timer = undefined; } // browser is in use again
   });
 
+  // Fires when Pi has finished its answer to your message.
   pi.on("agent_end", async () => {
     if (!usedThisPrompt) return;
     usedThisPrompt = false;
